@@ -1398,14 +1398,44 @@
 
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+    // Session-scoped in-memory caches (cleared on full page reload)
+    const resolveCache = new Map();
+    const verifyCache = new Map();
+    const enrichCache = new Map();
+    const ENRICH_CONCURRENCY = 6;
+
+    function makeResolveCacheKey(companyName, financeFilterActive, skippedDomains, personContext) {
+      return JSON.stringify({
+        c: String(companyName || '').trim().toLowerCase(),
+        f: !!financeFilterActive,
+        s: (skippedDomains || []).slice().sort().join(','),
+        // Only include person context when company is ambiguous — matches runtime skip logic
+        p: personContext?.personName || '',
+        t: personContext?.personTitle || ''
+      });
+    }
+
+    function makeVerifyCacheKey(domain, companyName) {
+      return `${String(domain || '').toLowerCase()}|${String(companyName || '').trim().toLowerCase()}`;
+    }
+
     // Title keywords used to split "Name – Title" person segments
     const TITLE_PATTERN = /\b(CEO|CFO|CTO|CIO|COO|CMO|CRO|VVP|EVP|SVP|VP|Managing Director|Chief Investment Officer|Chief Executive Officer|Chief Operating Officer|Chief Financial Officer|Chief Technology Officer|Investment Principal|Managing Partner|General Partner|Limited Partner|Founding Partner|Co-Founder|Cofounder|Founder|President|Partner|Director|Principal|Head of|Board Member|Private Equity|Public Policy)\b/i;
 
     const KNOWN_UNAMBIGUOUS = new Set([
       'pimco', 'blackstone', 'blackrock', 'google', 'microsoft', 'apple', 'amazon', 'meta',
       'goldmansachs', 'kkr', 'apollo', 'carlyle', 'bridgewater', 'stripe', 'openai', 'netflix',
-      'tesla', 'jpmorgan', 'morganstanley', 'vanguard', 'fidelity', 'state street', 'statestreet'
+      'tesla', 'jpmorgan', 'morganstanley', 'vanguard', 'fidelity', 'statestreet', 'impactuspartners',
+      'caraadvisory', 'navfundservices'
     ]);
+
+    function companyKeyNorm(name) {
+      return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    function isKnownUnambiguousCompany(name) {
+      return KNOWN_UNAMBIGUOUS.has(companyKeyNorm(name));
+    }
 
     /**
      * Parse a pasted line that may mix "Person – Title" with a company name.
@@ -1577,17 +1607,31 @@
     }
 
     async function resolveDomain(companyName, financeFilterActive = false, skippedDomains = [], personContext = null) {
-      const latency = Math.floor(Math.random() * 200) + 300;
-      await delay(latency);
+      // Fast path / unambiguous companies: never spend person-context search budget
+      const skipPerson = isKnownUnambiguousCompany(companyName) || !isAmbiguousCompanyName(companyName);
+      const effectivePerson = skipPerson ? null : personContext;
 
+      const cacheKey = makeResolveCacheKey(companyName, financeFilterActive, skippedDomains, effectivePerson);
+      if (resolveCache.has(cacheKey)) {
+        const cached = resolveCache.get(cacheKey);
+        console.log('[resolve] CACHE HIT', companyName, '->', cached?.domain || null);
+        return cached ? { ...cached, fromCache: true } : null;
+      }
+
+      const store = (result) => {
+        resolveCache.set(cacheKey, result);
+        return result;
+      };
+
+      // No artificial latency on the hot path — real network time is enough
       if (!companyName || companyName.trim().length < 2) {
-        return null;
+        return store(null);
       }
 
       // Internal labels / non-entity rows — skip search entirely
       if (isNonEntityCompany(companyName) || /\(\s*moderator\s*\)/i.test(companyName)) {
         console.log('[resolve] skipping non-entity label:', companyName);
-        return null;
+        return store(null);
       }
 
       // Check if we are running from a local server to execute real-time backend scrapers
@@ -1632,13 +1676,15 @@
       if (companyDictionary[rawKey]) {
         const d = companyDictionary[rawKey].domain.toLowerCase();
         if (!skippedDomains.includes(d)) {
-          return { domain: d, isUnsure: false, industrySnippet: companyDictionary[rawKey].industry, resolveMethod: 'name-only' };
+          console.log('[resolve] FAST PATH dictionary', companyName, '->', d);
+          return store({ domain: d, isUnsure: false, industrySnippet: companyDictionary[rawKey].industry, resolveMethod: 'name-only', fastPath: true });
         }
       }
       if (companyDictionary[localClean]) {
         const d = companyDictionary[localClean].domain.toLowerCase();
         if (!skippedDomains.includes(d)) {
-          return { domain: d, isUnsure: false, industrySnippet: companyDictionary[localClean].industry, resolveMethod: 'name-only' };
+          console.log('[resolve] FAST PATH dictionary', companyName, '->', d);
+          return store({ domain: d, isUnsure: false, industrySnippet: companyDictionary[localClean].industry, resolveMethod: 'name-only', fastPath: true });
         }
       }
       for (const key in companyDictionary) {
@@ -1647,7 +1693,8 @@
         if ((localClean === keyNorm || rawKey === key || localClean.includes(keyNorm) || keyNorm.includes(localClean)) && !skippedDomains.includes(d)) {
           // Avoid ultra-short accidental partials
           if (Math.min(localClean.length, keyNorm.length) < 4 && localClean !== keyNorm) continue;
-          return { domain: d, isUnsure: false, industrySnippet: companyDictionary[key].industry, resolveMethod: personContext?.personName ? 'name+person' : 'name-only' };
+          console.log('[resolve] FAST PATH dictionary fuzzy', companyName, '->', d);
+          return store({ domain: d, isUnsure: false, industrySnippet: companyDictionary[key].industry, resolveMethod: 'name-only', fastPath: true });
         }
       }
 
@@ -1850,12 +1897,12 @@
         const nameOnlyQueries = [searchQuery, baseCleaned || companyName, companyName];
         let nameHit = await tryClearbitQueries(nameOnlyQueries, baseCleaned || companyName, 'name-only');
 
-        const usePerson = personContext && (personContext.personName || personContext.personTitle)
+        const usePerson = effectivePerson && (effectivePerson.personName || effectivePerson.personTitle)
           && (isAmbiguousCompanyName(companyName) || (nameHit && nameHit.isUnsure) || !nameHit);
 
         if (usePerson) {
-          const pName = personContext.personName || '';
-          const pTitle = personContext.personTitle || '';
+          const pName = effectivePerson.personName || '';
+          const pTitle = effectivePerson.personTitle || '';
           const personQueries = [
             `${companyName} ${pName}`.trim(),
             `${pName} ${pTitle} ${companyName}`.trim(),
@@ -1866,15 +1913,18 @@
           console.log('[resolve] person-context search for', companyName, '→', personQueries[0]);
           const personHit = await tryClearbitQueries(personQueries, baseCleaned || companyName, 'name+person');
           if (personHit && (!personHit.isUnsure || !nameHit || nameHit.isUnsure)) {
-            return {
+            return store({
               ...personHit,
               resolveMethod: 'name+person',
               industrySnippet: `${personHit.industrySnippet || personHit.matchedName || companyName}${pName ? ' · via ' + pName : ''}`
-            };
+            });
           }
         }
 
-        if (nameHit) return nameHit;
+        if (nameHit) {
+          const fast = isKnownUnambiguousCompany(companyName) || (!nameHit.isUnsure && !isAmbiguousCompanyName(companyName));
+          return store({ ...nameHit, fastPath: !!fast });
+        }
       } catch (err) {
         console.warn("Clearbit suggest query failed, continuing waterfall:", err);
       }
@@ -1915,13 +1965,14 @@
           if (!item && json.AbstractURL) {
             const absDom = extractUrlDomain(json.AbstractURL);
             if (absDom && absDom.includes('.') && !absDom.includes('wikipedia.org')) {
-              return {
+              return store({
                 domain: absDom,
                 isUnsure: false,
                 matchedName: json.Heading || companyName,
                 industrySnippet: (json.Heading || companyName) + (json.AbstractText ? ` — ${json.AbstractText.slice(0, 80)}` : ''),
-                alternatives: []
-              };
+                alternatives: [],
+                resolveMethod: 'name-only'
+              });
             }
           }
         }
@@ -1930,13 +1981,14 @@
           const domain = extractUrlDomain(item.value);
           if (domain && domain.includes('.')) {
             const snippet = (json.Heading || baseCleaned) + (json.AbstractText ? ` — ${json.AbstractText.slice(0, 80)}` : '');
-            return {
+            return store({
               domain,
               isUnsure: false,
               matchedName: json.Heading || companyName,
               industrySnippet: snippet,
-              alternatives: []
-            };
+              alternatives: [],
+              resolveMethod: 'name-only'
+            });
           }
         }
       } catch (err) {
@@ -1945,18 +1997,18 @@
 
       // Waterfall Tier 3: Local Dictionaries
       if (companyDictionary[localClean]) {
-        return { domain: companyDictionary[localClean].domain, isUnsure: false, industrySnippet: companyDictionary[localClean].industry };
+        return store({ domain: companyDictionary[localClean].domain, isUnsure: false, industrySnippet: companyDictionary[localClean].industry, resolveMethod: 'name-only', fastPath: true });
       }
 
       for (const key in companyDictionary) {
         if (localClean.includes(key) || key.includes(localClean)) {
-          return { domain: companyDictionary[key].domain, isUnsure: false, industrySnippet: companyDictionary[key].industry };
+          return store({ domain: companyDictionary[key].domain, isUnsure: false, industrySnippet: companyDictionary[key].industry, resolveMethod: 'name-only', fastPath: true });
         }
       }
 
       // Block unverified test keys — and never invent domains (hallucination risk)
       if (["test", "asdf", "company", "xyz", "hello", "unknown"].includes(localClean)) {
-        return null;
+        return store(null);
       }
 
       // Waterfall Tier 4: Wikipedia / Wikimedia for orgs, foundations, universities, government
@@ -2013,13 +2065,14 @@
 
           if (domain && domain.includes('.') && !domain.includes('wikipedia.org')) {
             console.log('[resolve] Wikipedia/Wikidata official site', companyName, '->', domain, '(via', wq, ')');
-            return {
+            return store({
               domain,
               isUnsure: false,
               matchedName: wikiTitle,
               industrySnippet: `${wikiTitle}${description ? ' · ' + description : ''}`,
-              alternatives: titles.slice(0, 3)
-            };
+              alternatives: titles.slice(0, 3),
+              resolveMethod: 'name-only'
+            });
           }
         }
       } catch (err) {
@@ -2027,17 +2080,21 @@
       }
 
       // No confident search hit — do not algorithmically guess a URL
-      return null;
+      return store(null);
     }
 
     async function enrichCompanyDetails(domain, originalName, apiData = null) {
-      const latency = Math.floor(Math.random() * 400) + 400;
-      await delay(latency);
+      const enrichKey = `${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
+      if (enrichCache.has(enrichKey)) {
+        console.log('[enrich] CACHE HIT', domain);
+        return { ...enrichCache.get(enrichKey), fromCache: true };
+      }
 
+      // Skip artificial latency — dictionary/heuristic returns are already instant
       const cleaned = cleanName(originalName);
 
       if (apiData) {
-        return {
+        const result = {
           industry: apiData.industry || "Technology",
           headcount: apiData.headcount || "11 - 50",
           location: apiData.location || "San Francisco, CA",
@@ -2045,6 +2102,8 @@
           contacts: apiData.founder || "Needs Manual Research",
           gender: apiData.gender || "Needs Verification"
         };
+        enrichCache.set(enrichKey, result);
+        return result;
       }
 
       const getContactAndGender = (compName) => {
@@ -2092,7 +2151,7 @@
       if (companyDictionary[cleaned]) {
         const entry = companyDictionary[cleaned];
         const contactInfo = getContactAndGender(cleaned);
-        return {
+        const result = {
           industry: entry.industry,
           headcount: entry.headcount,
           location: entry.location,
@@ -2100,13 +2159,15 @@
           contacts: entry.founder || contactInfo.name,
           gender: entry.gender || contactInfo.gender
         };
+        enrichCache.set(enrichKey, result);
+        return result;
       }
 
       for (const key in companyDictionary) {
         if (cleaned.includes(key) || key.includes(cleaned)) {
           const entry = companyDictionary[key];
           const contactInfo = getContactAndGender(key);
-          return {
+          const result = {
             industry: entry.industry,
             headcount: entry.headcount,
             location: entry.location,
@@ -2114,6 +2175,8 @@
             contacts: entry.founder || contactInfo.name,
             gender: entry.gender || contactInfo.gender
           };
+          enrichCache.set(enrichKey, result);
+          return result;
         }
       }
 
@@ -2182,7 +2245,7 @@
       }
 
       const contactInfo = getContactAndGender(originalName);
-      return {
+      const result = {
         industry,
         headcount,
         location,
@@ -2190,6 +2253,8 @@
         contacts: contactInfo.name,
         gender: contactInfo.gender
       };
+      enrichCache.set(enrichKey, result);
+      return result;
     }
 
     // --- CUSTOM SVG ICON COMPONENTS ---
@@ -2316,8 +2381,11 @@
       const [rows, setRows] = useState([]);
       const [inputText, setInputText] = useState('');
       const [queue, setQueue] = useState([]);
-      const [processingId, setProcessingId] = useState(null);
+      const [activeIds, setActiveIds] = useState([]);
+      const inFlightRef = useRef(new Set());
+      const rowsRef = useRef(rows);
       const [isProcessingActive, setIsProcessingActive] = useState(false);
+      const batchStartedAtRef = useRef(null);
       const [latencySpeed, setLatencySpeed] = useState('normal'); 
       const [showSettings, setShowSettings] = useState(false);
       const [financeFilterActive, setFinanceFilterActive] = useState(true);
@@ -2490,22 +2558,34 @@
 
       // Live link verification: DNS + optional content, with proxy fallbacks.
       // Strong domain↔name match + DNS success is enough — do not fail solely because proxies are down.
-      const verifyDomainLive = async (domain, companyName) => {
+      const verifyDomainLive = async (domain, companyName, options = {}) => {
         const log = (...args) => console.log('[verify]', domain, ...args);
         const cleanDom = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].trim();
         const cleanComp = String(companyName || '').toLowerCase().trim();
+        const cacheKey = makeVerifyCacheKey(cleanDom, cleanComp);
+
+        if (verifyCache.has(cacheKey)) {
+          const cached = verifyCache.get(cacheKey);
+          log('CACHE HIT', cached.ok ? 'OK' : 'FAIL', cached.reason);
+          return { ...cached, fromCache: true };
+        }
+
+        const storeVerify = (result) => {
+          verifyCache.set(cacheKey, result);
+          return result;
+        };
 
         if (!cleanDom || !cleanDom.includes('.')) {
           log('FAIL invalid domain');
-          return { ok: false, reason: 'Invalid domain' };
+          return storeVerify({ ok: false, reason: 'Invalid domain' });
         }
         if (/\b(unknown|random|test|asdf)\b/.test(cleanComp)) {
           log('FAIL placeholder name');
-          return { ok: false, reason: 'Placeholder company name' };
+          return storeVerify({ ok: false, reason: 'Placeholder company name' });
         }
         if (cleanDom.includes('invalid-link.fake') || cleanDom.includes('asdf')) {
           log('FAIL blocked domain');
-          return { ok: false, reason: 'Blocked domain' };
+          return storeVerify({ ok: false, reason: 'Blocked domain' });
         }
 
         const stripLegal = (s) => s
@@ -2539,7 +2619,7 @@
           return false;
         })();
 
-        log('domainStrongMatch=', domainStrongMatch, 'domBase=', domBase, 'nameKey=', nameKey);
+        log('domainStrongMatch=', domainStrongMatch, 'domBase=', domBase, 'nameKey=', nameKey, 'fastPath=', !!options.fastPath);
 
         // 1) DNS check via Google DNS-over-HTTPS
         let dnsOk = false;
@@ -2557,9 +2637,9 @@
         }
 
         if (!dnsOk) {
-          // Retry once
+          // Retry once (short backoff)
           try {
-            await new Promise(r => setTimeout(r, 400));
+            await new Promise(r => setTimeout(r, 200));
             const dnsRes = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(cleanDom)}&type=A`);
             const dnsJson = await dnsRes.json();
             dnsOk = dnsJson.Status === 0 && Array.isArray(dnsJson.Answer) && dnsJson.Answer.length > 0;
@@ -2571,16 +2651,17 @@
 
         if (!dnsOk) {
           log('FAIL DNS does not resolve');
-          return { ok: false, reason: 'Domain does not resolve (DNS)' };
+          return storeVerify({ ok: false, reason: 'Domain does not resolve (DNS)' });
         }
 
-        // Strong signal shortcut: domain closely matches name + DNS resolves → verified
-        if (domainStrongMatch) {
-          log('PASS strong domain+DNS match (content fetch optional)');
-          return { ok: true, reason: 'Verified via DNS + domain/name match' };
+        // Strong signal / known fast path: domain closely matches name + DNS → verified (skip proxies)
+        if (domainStrongMatch || options.fastPath || isKnownUnambiguousCompany(companyName)) {
+          log('PASS strong domain+DNS match (content fetch skipped)');
+          return storeVerify({ ok: true, reason: 'Verified via DNS + domain/name match' });
         }
 
         // 2) Content fetch via proxy waterfall (best-effort when domain match is weak)
+        // Fail fast: short per-proxy timeouts, then move on. One retry round only.
         const targetUrl = `https://${cleanDom}`;
         const proxyBuilders = [
           (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
@@ -2588,16 +2669,18 @@
           (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
           (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
         ];
+        const proxyTimeoutsMs = [2200, 2500, 2800, 3000];
 
         const fetchViaProxies = async () => {
           let lastErr = '';
           for (let attempt = 0; attempt < 2; attempt++) {
             for (let i = 0; i < proxyBuilders.length; i++) {
               const proxyUrl = proxyBuilders[i](targetUrl);
+              const timeoutMs = proxyTimeoutsMs[i] || 3000;
               try {
                 const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 12000);
-                log(`proxy#${i} attempt ${attempt + 1}…`);
+                const timeout = setTimeout(() => controller.abort(), timeoutMs);
+                log(`proxy#${i} attempt ${attempt + 1} (${timeoutMs}ms)…`);
                 const pageRes = await fetch(proxyUrl, { signal: controller.signal });
                 clearTimeout(timeout);
                 if (!pageRes.ok) {
@@ -2624,7 +2707,7 @@
                 log(lastErr);
               }
             }
-            await new Promise(r => setTimeout(r, 500));
+            if (attempt === 0) await new Promise(r => setTimeout(r, 250));
           }
           throw new Error(lastErr || 'All proxies failed');
         };
@@ -2637,7 +2720,7 @@
 
           if (/\b404\b/.test(lower) && /not found|doesn't exist|does not exist|page not found/.test(lower) && html.length < 5000) {
             log('FAIL soft 404');
-            return { ok: false, reason: 'Page looks like a 404' };
+            return storeVerify({ ok: false, reason: 'Page looks like a 404' });
           }
 
           const title = (html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] || '').toLowerCase();
@@ -2664,15 +2747,15 @@
 
           if (fuzzyHit(focusCorpus, fullNeedle) || fuzzyHit(focusCorpus, nameKey)) {
             log('PASS content fuzzy match on title/meta/headers');
-            return { ok: true, reason: 'Verified via DNS + page content match' };
+            return storeVerify({ ok: true, reason: 'Verified via DNS + page content match' });
           }
 
           if (tokens.length === 0) {
             const ok = focusCorpus.includes(nameKey);
             log(ok ? 'PASS' : 'FAIL', 'short-name content check');
-            return ok
+            return storeVerify(ok
               ? { ok: true, reason: 'Verified via DNS + page content match' }
-              : { ok: false, reason: 'Page content does not match company name' };
+              : { ok: false, reason: 'Page content does not match company name' });
           }
 
           const hits = tokens.filter(t => focusCorpus.includes(t) || lower.slice(0, 12000).includes(t));
@@ -2680,29 +2763,29 @@
           log('content token hits', hits.length, '/', tokens.length, 'needed', needed, hits);
 
           if (hits.length >= needed) {
-            return { ok: true, reason: 'Verified via DNS + page content match' };
+            return storeVerify({ ok: true, reason: 'Verified via DNS + page content match' });
           }
 
           // Weak domain affinity + DNS already passed — accept rather than over-reject
           if (nameKey.length >= 4 && (domBase.includes(nameKey.slice(0, 4)) || nameKey.includes(domBase.slice(0, 4)))) {
             log('PASS weak domain affinity after partial content');
-            return { ok: true, reason: 'Verified via DNS + partial domain/content signals' };
+            return storeVerify({ ok: true, reason: 'Verified via DNS + partial domain/content signals' });
           }
 
           log('FAIL content mismatch');
-          return {
+          return storeVerify({
             ok: false,
             reason: `Page content does not match company name (matched ${hits.length}/${tokens.length} tokens)`
-          };
+          });
         } catch (e) {
           log('proxy waterfall failed:', e.message || e);
           // Proxies are unreliable — if DNS resolved and there is any domain affinity, accept
           if (nameKey.length >= 3 && (domBase.includes(nameKey.slice(0, Math.min(4, nameKey.length))) || nameKey.includes(domBase.slice(0, Math.min(4, domBase.length))))) {
             log('PASS DNS + domain affinity after proxy failure');
-            return { ok: true, reason: 'Verified via DNS (content proxy unavailable)' };
+            return storeVerify({ ok: true, reason: 'Verified via DNS (content proxy unavailable)' });
           }
           log('FAIL could not confirm without content or domain match');
-          return { ok: false, reason: 'Could not fetch page to confirm company match' };
+          return storeVerify({ ok: false, reason: 'Could not fetch page to confirm company match' });
         }
       };
 
@@ -2713,263 +2796,246 @@
         }
       }, [editingCell]);
 
+      useEffect(() => {
+        rowsRef.current = rows;
+      }, [rows]);
+
       const getDelayFactor = () => {
         if (latencySpeed === 'calm') return 1.8;
-        if (latencySpeed === 'fast') return 0.3;
-        return 1.0;
+        if (latencySpeed === 'fast') return 0.15;
+        return 0.35; // default: keep a little pacing without multi-second padding
       };
 
-      // Queue processor orchestrator
+      // Fill concurrent worker slots from the queue
       useEffect(() => {
-        if (queue.length === 0 && !processingId) {
-          if (isProcessingActive) {
-            const successCount = rows.filter(r => r.status === 'found').length;
-            if (successCount > 0) {
-              window.confetti?.({
-                particleCount: 80,
-                spread: 60,
-                origin: { y: 0.8 },
-                colors: ['#5B7FA6', '#7DB89A', '#D8E2EC', '#A5C4D4']
-              });
-            }
-            setIsProcessingActive(false);
+        const free = ENRICH_CONCURRENCY - activeIds.length;
+        if (free > 0 && queue.length > 0) {
+          const take = queue.slice(0, free);
+          if (!batchStartedAtRef.current) {
+            batchStartedAtRef.current = performance.now();
+            console.log(`[batch] starting with concurrency=${ENRICH_CONCURRENCY}`);
           }
-          return;
-        }
-
-        if (!processingId && queue.length > 0) {
-          const nextId = queue[0];
-          setQueue(prev => prev.slice(1));
-          setProcessingId(nextId);
+          setQueue(q => q.slice(take.length));
+          setActiveIds(ids => [...ids, ...take]);
           setIsProcessingActive(true);
-        }
-      }, [queue, processingId, isProcessingActive, rows]);
-
-      // Row processing execution loop
-      useEffect(() => {
-        if (!processingId) return;
-
-        const rowToProcess = rows.find(r => r.id === processingId);
-        if (!rowToProcess) {
-          setProcessingId(null);
           return;
         }
 
-        const processRow = async () => {
-          const factor = getDelayFactor();
-          
-          const compKey = getCompanyColumnKey();
-          const webKey = getWebsiteColumnKey();
-          const indKey = getIndustryColumnKey();
-          const hcKey = getHeadcountColumnKey();
-          const locKey = getLocationColumnKey();
-          const conKey = getContactsColumnKey();
-          const genKey = getGenderColumnKey();
-          const noteKey = getNotesColumnKey();
-
-          const companyName = rowToProcess[compKey];
-          const personContext = {
-            personName: rowToProcess.personName || '',
-            personTitle: rowToProcess.personTitle || ''
-          };
-
-          if (!companyName || !companyName.trim() || companyName === '-') {
-            updateRow(processingId, { 
-              status: 'unverified',
-              [webKey]: '',
-              [indKey]: '-',
-              [hcKey]: '-',
-              [locKey]: '-',
-              [conKey]: '-',
-              [genKey]: '-',
-              [noteKey]: rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Queueing...' && rowToProcess[noteKey] !== '-'
-                ? rowToProcess[noteKey]
-                : 'No company name provided',
-              resolveMethod: 'none'
+        if (queue.length === 0 && activeIds.length === 0 && isProcessingActive) {
+          const elapsed = batchStartedAtRef.current
+            ? ((performance.now() - batchStartedAtRef.current) / 1000).toFixed(1)
+            : '?';
+          console.log(`[batch] complete in ${elapsed}s`);
+          batchStartedAtRef.current = null;
+          const successCount = rows.filter(r => r.status === 'found').length;
+          if (successCount > 0) {
+            window.confetti?.({
+              particleCount: 80,
+              spread: 60,
+              origin: { y: 0.8 },
+              colors: ['#5B7FA6', '#7DB89A', '#D8E2EC', '#A5C4D4']
             });
-            setProcessingId(null);
-            return;
           }
+          setIsProcessingActive(false);
+        }
+      }, [queue, activeIds, isProcessingActive, rows]);
 
-          if (isNonEntityCompany(companyName)) {
-            updateRow(processingId, {
-              status: 'unverified',
-              [webKey]: '',
-              [noteKey]: [rowToProcess[noteKey], 'Skipped: not a searchable company entity'].filter(n => n && n !== '-' && n !== 'Queueing...').join(' · '),
-              resolveMethod: 'skipped-non-entity'
-            });
-            setProcessingId(null);
-            return;
-          }
+      // Launch workers for newly active row IDs
+      useEffect(() => {
+        const release = (id) => {
+          inFlightRef.current.delete(id);
+          setActiveIds(ids => ids.filter(x => x !== id));
+        };
 
-          let domain = rowToProcess[webKey];
-          let isDomainPrepopulated = !!domain && domain.includes('.') && domain !== '-';
-          let isUnsure = false;
-          let apiData = null;
-          let industrySnippet = '';
-          let alternatives = [];
-          let resolveMethod = 'name-only';
-          const skippedDomains = rowToProcess.skippedDomains || [];
+        activeIds.forEach((rowId) => {
+          if (inFlightRef.current.has(rowId)) return;
+          inFlightRef.current.add(rowId);
 
-          if (!isDomainPrepopulated) {
-            updateRow(processingId, { status: 'searching' });
-            
+          (async () => {
+            const factor = getDelayFactor();
+            const rowToProcess = rowsRef.current.find(r => r.id === rowId);
+            if (!rowToProcess) {
+              release(rowId);
+              return;
+            }
+
+            const compKey = getCompanyColumnKey();
+            const webKey = getWebsiteColumnKey();
+            const indKey = getIndustryColumnKey();
+            const hcKey = getHeadcountColumnKey();
+            const locKey = getLocationColumnKey();
+            const conKey = getContactsColumnKey();
+            const genKey = getGenderColumnKey();
+            const noteKey = getNotesColumnKey();
+
+            const companyName = rowToProcess[compKey];
+            const personContext = {
+              personName: rowToProcess.personName || '',
+              personTitle: rowToProcess.personTitle || ''
+            };
+
+            const finishUnverified = (fields) => {
+              updateRow(rowId, { status: 'unverified', linkVerified: false, ...fields });
+              release(rowId);
+            };
+
             try {
-              const delayStart = Date.now();
-              const resolvedObj = await resolveDomain(
-                companyName,
-                financeFilterActive,
-                skippedDomains,
-                (isAmbiguousCompanyName(companyName) || personContext.personName) ? personContext : null
-              );
-              const elapsed = Date.now() - delayStart;
-              
-              const remainingDelay = (1000 * factor) - elapsed;
-              if (remainingDelay > 0) {
-                await new Promise(r => setTimeout(r, remainingDelay));
-              }
-
-              if (resolvedObj && resolvedObj.domain) {
-                domain = resolvedObj.domain;
-                isUnsure = !!resolvedObj.isUnsure;
-                apiData = resolvedObj.apiData || null;
-                industrySnippet = resolvedObj.industrySnippet || resolvedObj.matchedName || '';
-                alternatives = resolvedObj.alternatives || [];
-                resolveMethod = resolvedObj.resolveMethod || 'name-only';
-                
-                // STEP 1.5: Live verify link (DNS + content vs company name)
-                updateRow(processingId, { status: 'verifying', [webKey]: domain, resolveMethod });
-                
-                const verification = await verifyDomainLive(domain, companyName);
-                if (!verification.ok) {
-                  updateRow(processingId, { 
-                    status: 'unverified',
-                    [webKey]: '',
-                    [indKey]: industrySnippet || '-',
-                    [hcKey]: '-',
-                    [locKey]: '-',
-                    [conKey]: '-',
-                    [genKey]: '-',
-                    [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', verification.reason, alternatives.length ? `Candidates: ${alternatives.join(' · ')}` : ''].filter(Boolean).join(' · '),
-                    matchSnippet: industrySnippet,
-                    linkVerified: false,
-                    resolveMethod
-                  });
-                  setProcessingId(null);
-                  return;
-                }
-
-                // Ambiguous matches: potential (not a clickable verified link)
-                if (isUnsure) {
-                  const altNote = alternatives.length
-                    ? `Ambiguous matches: ${alternatives.join(' · ')}`
-                    : 'Possible match needs manual confirmation';
-                  updateRow(processingId, {
-                    status: 'potential',
-                    [webKey]: domain,
-                    [indKey]: industrySnippet || '-',
-                    [hcKey]: '-',
-                    [locKey]: '-',
-                    [conKey]: '-',
-                    [genKey]: '-',
-                    [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', altNote].filter(Boolean).join(' · '),
-                    matchSnippet: industrySnippet,
-                    linkVerified: false,
-                    resolveMethod
-                  });
-                  setProcessingId(null);
-                  return;
-                }
-                
-                updateRow(processingId, { [webKey]: domain, status: 'enriching', matchSnippet: industrySnippet, linkVerified: true, resolveMethod });
-              } else {
-                updateRow(processingId, { 
-                  status: 'unverified',
+              if (!companyName || !companyName.trim() || companyName === '-') {
+                finishUnverified({
                   [webKey]: '',
                   [indKey]: '-',
                   [hcKey]: '-',
                   [locKey]: '-',
                   [conKey]: '-',
                   [genKey]: '-',
-                  [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', 'Could not resolve a verified domain'].filter(Boolean).join(' · '),
-                  resolveMethod: resolveMethod || 'none'
+                  [noteKey]: rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Queueing...' && rowToProcess[noteKey] !== '-'
+                    ? rowToProcess[noteKey]
+                    : 'No company name provided',
+                  resolveMethod: 'none'
                 });
-                setProcessingId(null);
                 return;
               }
+
+              if (isNonEntityCompany(companyName)) {
+                finishUnverified({
+                  [webKey]: '',
+                  [noteKey]: [rowToProcess[noteKey], 'Skipped: not a searchable company entity'].filter(n => n && n !== '-' && n !== 'Queueing...').join(' · '),
+                  resolveMethod: 'skipped-non-entity'
+                });
+                return;
+              }
+
+              let domain = rowToProcess[webKey];
+              let isDomainPrepopulated = !!domain && domain.includes('.') && domain !== '-';
+              let isUnsure = false;
+              let apiData = null;
+              let industrySnippet = '';
+              let alternatives = [];
+              let resolveMethod = 'name-only';
+              let fastPath = false;
+              const skippedDomains = rowToProcess.skippedDomains || [];
+
+              if (!isDomainPrepopulated) {
+                updateRow(rowId, { status: 'searching' });
+                const delayStart = Date.now();
+                const usePerson = isAmbiguousCompanyName(companyName) && !isKnownUnambiguousCompany(companyName);
+                const resolvedObj = await resolveDomain(
+                  companyName,
+                  financeFilterActive,
+                  skippedDomains,
+                  usePerson ? personContext : null
+                );
+                const elapsed = Date.now() - delayStart;
+                // Tiny pacing only — never pad to 1s+ on fast path / cache hits
+                if (!resolvedObj?.fastPath && !resolvedObj?.fromCache) {
+                  const remainingDelay = (180 * factor) - elapsed;
+                  if (remainingDelay > 0) await new Promise(r => setTimeout(r, remainingDelay));
+                }
+
+                if (resolvedObj && resolvedObj.domain) {
+                  domain = resolvedObj.domain;
+                  isUnsure = !!resolvedObj.isUnsure;
+                  apiData = resolvedObj.apiData || null;
+                  industrySnippet = resolvedObj.industrySnippet || resolvedObj.matchedName || '';
+                  alternatives = resolvedObj.alternatives || [];
+                  resolveMethod = resolvedObj.resolveMethod || 'name-only';
+                  fastPath = !!resolvedObj.fastPath || isKnownUnambiguousCompany(companyName);
+
+                  updateRow(rowId, { status: 'verifying', [webKey]: domain, resolveMethod });
+                  const verification = await verifyDomainLive(domain, companyName, { fastPath });
+                  if (!verification.ok) {
+                    finishUnverified({
+                      [webKey]: '',
+                      [indKey]: industrySnippet || '-',
+                      [hcKey]: '-',
+                      [locKey]: '-',
+                      [conKey]: '-',
+                      [genKey]: '-',
+                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', verification.reason, alternatives.length ? `Candidates: ${alternatives.join(' · ')}` : ''].filter(Boolean).join(' · '),
+                      matchSnippet: industrySnippet,
+                      resolveMethod
+                    });
+                    return;
+                  }
+
+                  if (isUnsure) {
+                    updateRow(rowId, {
+                      status: 'potential',
+                      [webKey]: domain,
+                      [indKey]: industrySnippet || '-',
+                      [hcKey]: '-',
+                      [locKey]: '-',
+                      [conKey]: '-',
+                      [genKey]: '-',
+                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', alternatives.length ? `Ambiguous matches: ${alternatives.join(' · ')}` : 'Possible match needs manual confirmation'].filter(Boolean).join(' · '),
+                      matchSnippet: industrySnippet,
+                      linkVerified: false,
+                      resolveMethod
+                    });
+                    release(rowId);
+                    return;
+                  }
+
+                  updateRow(rowId, { [webKey]: domain, status: 'enriching', matchSnippet: industrySnippet, linkVerified: true, resolveMethod });
+                } else {
+                  finishUnverified({
+                    [webKey]: '',
+                    [indKey]: '-',
+                    [hcKey]: '-',
+                    [locKey]: '-',
+                    [conKey]: '-',
+                    [genKey]: '-',
+                    [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', 'Could not resolve a verified domain'].filter(Boolean).join(' · '),
+                    resolveMethod: resolveMethod || 'none'
+                  });
+                  return;
+                }
+              } else {
+                updateRow(rowId, { status: 'verifying' });
+                const verification = await verifyDomainLive(domain, companyName, { fastPath: isKnownUnambiguousCompany(companyName) });
+                if (!verification.ok) {
+                  finishUnverified({
+                    [webKey]: '',
+                    [noteKey]: verification.reason || 'Link verification failed for manual domain override',
+                    resolveMethod: 'manual'
+                  });
+                  return;
+                }
+                updateRow(rowId, { status: 'enriching', linkVerified: true, resolveMethod: 'manual' });
+              }
+
+              const details = await enrichCompanyDetails(domain, companyName, apiData);
+              const priorNotes = rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Queueing...' && rowToProcess[noteKey] !== '-'
+                ? rowToProcess[noteKey]
+                : '';
+              const noteWithSnippet = industrySnippet && details.notes && !details.notes.includes(industrySnippet)
+                ? `${details.notes} [${industrySnippet}]`
+                : details.notes;
+              const mergedNotes = [priorNotes, noteWithSnippet].filter(Boolean).join(' · ');
+
+              updateRow(rowId, {
+                [indKey]: rowToProcess[indKey] === '-' || !rowToProcess[indKey] ? details.industry : rowToProcess[indKey],
+                [hcKey]: rowToProcess[hcKey] === '-' || !rowToProcess[hcKey] ? details.headcount : rowToProcess[hcKey],
+                [locKey]: rowToProcess[locKey] === '-' || !rowToProcess[locKey] ? details.location : rowToProcess[locKey],
+                [conKey]: rowToProcess[conKey] === '-' || !rowToProcess[conKey] ? details.contacts : rowToProcess[conKey],
+                [genKey]: rowToProcess[genKey] === '-' || !rowToProcess[genKey] ? details.gender : rowToProcess[genKey],
+                [noteKey]: mergedNotes,
+                status: 'found',
+                matchSnippet: industrySnippet,
+                linkVerified: true,
+                resolveMethod
+              });
+              release(rowId);
             } catch (err) {
-              updateRow(processingId, { 
-                status: 'unverified',
+              console.error('[enrich] row failed', rowId, err);
+              finishUnverified({
                 [noteKey]: 'AI search error',
                 resolveMethod: 'error'
               });
-              setProcessingId(null);
-              return;
             }
-          } else {
-            // Manual link override: verify first
-            updateRow(processingId, { status: 'verifying' });
-            
-            const verification = await verifyDomainLive(domain, companyName);
-            if (!verification.ok) {
-              updateRow(processingId, {
-                status: 'unverified',
-                [webKey]: '',
-                [noteKey]: verification.reason || 'Link verification failed for manual domain override',
-                linkVerified: false,
-                resolveMethod: 'manual'
-              });
-              setProcessingId(null);
-              return;
-            }
-            updateRow(processingId, { status: 'enriching', linkVerified: true, resolveMethod: 'manual' });
-          }
-
-          try {
-            const delayStart = Date.now();
-            const details = await enrichCompanyDetails(domain, companyName, apiData);
-            const elapsed = Date.now() - delayStart;
-            
-            const remainingDelay = (800 * factor) - elapsed;
-            if (remainingDelay > 0) {
-              await new Promise(r => setTimeout(r, remainingDelay));
-            }
-
-            const priorNotes = rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Queueing...' && rowToProcess[noteKey] !== '-'
-              ? rowToProcess[noteKey]
-              : '';
-            const noteWithSnippet = industrySnippet && details.notes && !details.notes.includes(industrySnippet)
-              ? `${details.notes} [${industrySnippet}]`
-              : details.notes;
-            const mergedNotes = [priorNotes, noteWithSnippet].filter(Boolean).join(' · ');
-
-            updateRow(processingId, {
-              [indKey]: rowToProcess[indKey] === '-' || !rowToProcess[indKey] ? details.industry : rowToProcess[indKey],
-              [hcKey]: rowToProcess[hcKey] === '-' || !rowToProcess[hcKey] ? details.headcount : rowToProcess[hcKey],
-              [locKey]: rowToProcess[locKey] === '-' || !rowToProcess[locKey] ? details.location : rowToProcess[locKey],
-              [conKey]: rowToProcess[conKey] === '-' || !rowToProcess[conKey] ? details.contacts : rowToProcess[conKey],
-              [genKey]: rowToProcess[genKey] === '-' || !rowToProcess[genKey] ? details.gender : rowToProcess[genKey],
-              [noteKey]: mergedNotes,
-              status: 'found',
-              matchSnippet: industrySnippet,
-              linkVerified: true,
-              resolveMethod
-            });
-          } catch (err) {
-            updateRow(processingId, {
-              status: 'unverified',
-              [webKey]: '',
-              [noteKey]: 'AI details enrichment failed',
-              linkVerified: false,
-              resolveMethod
-            });
-          }
-
-          setProcessingId(null);
-        };
-
-        processRow();
-      }, [processingId]);
+          })();
+        });
+      }, [activeIds, financeFilterActive, latencySpeed]);
 
       const updateRow = (id, newFields) => {
         setRows(prev => prev.map(row => {
@@ -3107,7 +3173,7 @@
       };
 
       const triggerRowReRun = (rowId) => {
-        if (queue.includes(rowId) || processingId === rowId) return;
+        if (queue.includes(rowId) || activeIds.includes(rowId)) return;
 
         const noteKey = getNotesColumnKey();
         const webKey = getWebsiteColumnKey();
@@ -3134,7 +3200,7 @@
       };
 
       const handleCellDoubleClick = (rowId, colName, currentValue) => {
-        if (processingId === rowId) return;
+        if (activeIds.includes(rowId)) return;
         setEditingCell({ id: rowId, column: colName });
         setEditingValue(currentValue || '');
       };
@@ -3173,8 +3239,10 @@
       const handleClearTable = () => {
         setRows([]);
         setQueue([]);
-        setProcessingId(null);
+        setActiveIds([]);
+        inFlightRef.current.clear();
         setIsProcessingActive(false);
+        batchStartedAtRef.current = null;
       };
 
       const handleExportCSV = () => {
@@ -3267,7 +3335,7 @@
       const stats = {
         total: rows.length,
         pending: rows.filter(r => r.status === 'pending').length + queue.length,
-        searching: rows.filter(r => r.status === 'searching' || r.status === 'verifying' || r.status === 'enriching').length + (processingId ? 1 : 0),
+        searching: rows.filter(r => r.status === 'searching' || r.status === 'verifying' || r.status === 'enriching').length + activeIds.length,
         found: rows.filter(r => r.status === 'found').length,
         potential: rows.filter(r => r.status === 'potential').length,
         unverified: rows.filter(r => r.status === 'unverified').length
@@ -3510,7 +3578,7 @@
                     </thead>
                     <tbody>
                       {rows.map((row) => {
-                        const isRowProcessing = processingId === row.id;
+                        const isRowProcessing = activeIds.includes(row.id);
                         
                         // Resolve dynamic headers
                         const compKey = getCompanyColumnKey();
