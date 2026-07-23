@@ -19,6 +19,10 @@
   
   <!-- Canvas Confetti CDN -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Export: SheetJS (XLSX) + jsPDF (PDF) -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
   <style>
     /* Design System Variables */
@@ -368,15 +372,16 @@
       table-layout: fixed;
     }
 
-    /* Column Widths */
-    .col-status { width: 140px; }
-    .col-name { width: 250px; }
-    .col-website { width: 250px; }
-    .col-industry { width: 200px; }
-    .col-headcount { width: 140px; }
-    .col-location { width: 200px; }
-    .col-contacts { width: 260px; }
-    .col-notes { width: auto; min-width: 320px; }
+    /* Column Widths — tight defaults so more columns fit without horizontal scroll.
+       Keys match header `col-${key}` classes (e.g. companyName, not "name"). */
+    .col-status { width: 118px; min-width: 100px; }
+    .col-companyName { width: 148px; min-width: 110px; }
+    .col-website { width: 138px; min-width: 100px; }
+    .col-industry { width: 112px; min-width: 90px; }
+    .col-headcount { width: 88px; min-width: 70px; }
+    .col-location { width: 108px; min-width: 85px; }
+    .col-contacts { width: 128px; min-width: 100px; }
+    .col-notes { width: 160px; min-width: 120px; }
     /* Ensure headers allow resizer positioning */
     .spreadsheet-table th { position: relative; }
     .col-resizer {
@@ -384,12 +389,31 @@
       right: 0;
       top: 0;
       bottom: 0;
-      width: 5px;
+      width: 6px;
       cursor: col-resize;
       user-select: none;
       background: transparent;
+      z-index: 2;
     }
-    .col-resizer:hover { background: rgba(0,0,0,0.1); }
+    .col-resizer:hover { background: rgba(91, 127, 166, 0.25); }
+    .export-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .match-snippet {
+      display: block;
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      line-height: 1.25;
+      white-space: normal;
+      margin-top: 0.15rem;
+    }
+    .url-plain {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
 
 
     /* Table Header Styles */
@@ -1329,24 +1353,39 @@
 
       // Finance Search Filter Mode modifications
       if (financeFilterActive) {
-        const financeTerms = ["capital", "partners", "ventures", "investment", "holdings", "wealth", "finance", "fund", "equity", "management", "pe", "vc", "advisory", "advisors", "associates", "group"];
+        const financeTerms = ["capital", "partners", "ventures", "investment", "holdings", "wealth", "finance", "fund", "equity", "management", "pe", "vc", "advisory", "advisors", "associates", "group", "fintech", "bank"];
         const hasFinanceTerm = financeTerms.some(term => cleaned.toLowerCase().includes(term));
         if (!hasFinanceTerm) {
           cleaned = `${cleaned} capital`;
         }
       }
 
-      // Best match scorer to pick shortest and closest brand domain name
+      const FINANCE_KW = ["capital", "partner", "venture", "investment", "fund", "holding", "wealth", "finance", "equity", "fintech", "bank", "asset", "credit", "lend", "hedge", "private equity", "pe ", " vc", "advisory", "advisors", "securities", "broker"];
+      const NON_FINANCE_KW = ["museum", "foundation", "association", "school", "university", "college", "charity", "arts", "cultural", "publishing", "publisher", "reading", "reader", "bookstore", "book", "magazine", "newspaper", "media", "blog", "podcast", "restaurant", "cafe", "coffee", "retail", "apparel", "fashion", "gaming", "game", "studio", "film", "music", "hotel", "travel", "clinic", "hospital", "church", "nonprofit", "ngo"];
+
+      const inferSnippet = (item) => {
+        const name = (item.name || '').trim();
+        const domain = (item.domain || '').toLowerCase();
+        const blob = `${name} ${domain}`.toLowerCase();
+        if (FINANCE_KW.some(k => blob.includes(k.trim()))) return name ? `${name} · finance` : 'finance-related';
+        if (NON_FINANCE_KW.some(k => blob.includes(k))) {
+          const hit = NON_FINANCE_KW.find(k => blob.includes(k));
+          return name ? `${name} · ${hit}` : hit;
+        }
+        return name || domain;
+      };
+
+      // Best match scorer — returns rich match object for disambiguation
       const findBestDomainMatch = (suggestions, queryName) => {
         if (!suggestions || suggestions.length === 0) return null;
         const cleanQuery = queryName.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!cleanQuery) return suggestions[0].domain;
+        if (!cleanQuery) {
+          const first = suggestions[0];
+          return { domain: first.domain, name: first.name || '', score: 0, snippet: inferSnippet(first), ambiguous: true, alternatives: [] };
+        }
 
-        let bestMatch = suggestions[0].domain;
-        let highestScore = -1;
-
-        // Common corporate TLD extensions
         const commonTlds = ['com', 'co', 'io', 'net', 'org', 'edu', 'gov', 'ai', 'me', 'us', 'ca', 'uk'];
+        const scored = [];
 
         for (const item of suggestions) {
           if (!item.domain) continue;
@@ -1355,42 +1394,91 @@
           const domBase = parts[0].replace(/[^a-z0-9]/g, '');
           const tld = parts[parts.length - 1];
           const nameLower = (item.name || '').toLowerCase();
+          const blob = `${nameLower} ${domBase}`;
           
           let score = 0;
           if (domBase === cleanQuery) {
-            score += 100; // Exact base domain match
+            score += 100;
           } else if (cleanQuery.includes(domBase) || domBase.includes(cleanQuery)) {
-            score += 50; // Partial match
-            // Prefer shorter domains representing the parent entity
+            score += 50;
             score -= Math.abs(domBase.length - cleanQuery.length);
+          } else {
+            // Weak name token overlap only
+            const tokens = queryName.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+            const hits = tokens.filter(t => nameLower.includes(t) || domBase.includes(t.replace(/[^a-z0-9]/g, '')));
+            if (hits.length === 0) continue;
+            score += hits.length * 20;
           }
 
-          // Quality score weighting based on TLD extensions
-          if (commonTlds.includes(tld)) {
-            score += 20; // Reward standard domains
-          } else {
-            score -= 60; // Penalize uncommon regional TLDs (e.g. .pf, .uz, etc.)
-          }
+          if (commonTlds.includes(tld)) score += 20;
+          else score -= 60;
           
-          // Finance Search Filter Mode adjustments
           if (financeFilterActive) {
-            const hasFinanceKeywords = ["capital", "partner", "venture", "investment", "fund", "holding", "wealth", "finance", "equity", "pe", "vc"].some(k => nameLower.includes(k) || domBase.includes(k));
-            const hasNonFinanceKeywords = ["museum", "foundation", "association", "school", "university", "charity", "arts", "cultural"].some(k => nameLower.includes(k) || domBase.includes(k));
+            const hasFinanceKeywords = FINANCE_KW.some(k => blob.includes(k.trim()));
+            const hasNonFinanceKeywords = NON_FINANCE_KW.some(k => blob.includes(k));
             
-            if (hasFinanceKeywords) {
-              score += 100; // Major boost for financial entities
-            }
-            if (hasNonFinanceKeywords) {
-              score -= 150; // Major penalty for non-financial entities (like museums)
-            }
+            if (hasFinanceKeywords) score += 120;
+            if (hasNonFinanceKeywords) score -= 180;
+            // Mild boost when query itself was finance-augmented
+            if (queryName.toLowerCase().includes('capital') && hasFinanceKeywords) score += 30;
           }
-          
-          if (score > highestScore) {
-            highestScore = score;
-            bestMatch = item.domain;
+
+          scored.push({
+            domain: item.domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0],
+            name: item.name || '',
+            score,
+            snippet: inferSnippet(item),
+            isFinance: FINANCE_KW.some(k => blob.includes(k.trim())),
+            isNonFinance: NON_FINANCE_KW.some(k => blob.includes(k))
+          });
+        }
+
+        if (scored.length === 0) return null;
+        scored.sort((a, b) => b.score - a.score);
+
+        // Prefer finance match over close non-finance competitor when filter is on
+        let best = scored[0];
+        if (financeFilterActive && scored.length > 1) {
+          const financeCandidate = scored.find(s => s.isFinance && !s.isNonFinance);
+          const top = scored[0];
+          if (financeCandidate && top.isNonFinance && financeCandidate.score >= top.score - 40) {
+            best = financeCandidate;
+          } else if (financeCandidate && !top.isFinance && financeCandidate.score >= top.score - 25) {
+            best = financeCandidate;
           }
         }
-        return bestMatch;
+
+        const runnerUp = scored.find(s => s.domain !== best.domain);
+        const ambiguous = !!(runnerUp && Math.abs(best.score - runnerUp.score) < 25 && runnerUp.score > 30);
+        const alternatives = scored.slice(0, 3).map(s => s.snippet).filter(Boolean);
+
+        // Reject non-finance winners under finance filter when a finance option exists elsewhere
+        if (financeFilterActive && best.isNonFinance && !best.isFinance) {
+          const financeAlt = scored.find(s => s.isFinance);
+          if (financeAlt) {
+            best = financeAlt;
+          } else if (best.score < 80) {
+            // Don't confidently pick an unrelated industry match
+            return {
+              domain: best.domain,
+              name: best.name,
+              score: best.score,
+              snippet: best.snippet,
+              ambiguous: true,
+              alternatives,
+              deprioritized: true
+            };
+          }
+        }
+
+        return {
+          domain: best.domain,
+          name: best.name,
+          score: best.score,
+          snippet: best.snippet,
+          ambiguous,
+          alternatives
+        };
       };
 
       // Helper to clean DuckDuckGo Infobox value links (e.g. "[https://zoom.us Official site]" -> "zoom.us")
@@ -1415,7 +1503,15 @@
         let data = await response.json();
         if (data && data.length > 0) {
           const match = findBestDomainMatch(data, cleaned);
-          if (match) return { domain: match, isUnsure: false };
+          if (match && match.domain) {
+            return {
+              domain: match.domain,
+              isUnsure: !!(match.ambiguous || match.deprioritized || match.score < 70),
+              matchedName: match.name,
+              industrySnippet: match.snippet,
+              alternatives: match.alternatives || []
+            };
+          }
         }
 
         // Query 1b: Try raw query name if cleaned returned nothing
@@ -1424,7 +1520,15 @@
           data = await response.json();
           if (data && data.length > 0) {
             const match = findBestDomainMatch(data, cleaned);
-            if (match) return { domain: match, isUnsure: false };
+            if (match && match.domain) {
+              return {
+                domain: match.domain,
+                isUnsure: !!(match.ambiguous || match.deprioritized || match.score < 70),
+                matchedName: match.name,
+                industrySnippet: match.snippet,
+                alternatives: match.alternatives || []
+              };
+            }
           }
         }
       } catch (err) {
@@ -1460,7 +1564,16 @@
 
         if (item && item.value) {
           const domain = extractUrlDomain(item.value);
-          if (domain && domain.includes('.')) return { domain, isUnsure: false };
+          if (domain && domain.includes('.')) {
+            const snippet = (json.Heading || cleaned) + (json.AbstractText ? ` — ${json.AbstractText.slice(0, 80)}` : '');
+            return {
+              domain,
+              isUnsure: false,
+              matchedName: json.Heading || companyName,
+              industrySnippet: snippet,
+              alternatives: []
+            };
+          }
         }
       } catch (err) {
         console.warn("DuckDuckGo Instant Answer request failed:", err);
@@ -1468,40 +1581,22 @@
 
       // Waterfall Tier 3: Local Dictionaries
       if (companyDictionary[localClean]) {
-        return { domain: companyDictionary[localClean].domain, isUnsure: false };
+        return { domain: companyDictionary[localClean].domain, isUnsure: false, industrySnippet: companyDictionary[localClean].industry };
       }
 
       for (const key in companyDictionary) {
         if (localClean.includes(key) || key.includes(localClean)) {
-          return { domain: companyDictionary[key].domain, isUnsure: false };
+          return { domain: companyDictionary[key].domain, isUnsure: false, industrySnippet: companyDictionary[key].industry };
         }
       }
 
-      // Block unverified test keys
+      // Block unverified test keys — and never invent domains (hallucination risk)
       if (["test", "asdf", "company", "xyz", "hello", "unknown"].includes(localClean)) {
         return null;
       }
 
-      // Waterfall Tier 4: Algorithmic Guessing (Unsure of the accuracy!)
-      const domainSafeName = cleaned
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "")
-        .substring(0, 20);
-
-      if (!domainSafeName) return null;
-
-      const suffixes = [".com", ".co", ".io", ".net"];
-      let ext = ".com";
-      if (/\b(tech|software|app|platform|dev|api|code|cloud)\b/i.test(cleaned) || cleaned.endsWith("tech") || cleaned.endsWith("software") || cleaned.endsWith("app")) {
-        ext = ".io";
-      } else if (/\b(ai|labs|intelligence|ml)\b/i.test(cleaned) || cleaned.endsWith("ai") || cleaned.endsWith("labs") || cleaned.endsWith("intelligence")) {
-        ext = ".ai";
-      } else {
-        const code = domainSafeName.charCodeAt(0) || 0;
-        ext = suffixes[code % suffixes.length];
-      }
-
-      return { domain: `${domainSafeName}${ext}`, isUnsure: true };
+      // No confident search hit — do not algorithmically guess a URL
+      return null;
     }
 
     async function enrichCompanyDetails(domain, originalName, apiData = null) {
@@ -1808,25 +1903,46 @@
         { key: 'contacts', label: 'Founders' },
         { key: 'notes', label: 'Notes' }
       ]);
-      // Column width state (persisted)
-      const [colWidths, setColWidths] = useState({});
+      // Column width state (persisted) — tight defaults matching CSS
+      const DEFAULT_COL_WIDTHS = {
+        status: 118,
+        companyName: 148,
+        website: 138,
+        industry: 112,
+        headcount: 88,
+        location: 108,
+        contacts: 128,
+        notes: 160
+      };
+      const [colWidths, setColWidths] = useState({ ...DEFAULT_COL_WIDTHS });
       // Load persisted widths on mount
       useEffect(() => {
-        const saved = localStorage.getItem('colWidths');
-        if (saved) setColWidths(JSON.parse(saved));
+        const saved = localStorage.getItem('colWidths_v2');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+              setColWidths({ ...DEFAULT_COL_WIDTHS, ...parsed });
+            }
+          } catch (_) {}
+        } else {
+          // Drop legacy wide widths from earlier versions
+          localStorage.removeItem('colWidths');
+        }
       }, []);
       // Save widths whenever they change
       useEffect(() => {
-        localStorage.setItem('colWidths', JSON.stringify(colWidths));
+        localStorage.setItem('colWidths_v2', JSON.stringify(colWidths));
       }, [colWidths]);
       // Resizing handlers
       const startResize = (e, key) => {
         e.preventDefault();
+        e.stopPropagation();
         const startX = e.clientX;
-        const startWidth = colWidths[key] || document.querySelector(`.col-${key}`).offsetWidth;
+        const startWidth = colWidths[key] || DEFAULT_COL_WIDTHS[key] || 120;
         const onMouseMove = (ev) => {
           const delta = ev.clientX - startX;
-          const newWidth = Math.max(startWidth + delta, 50);
+          const newWidth = Math.max(startWidth + delta, 60);
           setColWidths((prev) => ({ ...prev, [key]: newWidth }));
         };
         const onMouseUp = () => {
@@ -1837,7 +1953,8 @@
         document.addEventListener('mouseup', onMouseUp);
       };
       const resetColumns = () => {
-        setColWidths({});
+        setColWidths({ ...DEFAULT_COL_WIDTHS });
+        localStorage.removeItem('colWidths_v2');
         localStorage.removeItem('colWidths');
       };
       const [editingHeader, setEditingHeader] = useState(null);
@@ -1932,26 +2049,90 @@
         }
       };
 
-      // Simulated Link Verification Check (dns & matching heuristic)
-      const verifyLinkHeuristic = (domain, companyName) => {
-        const cleanComp = companyName.toLowerCase().trim();
-        const cleanDom = domain.toLowerCase().trim();
-        
-        if (cleanComp.includes("unknown") || cleanComp.includes("random") || cleanComp.includes("test") || cleanComp.includes("asdf")) {
-          return false;
+      // Live link verification: DNS resolve + page content vs company name
+      const verifyDomainLive = async (domain, companyName) => {
+        const cleanDom = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].trim();
+        const cleanComp = String(companyName || '').toLowerCase().trim();
+
+        if (!cleanDom || !cleanDom.includes('.')) {
+          return { ok: false, reason: 'Invalid domain' };
+        }
+        if (cleanComp.includes('unknown') || cleanComp.includes('random') || cleanComp.includes('test') || cleanComp.includes('asdf')) {
+          return { ok: false, reason: 'Placeholder company name' };
+        }
+        if (cleanDom.includes('invalid-link.fake') || cleanDom.includes('asdf')) {
+          return { ok: false, reason: 'Blocked domain' };
         }
 
-        if (cleanDom.includes("invalid-link.fake") || cleanDom.includes("test") || cleanDom.includes("asdf")) {
-          return false;
+        // 1) DNS check via Google DNS-over-HTTPS
+        try {
+          const dnsRes = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(cleanDom)}&type=A`);
+          if (dnsRes.ok) {
+            const dnsJson = await dnsRes.json();
+            if (dnsJson.Status !== 0 || !dnsJson.Answer || dnsJson.Answer.length === 0) {
+              return { ok: false, reason: 'Domain does not resolve (DNS)' };
+            }
+          }
+        } catch (e) {
+          console.warn('DNS check failed, continuing with content check', e);
         }
-        
-        // Simulated failure rate for Custom Domains to represent unreachable/dead sites
-        const isKnown = ["google.com", "apple.com", "microsoft.com", "notion.so", "stripe.com", "openai.com", "linkedin.com", "cornell.edu", "impactus-partners.com", "gilderpartners.com", "plumalley.co", "amazon.com", "meta.com", "netflix.com", "tesla.com", "zoom.us", "impala.co"].includes(cleanDom);
-        if (!isKnown && Math.random() < 0.05) {
-          return false;
+
+        // 2) Fetch homepage text and confirm it mentions the company
+        const tokens = cleanComp
+          .replace(/[,.]?\s*\b(inc|llc|co|corp|ltd|limited|gmbh)\b\.?/gi, '')
+          .split(/\s+/)
+          .map(t => t.replace(/[^a-z0-9]/g, ''))
+          .filter(t => t.length > 2);
+
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 7000);
+          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://' + cleanDom)}`;
+          const pageRes = await fetch(proxyUrl, { signal: controller.signal });
+          clearTimeout(timeout);
+
+          if (!pageRes.ok) {
+            return { ok: false, reason: 'Website unreachable or returned an error' };
+          }
+
+          const html = await pageRes.text();
+          if (!html || html.length < 40) {
+            return { ok: false, reason: 'Empty or unreachable page content' };
+          }
+
+          // Soft 404 / dead-page signals
+          const lower = html.toLowerCase();
+          if (/\b404\b/.test(lower) && /not found|doesn't exist|does not exist|page not found/.test(lower) && html.length < 5000) {
+            return { ok: false, reason: 'Page looks like a 404' };
+          }
+
+          const text = lower
+            .replace(/<script[\s\S]*?<\/script>/g, ' ')
+            .replace(/<style[\s\S]*?<\/style>/g, ' ')
+            .replace(/<[^>]+>/g, ' ');
+
+          const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+          const title = (titleMatch?.[1] || '').toLowerCase();
+          const corpus = `${title} ${text}`.slice(0, 8000);
+
+          if (tokens.length === 0) {
+            return { ok: corpus.includes(cleanComp.replace(/[^a-z0-9]/g, '')), reason: 'Weak name match' };
+          }
+
+          const hits = tokens.filter(t => corpus.includes(t));
+          const needed = Math.ceil(tokens.length * 0.6);
+          if (hits.length < needed) {
+            return {
+              ok: false,
+              reason: `Page content does not match company name (matched ${hits.length}/${tokens.length} tokens)`
+            };
+          }
+
+          return { ok: true, reason: 'DNS + content verified' };
+        } catch (e) {
+          // If content fetch fails but DNS worked, treat as unverified — do not trust blindly
+          return { ok: false, reason: 'Could not fetch page to confirm company match' };
         }
-        
-        return true;
       };
 
       useEffect(() => {
@@ -2036,6 +2217,8 @@
           let isDomainPrepopulated = !!domain && domain.includes('.') && domain !== '-';
           let isUnsure = false;
           let apiData = null;
+          let industrySnippet = '';
+          let alternatives = [];
           const skippedDomains = rowToProcess.skippedDomains || [];
 
           if (!isDomainPrepopulated) {
@@ -2053,30 +2236,54 @@
 
               if (resolvedObj && resolvedObj.domain) {
                 domain = resolvedObj.domain;
-                isUnsure = resolvedObj.isUnsure;
+                isUnsure = !!resolvedObj.isUnsure;
                 apiData = resolvedObj.apiData || null;
+                industrySnippet = resolvedObj.industrySnippet || resolvedObj.matchedName || '';
+                alternatives = resolvedObj.alternatives || [];
                 
-                // STEP 1.5: Verify link
+                // STEP 1.5: Live verify link (DNS + content vs company name)
                 updateRow(processingId, { status: 'verifying', [webKey]: domain });
-                await new Promise(r => setTimeout(r, 600 * factor));
                 
-                const isVerified = verifyLinkHeuristic(domain, companyName);
-                if (!isVerified) {
+                const verification = await verifyDomainLive(domain, companyName);
+                if (!verification.ok) {
                   updateRow(processingId, { 
                     status: 'unverified',
-                    [webKey]: '', // remove incorrect link
-                    [indKey]: '-',
+                    [webKey]: '',
+                    [indKey]: industrySnippet || '-',
                     [hcKey]: '-',
                     [locKey]: '-',
                     [conKey]: '-',
                     [genKey]: '-',
-                    [noteKey]: 'Link check failed: Host unreachable or domain metadata mismatch'
+                    [noteKey]: verification.reason + (alternatives.length ? ` | Candidates: ${alternatives.join(' · ')}` : ''),
+                    matchSnippet: industrySnippet,
+                    linkVerified: false
+                  });
+                  setProcessingId(null);
+                  return;
+                }
+
+                // Ambiguous matches: potential (not a clickable verified link)
+                if (isUnsure) {
+                  const altNote = alternatives.length
+                    ? `Ambiguous matches: ${alternatives.join(' · ')}`
+                    : 'Possible match needs manual confirmation';
+                  updateRow(processingId, {
+                    status: 'potential',
+                    [webKey]: domain,
+                    [indKey]: industrySnippet || '-',
+                    [hcKey]: '-',
+                    [locKey]: '-',
+                    [conKey]: '-',
+                    [genKey]: '-',
+                    [noteKey]: altNote,
+                    matchSnippet: industrySnippet,
+                    linkVerified: false
                   });
                   setProcessingId(null);
                   return;
                 }
                 
-                updateRow(processingId, { website: domain, status: 'enriching' });
+                updateRow(processingId, { [webKey]: domain, status: 'enriching', matchSnippet: industrySnippet, linkVerified: true });
               } else {
                 updateRow(processingId, { 
                   status: 'unverified',
@@ -2086,7 +2293,7 @@
                   [locKey]: '-',
                   [conKey]: '-',
                   [genKey]: '-',
-                  [noteKey]: 'Could not resolve domain'
+                  [noteKey]: 'Could not resolve a verified domain'
                 });
                 setProcessingId(null);
                 return;
@@ -2102,18 +2309,19 @@
           } else {
             // Manual link override: verify first
             updateRow(processingId, { status: 'verifying' });
-            await new Promise(r => setTimeout(r, 600 * factor));
             
-            const isVerified = verifyLinkHeuristic(domain, companyName);
-            if (!isVerified) {
+            const verification = await verifyDomainLive(domain, companyName);
+            if (!verification.ok) {
               updateRow(processingId, {
                 status: 'unverified',
-                [noteKey]: 'Link verification failed for manual domain override'
+                [webKey]: '',
+                [noteKey]: verification.reason || 'Link verification failed for manual domain override',
+                linkVerified: false
               });
               setProcessingId(null);
               return;
             }
-            updateRow(processingId, { status: 'enriching' });
+            updateRow(processingId, { status: 'enriching', linkVerified: true });
           }
 
           try {
@@ -2126,19 +2334,27 @@
               await new Promise(r => setTimeout(r, remainingDelay));
             }
 
+            const noteWithSnippet = industrySnippet && details.notes && !details.notes.includes(industrySnippet)
+              ? `${details.notes} [${industrySnippet}]`
+              : details.notes;
+
             updateRow(processingId, {
               [indKey]: rowToProcess[indKey] === '-' || !rowToProcess[indKey] ? details.industry : rowToProcess[indKey],
               [hcKey]: rowToProcess[hcKey] === '-' || !rowToProcess[hcKey] ? details.headcount : rowToProcess[hcKey],
               [locKey]: rowToProcess[locKey] === '-' || !rowToProcess[locKey] ? details.location : rowToProcess[locKey],
               [conKey]: rowToProcess[conKey] === '-' || !rowToProcess[conKey] ? details.contacts : rowToProcess[conKey],
               [genKey]: rowToProcess[genKey] === '-' || !rowToProcess[genKey] ? details.gender : rowToProcess[genKey],
-              [noteKey]: isUnsure ? 'Potential Link: Needs manual verification' : details.notes,
-              status: isUnsure ? 'potential' : 'found'
+              [noteKey]: noteWithSnippet,
+              status: 'found',
+              matchSnippet: industrySnippet,
+              linkVerified: true
             });
           } catch (err) {
             updateRow(processingId, {
               status: 'unverified',
-              [noteKey]: 'AI details enrichment failed'
+              [webKey]: '',
+              [noteKey]: 'AI details enrichment failed',
+              linkVerified: false
             });
           }
 
@@ -2365,6 +2581,68 @@
         document.body.removeChild(link);
       };
 
+      const getExportMatrix = () => {
+        const cols = [{ key: '_status', label: 'Status' }, ...headers];
+        const aoa = [cols.map(c => c.label)];
+        rows.forEach(row => {
+          aoa.push(cols.map(c => {
+            if (c.key === '_status') return row.status || '';
+            return row[c.key] != null ? String(row[c.key]) : '';
+          }));
+        });
+        return { cols, aoa };
+      };
+
+      const handleExportXLSX = () => {
+        if (rows.length === 0) return;
+        if (!window.XLSX) {
+          alert('Excel export library failed to load. Please refresh and try again.');
+          return;
+        }
+        const { aoa } = getExportMatrix();
+        const ws = window.XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = aoa[0].map((_, i) => ({
+          wch: Math.min(40, Math.max(10, ...aoa.map(r => String(r[i] || '').length)))
+        }));
+        const wb = window.XLSX.utils.book_new();
+        window.XLSX.utils.book_append_sheet(wb, ws, 'Enrichment');
+        window.XLSX.writeFile(wb, `company_enrichment_${new Date().toISOString().slice(0,10)}.xlsx`);
+      };
+
+      const handleExportPDF = () => {
+        if (rows.length === 0) return;
+        const jspdfMod = window.jspdf;
+        if (!jspdfMod || !jspdfMod.jsPDF) {
+          alert('PDF export library failed to load. Please refresh and try again.');
+          return;
+        }
+        const { jsPDF } = jspdfMod;
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+        const { cols, aoa } = getExportMatrix();
+        doc.setFontSize(14);
+        doc.text('Company Enrichment Export', 40, 36);
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        doc.text(`Generated ${new Date().toLocaleString()} · ${rows.length} rows`, 40, 52);
+        doc.setTextColor(0);
+
+        if (typeof doc.autoTable !== 'function') {
+          alert('PDF table plugin failed to load. Please refresh and try again.');
+          return;
+        }
+
+        doc.autoTable({
+          startY: 64,
+          head: [aoa[0]],
+          body: aoa.slice(1),
+          styles: { fontSize: 7, cellPadding: 3, overflow: 'linebreak' },
+          headStyles: { fillColor: [91, 127, 166], textColor: 255 },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          margin: { left: 28, right: 28 }
+        });
+        doc.save(`company_enrichment_${new Date().toISOString().slice(0,10)}.pdf`);
+      };
+
       const stats = {
         total: rows.length,
         pending: rows.filter(r => r.status === 'pending').length + queue.length,
@@ -2389,7 +2667,7 @@
               <span className="brand-tagline">Paste company names. Get websites and data.</span>
             </div>
             <div className="actions-section" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'var(--text-secondary)', cursor: 'pointer', border: '1px dashed var(--border-color)', padding: '0.4rem 0.6rem', borderRadius: '6px', backgroundColor: financeFilterActive ? '#EFF6FF' : 'transparent', borderColor: financeFilterActive ? '#93C5FD' : 'var(--border-color)', userSelect: 'none' }} title="Add corporate terms (e.g. Capital, Partners, Ventures) to queries if missing, and penalize non-financial entities (like museums).">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'var(--text-secondary)', cursor: 'pointer', border: '1px dashed var(--border-color)', padding: '0.4rem 0.6rem', borderRadius: '6px', backgroundColor: financeFilterActive ? '#EFF6FF' : 'transparent', borderColor: financeFilterActive ? '#93C5FD' : 'var(--border-color)', userSelect: 'none' }} title="Prioritize finance/fintech/VC matches and deprioritize unrelated industries (publishing, media, education, etc.). Shows industry snippets when names collide.">
                 <input 
                   type="checkbox" 
                   checked={financeFilterActive}
@@ -2408,9 +2686,22 @@
                 <TrashIcon size={15} />
                 <span>Clear Table</span>
               </button>
-              <button className="btn btn-primary" disabled={rows.length === 0} onClick={handleExportCSV}>
-                <DownloadIcon size={15} />
-                <span>Export CSV</span>
+              <div className="export-group">
+                <button className="btn btn-primary" disabled={rows.length === 0} onClick={handleExportCSV} title="Export as CSV">
+                  <DownloadIcon size={15} />
+                  <span>CSV</span>
+                </button>
+                <button className="btn btn-primary" disabled={rows.length === 0} onClick={handleExportXLSX} title="Export as Excel (.xlsx)">
+                  <DownloadIcon size={15} />
+                  <span>XLSX</span>
+                </button>
+                <button className="btn btn-primary" disabled={rows.length === 0} onClick={handleExportPDF} title="Export as PDF table">
+                  <DownloadIcon size={15} />
+                  <span>PDF</span>
+                </button>
+              </div>
+              <button className="btn" disabled={rows.length === 0} onClick={resetColumns} title="Reset column widths to defaults">
+                <span style={{ fontSize: '0.75rem' }}>Reset Cols</span>
               </button>
             </div>
           </header>
@@ -2513,9 +2804,14 @@
                   <table className="spreadsheet-table">
                     <thead>
                       <tr>
-                        <th className="col-status" style={{ width: colWidths['status'] || undefined }}>Status</th>
+                        <th className="col-status" style={{ width: colWidths['status'] || 118, minWidth: 100 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Status</span>
+                            <div className="col-resizer" onMouseDown={(e) => startResize(e, 'status')} />
+                          </div>
+                        </th>
                         {headers.map(col => (
-                          <th key={col.key} className={`col-${col.key}`} style={{ width: colWidths[col.key] || undefined }}>
+                          <th key={col.key} className={`col-${col.key}`} style={{ width: colWidths[col.key] || undefined, minWidth: 60 }}>
                             {editingHeader === col.key ? (
                               <input
                                 ref={headerEditRef}
@@ -2528,7 +2824,7 @@
                             ) : (
                               <div
                                 onDoubleClick={() => handleHeaderDoubleClick(col.key, col.label)}
-                                title="Double-click header to rename"
+                                title="Double-click header to rename · drag edge to resize"
                                 style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                               >
                                 <span>{col.label}</span>
@@ -2655,39 +2951,41 @@
                                       </div>
                                     ) : col.key === webKey ? (
                                       row[col.key] && row[col.key] !== '-' ? (
-                                        row.status === 'potential' ? (
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'space-between', width: '100%' }}>
-                                            <a 
-                                              href={row[col.key].startsWith('http') ? row[col.key] : `https://${row[col.key]}`} 
-                                              target="_blank" 
-                                              rel="noopener noreferrer"
-                                              className="url-link"
-                                              style={{ textDecoration: 'underline dotted', color: '#D97706' }}
-                                              onClick={(e) => e.stopPropagation()}
-                                              title="Potential match guessed algorithmically. Needs manual verification."
-                                            >
-                                              <span>{row[col.key]}</span>
-                                              <ExternalLinkIcon size={10} />
-                                            </a>
-                                            <span style={{ fontSize: '0.7rem', color: '#D97706', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
-                                              (Verify)
-                                            </span>
-                                          </div>
-                                        ) : (
+                                        row.status === 'found' && row.linkVerified !== false ? (
                                           <a 
                                             href={row[col.key].startsWith('http') ? row[col.key] : `https://${row[col.key]}`} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
                                             className="url-link"
                                             onClick={(e) => e.stopPropagation()}
+                                            title="Verified website"
                                           >
                                             <span>{row[col.key]}</span>
                                             <ExternalLinkIcon size={10} />
                                           </a>
+                                        ) : (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', maxWidth: '100%' }}>
+                                            <span className="url-plain" title="Not verified — not shown as a clickable link">
+                                              {row[col.key]}
+                                            </span>
+                                            <span style={{ fontSize: '0.68rem', color: '#D97706', fontStyle: 'italic' }}>
+                                              {row.status === 'potential' ? 'Unverified candidate' : 'Unverified'}
+                                            </span>
+                                            {row.matchSnippet && (
+                                              <span className="match-snippet" title={row.matchSnippet}>{row.matchSnippet}</span>
+                                            )}
+                                          </div>
                                         )
                                       ) : (
                                         <span style={{ color: 'var(--text-secondary)' }}>-</span>
                                       )
+                                    ) : col.key === indKey ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '100%' }}>
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row[col.key] || '-'}</span>
+                                        {row.matchSnippet && row.status === 'potential' && (
+                                          <span className="match-snippet" title={row.matchSnippet}>{row.matchSnippet}</span>
+                                        )}
+                                      </div>
                                     ) : col.key === locKey ? (
                                       row[col.key] && row[col.key] !== '-' ? (
                                         <a 
