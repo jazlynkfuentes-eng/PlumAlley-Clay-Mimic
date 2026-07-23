@@ -631,7 +631,7 @@ export default function App() {
                     <tr key={row.id} className="table-row">
                       {/* Status Column */}
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div className="status-cell">
                           {row.status === 'pending' && (
                             <span className="status-badge pending">
                               <Clock size={12} />
@@ -672,8 +672,7 @@ export default function App() {
                           {/* Re-run button for non-processing rows */}
                           {!isRowProcessing && row.status !== 'pending' && (
                             <button 
-                              className="btn" 
-                              style={{ padding: '0.15rem 0.35rem', fontSize: '0.7rem', borderRadius: '4px', height: 'auto' }}
+                              className="btn btn-rerun"
                               title="Re-run enrichment"
                               onClick={() => triggerRowReRun(row.id)}
                             >
@@ -699,11 +698,9 @@ export default function App() {
                             onKeyDown={handleCellKeyDown}
                           />
                         ) : (
-                          <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', width: '100%' }}>
-                            <span style={{ flexGrow: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {row.companyName || <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Double-click to name</span>}
-                            </span>
-                          </div>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {row.companyName || <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Double-click to name</span>}
+                          </span>
                         )}
                       </td>
 

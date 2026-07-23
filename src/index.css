@@ -338,7 +338,7 @@ body {
 }
 
 /* Column Widths */
-.col-status { width: 190px; }
+.col-status { width: 210px; }
 .col-name { width: 220px; }
 .col-website { width: 220px; }
 .col-industry { width: 180px; }
@@ -354,9 +354,10 @@ body {
   background-color: var(--table-header-bg);
   border-bottom: 2px solid var(--border-color);
   border-right: 1px solid var(--border-color);
-  padding: 0.4rem 0.75rem;
+  padding: 0.35rem 0.75rem;
   font-size: 0.8rem;
   font-weight: 600;
+  line-height: 1.2;
   color: var(--text-secondary);
   text-align: left;
   user-select: none;
@@ -369,6 +370,7 @@ body {
 /* Table Row Styles */
 .table-row {
   animation: fadeIn 0.3s ease-out;
+  height: auto;
 }
 
 .table-row:nth-child(even) {
@@ -379,23 +381,54 @@ body {
   background-color: var(--accent-light) !important;
 }
 
-/* Cell Styles */
+/* Cell Styles — height driven by content + padding only */
 .spreadsheet-table td {
   border-bottom: 1px solid var(--border-color);
   border-right: 1px solid var(--border-color);
-  padding: 0.25rem 0.75rem;
+  padding: 0.15rem 0.75rem;
   font-size: 0.85rem;
-  line-height: 1.35;
+  line-height: 1.2;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   position: relative;
   vertical-align: middle;
+  height: auto;
+  min-height: 0;
 }
 
 .spreadsheet-table td:last-child {
   border-right: none;
+}
+
+/* Kill SVG baseline gap that adds phantom vertical space in cells */
+.spreadsheet-table svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* Compact status cell layout */
+.status-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  line-height: 1;
+  min-height: 0;
+}
+
+/* Re-run control inside rows — don't inherit tall .btn padding/line-height */
+.spreadsheet-table .btn-rerun {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  height: auto;
+  min-height: 0;
+  border-radius: 4px;
+  gap: 0;
 }
 
 /* Clickable URLs */
@@ -410,6 +443,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .url-link:hover {
@@ -421,13 +457,15 @@ body {
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.12rem 0.5rem;
+  gap: 0.3rem;
+  padding: 0.1rem 0.45rem;
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 500;
   font-family: var(--font-sans);
-  line-height: 1.3;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .status-badge.searching {
