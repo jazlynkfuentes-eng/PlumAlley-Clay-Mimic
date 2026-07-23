@@ -375,13 +375,14 @@
     /* Column Widths — tight defaults so more columns fit without horizontal scroll.
        Keys match header `col-${key}` classes (e.g. companyName, not "name"). */
     .col-status { width: 118px; min-width: 100px; }
-    .col-companyName { width: 148px; min-width: 110px; }
-    .col-website { width: 138px; min-width: 100px; }
-    .col-industry { width: 112px; min-width: 90px; }
-    .col-headcount { width: 88px; min-width: 70px; }
-    .col-location { width: 108px; min-width: 85px; }
-    .col-contacts { width: 128px; min-width: 100px; }
-    .col-notes { width: 160px; min-width: 120px; }
+    .col-companyName { width: 140px; min-width: 110px; }
+    .col-sourceContact { width: 150px; min-width: 110px; }
+    .col-website { width: 130px; min-width: 100px; }
+    .col-industry { width: 100px; min-width: 80px; }
+    .col-headcount { width: 80px; min-width: 70px; }
+    .col-location { width: 100px; min-width: 85px; }
+    .col-contacts { width: 120px; min-width: 100px; }
+    .col-notes { width: 140px; min-width: 110px; }
     /* Ensure headers allow resizer positioning */
     .spreadsheet-table th { position: relative; }
     .col-resizer {
@@ -413,6 +414,56 @@
       font-family: var(--font-mono);
       font-size: 0.8rem;
       color: var(--text-secondary);
+    }
+    .parse-preview {
+      margin-top: 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: var(--table-header-bg);
+      overflow: hidden;
+    }
+    .parse-preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid var(--border-color);
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .parse-preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    .parse-preview-table th {
+      text-align: left;
+      padding: 0.4rem 0.65rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-color);
+      background: #EEF2F6;
+    }
+    .parse-preview-table td {
+      padding: 0.35rem 0.65rem;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: top;
+    }
+    .parse-preview-table input {
+      width: 100%;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 0.25rem 0.4rem;
+      font: inherit;
+      background: #fff;
+    }
+    .parse-preview-raw {
+      color: var(--text-secondary);
+      font-size: 0.72rem;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
 
@@ -1284,6 +1335,60 @@
         notes: "Global financial services and commodities broker.",
         founder: "Ian Lowitt (CEO)",
         gender: "Male"
+      },
+      "nav fund services": {
+        domain: "navfundservices.com",
+        industry: "Fund Administration",
+        headcount: "1,000 - 5,000",
+        location: "United States",
+        notes: "Global fund administrator providing back- and middle-office services.",
+        founder: "Needs Manual Research",
+        gender: "Needs Verification"
+      },
+      "nav": {
+        domain: "navfundservices.com",
+        industry: "Fund Administration",
+        headcount: "1,000 - 5,000",
+        location: "United States",
+        notes: "Global fund administrator providing back- and middle-office services.",
+        founder: "Needs Manual Research",
+        gender: "Needs Verification"
+      },
+      "disciplina capital management": {
+        domain: "disciplina.com",
+        industry: "OCIO / Investment Management",
+        headcount: "11 - 50",
+        location: "Nashville, TN",
+        notes: "Boutique OCIO firm (also dba Disciplina Group).",
+        founder: "Alena Kuprevich (Founding Partner)",
+        gender: "Female"
+      },
+      "disciplina group llc": {
+        domain: "disciplina.com",
+        industry: "OCIO / Investment Management",
+        headcount: "11 - 50",
+        location: "Nashville, TN",
+        notes: "DBA of Disciplina Capital Management.",
+        founder: "Alena Kuprevich (Founding Partner)",
+        gender: "Female"
+      },
+      "disciplina group": {
+        domain: "disciplina.com",
+        industry: "OCIO / Investment Management",
+        headcount: "11 - 50",
+        location: "Nashville, TN",
+        notes: "DBA of Disciplina Capital Management.",
+        founder: "Alena Kuprevich (Founding Partner)",
+        gender: "Female"
+      },
+      "stable": {
+        domain: "stableam.com",
+        industry: "Investment Management / GP Stakes",
+        headcount: "11 - 50",
+        location: "New York, NY",
+        notes: "Stable Asset Management — GP stakes and partnerships with emerging managers.",
+        founder: "Needs Manual Research",
+        gender: "Needs Verification"
       }
     };
 
@@ -1293,7 +1398,185 @@
 
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    async function resolveDomain(companyName, financeFilterActive = false, skippedDomains = []) {
+    // Title keywords used to split "Name – Title" person segments
+    const TITLE_PATTERN = /\b(CEO|CFO|CTO|CIO|COO|CMO|CRO|VVP|EVP|SVP|VP|Managing Director|Chief Investment Officer|Chief Executive Officer|Chief Operating Officer|Chief Financial Officer|Chief Technology Officer|Investment Principal|Managing Partner|General Partner|Limited Partner|Founding Partner|Co-Founder|Cofounder|Founder|President|Partner|Director|Principal|Head of|Board Member|Private Equity|Public Policy)\b/i;
+
+    const KNOWN_UNAMBIGUOUS = new Set([
+      'pimco', 'blackstone', 'blackrock', 'google', 'microsoft', 'apple', 'amazon', 'meta',
+      'goldmansachs', 'kkr', 'apollo', 'carlyle', 'bridgewater', 'stripe', 'openai', 'netflix',
+      'tesla', 'jpmorgan', 'morganstanley', 'vanguard', 'fidelity', 'state street', 'statestreet'
+    ]);
+
+    /**
+     * Parse a pasted line that may mix "Person – Title" with a company name.
+     * @returns {{ companyName: string, sourceContact: string, personName: string, personTitle: string, notes: string, raw: string }}
+     */
+    function parsePersonCompanyLine(rawLine) {
+      const raw = String(rawLine || '').trim();
+      if (!raw) return null;
+
+      let left = raw;
+      let right = '';
+
+      // 1) Tab is most reliable separator between person/title and company
+      if (raw.includes('\t')) {
+        const tabIdx = raw.indexOf('\t');
+        left = raw.slice(0, tabIdx).trim();
+        right = raw.slice(tabIdx + 1).trim();
+      } else {
+        // 2) Split on last em/en dash, then check for large whitespace gap
+        const dashChars = ['–', '—'];
+        let splitAt = -1;
+        for (const d of dashChars) {
+          const idx = raw.lastIndexOf(d);
+          if (idx > splitAt) splitAt = idx;
+        }
+        // Spaced hyphen as dash (avoid splitting hyphenated surnames like Robertsson-Rasheed)
+        const spacedHyphen = raw.lastIndexOf(' - ');
+        if (spacedHyphen > splitAt) splitAt = spacedHyphen;
+
+        if (splitAt > 0) {
+          const afterDash = raw.slice(splitAt).replace(/^[–—-]+\s*/, '');
+          // If there's a large whitespace gap after the title area, company is after the gap
+          const gapMatch = afterDash.match(/^(.+?)(?:\t|\s{2,})(.+)$/);
+          if (gapMatch) {
+            left = (raw.slice(0, splitAt) + ' – ' + gapMatch[1]).trim();
+            right = gapMatch[2].trim();
+          } else {
+            // Fallback: title-word heuristic — company is tokens after the title phrase
+            const titleMatch = raw.match(TITLE_PATTERN);
+            if (titleMatch && titleMatch.index != null) {
+              // Find end of title-ish clause, then remaining may be company if separated
+              // Without tab, assume everything after last dash is title+maybe company mixed — weak
+              left = raw.slice(0, splitAt).trim();
+              right = afterDash.trim();
+              // If "right" looks like a title (starts with title word), there may be no company
+              if (TITLE_PATTERN.test(right) && right.split(/\s+/).length <= 8 && !/[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}$/.test(right)) {
+                // entire line is person – title only
+                left = raw;
+                right = '';
+              }
+            } else {
+              left = raw.slice(0, splitAt).trim();
+              right = afterDash.trim();
+            }
+          }
+        } else {
+          // 3) Title-word heuristic with no dash
+          const m = raw.match(TITLE_PATTERN);
+          if (m && m.index != null && m.index > 2) {
+            left = raw.slice(0, m.index).trim().replace(/[–—-]\s*$/, '').trim();
+            const afterTitleStart = raw.slice(m.index);
+            // Company often follows title after 2+ spaces or tab
+            const gap = afterTitleStart.match(/^(.*?)(?:\t|\s{2,})(.+)$/);
+            if (gap) {
+              left = (left + ' – ' + gap[1]).trim();
+              right = gap[2].trim();
+            } else {
+              left = raw;
+              right = '';
+            }
+          }
+        }
+      }
+
+      // Parse person name + title from left side
+      let personName = left;
+      let personTitle = '';
+      const leftDash = left.match(/\s+[–—]\s+|\s+-\s+/);
+      if (leftDash) {
+        const idx = left.search(/\s+[–—]\s+|\s+-\s+/);
+        const dashLen = leftDash[0].length;
+        personName = left.slice(0, idx).trim();
+        personTitle = left.slice(idx + dashLen).trim();
+      } else if (TITLE_PATTERN.test(left)) {
+        const m = left.match(TITLE_PATTERN);
+        if (m && m.index > 0) {
+          personName = left.slice(0, m.index).trim().replace(/[–—-]\s*$/, '').trim();
+          personTitle = left.slice(m.index).trim();
+        }
+      }
+
+      let companyPart = right || '';
+      const notes = [];
+
+      // If no explicit company on the right, and left had only person–title, company empty
+      if (!companyPart && personTitle && !right) {
+        companyPart = '';
+      }
+
+      // Strip trailing parentheticals from company → notes
+      const extractParens = (text) => {
+        let t = text;
+        const found = [];
+        t = t.replace(/\s*\(([^)]+)\)\s*/g, (_, inner) => {
+          found.push(inner.trim());
+          return ' ';
+        }).replace(/\s+/g, ' ').trim();
+        return { text: t, found };
+      };
+
+      // Multi-company: prefer / then ;
+      let primaryCompany = companyPart;
+      let alternates = [];
+      if (companyPart.includes('/')) {
+        const bits = companyPart.split('/').map(s => s.trim()).filter(Boolean);
+        primaryCompany = bits[0] || '';
+        alternates = bits.slice(1);
+      } else if (companyPart.includes(';')) {
+        const bits = companyPart.split(';').map(s => s.trim()).filter(Boolean);
+        primaryCompany = bits[0] || '';
+        alternates = bits.slice(1);
+      }
+
+      const primaryParsed = extractParens(primaryCompany);
+      primaryCompany = primaryParsed.text;
+      notes.push(...primaryParsed.found);
+
+      alternates = alternates.map(a => {
+        const p = extractParens(a);
+        notes.push(...p.found);
+        if (p.text) notes.push(`Also: ${p.text}`);
+        return p.text;
+      }).filter(Boolean);
+
+      // If still no company, maybe the "title" was actually company (rare) — leave empty
+      const sourceContact = [personName, personTitle].filter(Boolean).join(' – ');
+
+      return {
+        raw,
+        companyName: primaryCompany || '',
+        sourceContact: sourceContact || left || raw,
+        personName: personName || '',
+        personTitle: personTitle || '',
+        notes: notes.filter(Boolean).join(' · '),
+        alternates
+      };
+    }
+
+    function isAmbiguousCompanyName(name) {
+      const cleaned = String(name || '').trim();
+      if (!cleaned) return true;
+      const key = cleaned.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (KNOWN_UNAMBIGUOUS.has(key)) return false;
+      // Short / acronym / alphanumeric brands
+      if (key.length <= 8) return true;
+      if (/^[a-z]{1,6}\d+[a-z]*$/i.test(key) || /\d/.test(key) && key.length <= 10) return true;
+      // Single token under 12 chars without corp suffixes
+      const tokens = cleaned.split(/\s+/).filter(Boolean);
+      if (tokens.length === 1 && key.length < 12) return true;
+      return false;
+    }
+
+    function isNonEntityCompany(name) {
+      const n = String(name || '').trim();
+      if (!n) return true;
+      if (/^private fund$/i.test(n)) return true;
+      if (/^(n\/?a|none|null|tbd|placeholder)$/i.test(n)) return true;
+      return false;
+    }
+
+    async function resolveDomain(companyName, financeFilterActive = false, skippedDomains = [], personContext = null) {
       const latency = Math.floor(Math.random() * 200) + 300;
       await delay(latency);
 
@@ -1302,7 +1585,7 @@
       }
 
       // Internal labels / non-entity rows — skip search entirely
-      if (/\(\s*moderator\s*\)/i.test(companyName) || /^(n\/?a|none|null|tbd|placeholder)\b/i.test(companyName.trim())) {
+      if (isNonEntityCompany(companyName) || /\(\s*moderator\s*\)/i.test(companyName)) {
         console.log('[resolve] skipping non-entity label:', companyName);
         return null;
       }
@@ -1345,16 +1628,26 @@
 
       // Waterfall Tier 0: Direct Catalogue Lookup (Ensures offline dictionary items resolve instantly)
       const localClean = cleaned.replace(/[^a-z0-9]/g, '');
+      const rawKey = companyName.trim().toLowerCase();
+      if (companyDictionary[rawKey]) {
+        const d = companyDictionary[rawKey].domain.toLowerCase();
+        if (!skippedDomains.includes(d)) {
+          return { domain: d, isUnsure: false, industrySnippet: companyDictionary[rawKey].industry, resolveMethod: 'name-only' };
+        }
+      }
       if (companyDictionary[localClean]) {
         const d = companyDictionary[localClean].domain.toLowerCase();
         if (!skippedDomains.includes(d)) {
-          return { domain: d, isUnsure: false };
+          return { domain: d, isUnsure: false, industrySnippet: companyDictionary[localClean].industry, resolveMethod: 'name-only' };
         }
       }
       for (const key in companyDictionary) {
         const d = companyDictionary[key].domain.toLowerCase();
-        if (localClean === key.replace(/[^a-z0-9]/g, '') && !skippedDomains.includes(d)) {
-          return { domain: d, isUnsure: false };
+        const keyNorm = key.replace(/[^a-z0-9]/g, '');
+        if ((localClean === keyNorm || rawKey === key || localClean.includes(keyNorm) || keyNorm.includes(localClean)) && !skippedDomains.includes(d)) {
+          // Avoid ultra-short accidental partials
+          if (Math.min(localClean.length, keyNorm.length) < 4 && localClean !== keyNorm) continue;
+          return { domain: d, isUnsure: false, industrySnippet: companyDictionary[key].industry, resolveMethod: personContext?.personName ? 'name+person' : 'name-only' };
         }
       }
 
@@ -1516,47 +1809,72 @@
         return url.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
       };
 
-      // Waterfall Tier 1: Clearbit suggest API
-      const toResolveResult = (match) => {
+      // Waterfall Tier 1: Clearbit suggest API (+ optional person-context disambiguation)
+      const toResolveResult = (match, method = 'name-only') => {
         if (!match || !match.domain) return null;
-        // Exact brand or strong score → confident; only flag unsure for genuine ambiguity
         const isUnsure = !!(match.ambiguous || match.deprioritized) && !match.exactName && match.score < 120;
         return {
           domain: match.domain,
           isUnsure,
           matchedName: match.name,
           industrySnippet: match.snippet,
-          alternatives: match.alternatives || []
+          alternatives: match.alternatives || [],
+          resolveMethod: method
         };
       };
 
-      try {
-        let response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(searchQuery)}`);
-        let data = await response.json();
-        if (data && data.length > 0) {
-          const match = findBestDomainMatch(data, baseCleaned || companyName);
-          const resolved = toResolveResult(match);
-          if (resolved) return resolved;
-        }
-
-        // Query 1b: raw / base name (important when finance-augmented query drifts)
-        response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(baseCleaned || companyName)}`);
-        data = await response.json();
-        if (data && data.length > 0) {
-          const match = findBestDomainMatch(data, baseCleaned || companyName);
-          const resolved = toResolveResult(match);
-          if (resolved) return resolved;
-        }
-
-        if (companyName.toLowerCase().trim() !== (baseCleaned || '').toLowerCase()) {
-          response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(companyName)}`);
-          data = await response.json();
-          if (data && data.length > 0) {
-            const match = findBestDomainMatch(data, baseCleaned || companyName);
-            const resolved = toResolveResult(match);
-            if (resolved) return resolved;
+      const tryClearbitQueries = async (queries, scoreAgainst, method) => {
+        let weak = null;
+        for (const q of queries) {
+          if (!q || !String(q).trim()) continue;
+          try {
+            const response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(q)}`);
+            const data = await response.json();
+            if (data && data.length > 0) {
+              const match = findBestDomainMatch(data, scoreAgainst || baseCleaned || companyName);
+              const resolved = toResolveResult(match, method);
+              if (resolved && (!resolved.isUnsure || match.exactName || match.score >= 100)) {
+                console.log('[resolve] Clearbit hit via', method, q, '->', resolved.domain);
+                return resolved;
+              }
+              if (resolved && !weak) weak = resolved;
+            }
+          } catch (err) {
+            console.warn('Clearbit query failed', q, err);
           }
         }
+        return weak;
+      };
+
+      try {
+        const nameOnlyQueries = [searchQuery, baseCleaned || companyName, companyName];
+        let nameHit = await tryClearbitQueries(nameOnlyQueries, baseCleaned || companyName, 'name-only');
+
+        const usePerson = personContext && (personContext.personName || personContext.personTitle)
+          && (isAmbiguousCompanyName(companyName) || (nameHit && nameHit.isUnsure) || !nameHit);
+
+        if (usePerson) {
+          const pName = personContext.personName || '';
+          const pTitle = personContext.personTitle || '';
+          const personQueries = [
+            `${companyName} ${pName}`.trim(),
+            `${pName} ${pTitle} ${companyName}`.trim(),
+            `${pName} ${companyName} capital`.trim(),
+            `${companyName} ${pTitle}`.trim()
+          ].filter((q, i, arr) => q && arr.indexOf(q) === i);
+
+          console.log('[resolve] person-context search for', companyName, '→', personQueries[0]);
+          const personHit = await tryClearbitQueries(personQueries, baseCleaned || companyName, 'name+person');
+          if (personHit && (!personHit.isUnsure || !nameHit || nameHit.isUnsure)) {
+            return {
+              ...personHit,
+              resolveMethod: 'name+person',
+              industrySnippet: `${personHit.industrySnippet || personHit.matchedName || companyName}${pName ? ' · via ' + pName : ''}`
+            };
+          }
+        }
+
+        if (nameHit) return nameHit;
       } catch (err) {
         console.warn("Clearbit suggest query failed, continuing waterfall:", err);
       }
@@ -2005,10 +2323,13 @@
       const [financeFilterActive, setFinanceFilterActive] = useState(true);
       const [editingCell, setEditingCell] = useState(null);
       const [editingValue, setEditingValue] = useState('');
+      // Parse preview before enrichment
+      const [parsePreview, setParsePreview] = useState(null); // [{ id, raw, companyName, sourceContact, personName, personTitle, notes }]
       
       // Dynamic Header state
       const [headers, setHeaders] = useState([
         { key: 'companyName', label: 'Company Name' },
+        { key: 'sourceContact', label: 'Contact / Source' },
         { key: 'website', label: 'Website' },
         { key: 'industry', label: 'Industry' },
         { key: 'headcount', label: 'Headcount (est.)' },
@@ -2019,13 +2340,14 @@
       // Column width state (persisted) — tight defaults matching CSS
       const DEFAULT_COL_WIDTHS = {
         status: 118,
-        companyName: 148,
-        website: 138,
-        industry: 112,
-        headcount: 88,
-        location: 108,
-        contacts: 128,
-        notes: 160
+        companyName: 140,
+        sourceContact: 150,
+        website: 130,
+        industry: 100,
+        headcount: 80,
+        location: 100,
+        contacts: 120,
+        notes: 140
       };
       const [colWidths, setColWidths] = useState({ ...DEFAULT_COL_WIDTHS });
       // Load persisted widths on mount
@@ -2093,11 +2415,11 @@
 
       // Dynamic header mapping functions
       const getCompanyColumnKey = () => {
-        const h = headers.find(h => 
-          h.label.toLowerCase().includes('company') || 
-          h.label.toLowerCase().includes('name') || 
-          h.label.toLowerCase().includes('firm')
-        );
+        const h = headers.find(h => h.key === 'companyName') ||
+          headers.find(h => 
+            h.label.toLowerCase().includes('company') || 
+            h.label.toLowerCase().includes('firm')
+          );
         return h ? h.key : 'companyName';
       };
 
@@ -2126,8 +2448,12 @@
       };
 
       const getContactsColumnKey = () => {
-        const h = headers.find(h => h.label.toLowerCase().includes('contact') || h.label.toLowerCase().includes('people') || h.label.toLowerCase().includes('founder') || h.label.toLowerCase().includes('ceo'));
+        const h = headers.find(h => h.label.toLowerCase().includes('founder') || (h.label.toLowerCase().includes('contact') && !h.label.toLowerCase().includes('source')) || h.label.toLowerCase().includes('people') || h.label.toLowerCase().includes('ceo'));
         return h ? h.key : 'contacts';
+      };
+      const getSourceContactColumnKey = () => {
+        const h = headers.find(h => h.key === 'sourceContact' || h.label.toLowerCase().includes('source') || h.label.toLowerCase() === 'contact / source');
+        return h ? h.key : 'sourceContact';
       };
 
       const getNotesColumnKey = () => {
@@ -2442,6 +2768,10 @@
           const noteKey = getNotesColumnKey();
 
           const companyName = rowToProcess[compKey];
+          const personContext = {
+            personName: rowToProcess.personName || '',
+            personTitle: rowToProcess.personTitle || ''
+          };
 
           if (!companyName || !companyName.trim() || companyName === '-') {
             updateRow(processingId, { 
@@ -2452,7 +2782,21 @@
               [locKey]: '-',
               [conKey]: '-',
               [genKey]: '-',
-              [noteKey]: 'No company name provided'
+              [noteKey]: rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Queueing...' && rowToProcess[noteKey] !== '-'
+                ? rowToProcess[noteKey]
+                : 'No company name provided',
+              resolveMethod: 'none'
+            });
+            setProcessingId(null);
+            return;
+          }
+
+          if (isNonEntityCompany(companyName)) {
+            updateRow(processingId, {
+              status: 'unverified',
+              [webKey]: '',
+              [noteKey]: [rowToProcess[noteKey], 'Skipped: not a searchable company entity'].filter(n => n && n !== '-' && n !== 'Queueing...').join(' · '),
+              resolveMethod: 'skipped-non-entity'
             });
             setProcessingId(null);
             return;
@@ -2464,6 +2808,7 @@
           let apiData = null;
           let industrySnippet = '';
           let alternatives = [];
+          let resolveMethod = 'name-only';
           const skippedDomains = rowToProcess.skippedDomains || [];
 
           if (!isDomainPrepopulated) {
@@ -2471,7 +2816,12 @@
             
             try {
               const delayStart = Date.now();
-              const resolvedObj = await resolveDomain(companyName, financeFilterActive, skippedDomains);
+              const resolvedObj = await resolveDomain(
+                companyName,
+                financeFilterActive,
+                skippedDomains,
+                (isAmbiguousCompanyName(companyName) || personContext.personName) ? personContext : null
+              );
               const elapsed = Date.now() - delayStart;
               
               const remainingDelay = (1000 * factor) - elapsed;
@@ -2485,9 +2835,10 @@
                 apiData = resolvedObj.apiData || null;
                 industrySnippet = resolvedObj.industrySnippet || resolvedObj.matchedName || '';
                 alternatives = resolvedObj.alternatives || [];
+                resolveMethod = resolvedObj.resolveMethod || 'name-only';
                 
                 // STEP 1.5: Live verify link (DNS + content vs company name)
-                updateRow(processingId, { status: 'verifying', [webKey]: domain });
+                updateRow(processingId, { status: 'verifying', [webKey]: domain, resolveMethod });
                 
                 const verification = await verifyDomainLive(domain, companyName);
                 if (!verification.ok) {
@@ -2499,9 +2850,10 @@
                     [locKey]: '-',
                     [conKey]: '-',
                     [genKey]: '-',
-                    [noteKey]: verification.reason + (alternatives.length ? ` | Candidates: ${alternatives.join(' · ')}` : ''),
+                    [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', verification.reason, alternatives.length ? `Candidates: ${alternatives.join(' · ')}` : ''].filter(Boolean).join(' · '),
                     matchSnippet: industrySnippet,
-                    linkVerified: false
+                    linkVerified: false,
+                    resolveMethod
                   });
                   setProcessingId(null);
                   return;
@@ -2520,15 +2872,16 @@
                     [locKey]: '-',
                     [conKey]: '-',
                     [genKey]: '-',
-                    [noteKey]: altNote,
+                    [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', altNote].filter(Boolean).join(' · '),
                     matchSnippet: industrySnippet,
-                    linkVerified: false
+                    linkVerified: false,
+                    resolveMethod
                   });
                   setProcessingId(null);
                   return;
                 }
                 
-                updateRow(processingId, { [webKey]: domain, status: 'enriching', matchSnippet: industrySnippet, linkVerified: true });
+                updateRow(processingId, { [webKey]: domain, status: 'enriching', matchSnippet: industrySnippet, linkVerified: true, resolveMethod });
               } else {
                 updateRow(processingId, { 
                   status: 'unverified',
@@ -2538,7 +2891,8 @@
                   [locKey]: '-',
                   [conKey]: '-',
                   [genKey]: '-',
-                  [noteKey]: 'Could not resolve a verified domain'
+                  [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', 'Could not resolve a verified domain'].filter(Boolean).join(' · '),
+                  resolveMethod: resolveMethod || 'none'
                 });
                 setProcessingId(null);
                 return;
@@ -2546,7 +2900,8 @@
             } catch (err) {
               updateRow(processingId, { 
                 status: 'unverified',
-                [noteKey]: 'AI search error'
+                [noteKey]: 'AI search error',
+                resolveMethod: 'error'
               });
               setProcessingId(null);
               return;
@@ -2561,12 +2916,13 @@
                 status: 'unverified',
                 [webKey]: '',
                 [noteKey]: verification.reason || 'Link verification failed for manual domain override',
-                linkVerified: false
+                linkVerified: false,
+                resolveMethod: 'manual'
               });
               setProcessingId(null);
               return;
             }
-            updateRow(processingId, { status: 'enriching', linkVerified: true });
+            updateRow(processingId, { status: 'enriching', linkVerified: true, resolveMethod: 'manual' });
           }
 
           try {
@@ -2579,9 +2935,13 @@
               await new Promise(r => setTimeout(r, remainingDelay));
             }
 
+            const priorNotes = rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Queueing...' && rowToProcess[noteKey] !== '-'
+              ? rowToProcess[noteKey]
+              : '';
             const noteWithSnippet = industrySnippet && details.notes && !details.notes.includes(industrySnippet)
               ? `${details.notes} [${industrySnippet}]`
               : details.notes;
+            const mergedNotes = [priorNotes, noteWithSnippet].filter(Boolean).join(' · ');
 
             updateRow(processingId, {
               [indKey]: rowToProcess[indKey] === '-' || !rowToProcess[indKey] ? details.industry : rowToProcess[indKey],
@@ -2589,17 +2949,19 @@
               [locKey]: rowToProcess[locKey] === '-' || !rowToProcess[locKey] ? details.location : rowToProcess[locKey],
               [conKey]: rowToProcess[conKey] === '-' || !rowToProcess[conKey] ? details.contacts : rowToProcess[conKey],
               [genKey]: rowToProcess[genKey] === '-' || !rowToProcess[genKey] ? details.gender : rowToProcess[genKey],
-              [noteKey]: noteWithSnippet,
+              [noteKey]: mergedNotes,
               status: 'found',
               matchSnippet: industrySnippet,
-              linkVerified: true
+              linkVerified: true,
+              resolveMethod
             });
           } catch (err) {
             updateRow(processingId, {
               status: 'unverified',
               [webKey]: '',
               [noteKey]: 'AI details enrichment failed',
-              linkVerified: false
+              linkVerified: false,
+              resolveMethod
             });
           }
 
@@ -2618,49 +2980,72 @@
         }));
       };
 
-      const handleRunEnrichment = () => {
+      const handleParsePreview = () => {
         if (!inputText.trim()) return;
-
         const lines = inputText.split('\n').filter(line => line.trim().length > 0);
-        
-        // Multi-delimiter split regex (tab, pipe, em-dash, en-dash, spaced hyphen, 2+ spaces)
-        const delimiterRegex = /\s*(?:\t|\||—|–|\s-\s|\s{2,})\s*/;
+        const preview = lines.map(line => {
+          const parsed = parsePersonCompanyLine(line) || {
+            raw: line,
+            companyName: line.trim(),
+            sourceContact: '',
+            personName: '',
+            personTitle: '',
+            notes: ''
+          };
+          return {
+            id: crypto.randomUUID(),
+            raw: parsed.raw || line,
+            companyName: parsed.companyName || '',
+            sourceContact: parsed.sourceContact || '',
+            personName: parsed.personName || '',
+            personTitle: parsed.personTitle || '',
+            notes: parsed.notes || '',
+            alternates: parsed.alternates || []
+          };
+        });
+        setParsePreview(preview);
+      };
 
-        const newRows = lines.map(line => {
-          const parts = line.split(delimiterRegex).map(p => p.trim());
-          
+      const updatePreviewRow = (id, fields) => {
+        setParsePreview(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+      };
+
+      const handleConfirmEnrichment = () => {
+        if (!parsePreview || parsePreview.length === 0) return;
+
+        const compKey = getCompanyColumnKey();
+        const sourceKey = getSourceContactColumnKey();
+        const noteKey = getNotesColumnKey();
+        const webKey = getWebsiteColumnKey();
+
+        const newRows = parsePreview.map(p => {
           const rowData = {
             id: crypto.randomUUID(),
-            status: 'pending'
+            status: 'pending',
+            personName: p.personName || '',
+            personTitle: p.personTitle || '',
+            resolveMethod: '',
+            skippedDomains: []
           };
-
-          // Initialize keys
           headers.forEach(h => {
             rowData[h.key] = '-';
           });
-          
-          const notesKey = getNotesColumnKey();
-          rowData[notesKey] = 'Queueing...';
-
-          // Map parts to header keys left-to-right
-          parts.forEach((part, index) => {
-            if (index < headers.length) {
-              rowData[headers[index].key] = part;
-            }
-          });
-
-          // Ensure webKey is clean
-          const webKey = getWebsiteColumnKey();
-          if (rowData[webKey] === '-') {
-            rowData[webKey] = '';
-          }
-
+          rowData[compKey] = p.companyName || '';
+          rowData[sourceKey] = p.sourceContact || '';
+          rowData[noteKey] = p.notes || 'Queueing...';
+          rowData[webKey] = '';
           return rowData;
         });
 
         setRows(prev => [...prev, ...newRows]);
         setQueue(prev => [...prev, ...newRows.map(r => r.id)]);
+        setParsePreview(null);
         setInputText('');
+      };
+
+      const handleRunEnrichment = () => {
+        // Back-compat: Ctrl+Enter still works — show preview first
+        handleParsePreview();
       };
 
       const handleAddBlankRow = () => {
@@ -2686,44 +3071,35 @@
           let lines = [];
           if (file.name.endsWith('.csv')) {
             const rawLines = text.split(/\r?\n/);
-            // Ignore headers and map rows
             lines = rawLines.slice(1).filter(l => l.trim().length > 0);
           } else {
             lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
           }
 
-          const delimiterRegex = /\s*(?:\t|\||—|–|\s-\s|\s{2,})\s*/;
           if (lines.length > 0) {
-            const newRows = lines.map(line => {
-              const parts = line.split(delimiterRegex).map(p => p.trim());
-              const rowData = {
-                id: crypto.randomUUID(),
-                status: 'pending'
+            setInputText(lines.join('\n'));
+            // Defer preview so inputText state is set for display; parse lines directly
+            const preview = lines.map(line => {
+              const parsed = parsePersonCompanyLine(line) || {
+                raw: line,
+                companyName: line.trim(),
+                sourceContact: '',
+                personName: '',
+                personTitle: '',
+                notes: ''
               };
-
-              headers.forEach(h => {
-                rowData[h.key] = '-';
-              });
-              
-              const notesKey = getNotesColumnKey();
-              rowData[notesKey] = 'Queueing...';
-
-              parts.forEach((part, index) => {
-                if (index < headers.length) {
-                  rowData[headers[index].key] = part;
-                }
-              });
-
-              const webKey = getWebsiteColumnKey();
-              if (rowData[webKey] === '-') {
-                rowData[webKey] = '';
-              }
-
-              return rowData;
+              return {
+                id: crypto.randomUUID(),
+                raw: parsed.raw || line,
+                companyName: parsed.companyName || '',
+                sourceContact: parsed.sourceContact || '',
+                personName: parsed.personName || '',
+                personTitle: parsed.personTitle || '',
+                notes: parsed.notes || '',
+                alternates: parsed.alternates || []
+              };
             });
-
-            setRows(prev => [...prev, ...newRows]);
-            setQueue(prev => [...prev, ...newRows.map(r => r.id)]);
+            setParsePreview(preview);
           }
         };
         reader.readAsText(file);
@@ -2974,12 +3350,12 @@
             <div className="textarea-container">
               <textarea
                 className="company-textarea"
-                placeholder="Paste your company names here, one per line (e.g. Google&#10;Microsoft&#10;Plum Alley Ventures)..."
+                placeholder={"Paste person + company lines (tab-separated), e.g.\nLibby Cantrill – Managing Director\tPIMCO\nTom Cheesman – Partner\tStable"}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.ctrlKey) {
-                    handleRunEnrichment();
+                    handleParsePreview();
                   }
                 }}
               />
@@ -2987,13 +3363,65 @@
 
             <div className="input-controls">
               <span className="input-subtitle" style={{ fontStyle: 'italic' }}>
-                Tip: Press Ctrl + Enter to run enrichment instantly
+                Tip: Ctrl + Enter parses a preview first — correct companies, then confirm enrichment
               </span>
-              <button className="btn btn-primary" onClick={handleRunEnrichment} disabled={!inputText.trim()}>
-                <SlidersIcon size={14} style={{ transform: 'rotate(90deg)' }} />
-                <span>Run Enrichment</span>
+              <button className="btn btn-primary" onClick={handleParsePreview} disabled={!inputText.trim()}>
+                <SearchIcon size={14} />
+                <span>Parse & Preview</span>
               </button>
             </div>
+
+            {parsePreview && (
+              <div className="parse-preview">
+                <div className="parse-preview-header">
+                  <div>
+                    <strong style={{ fontSize: '0.9rem' }}>Parse preview</strong>
+                    <div className="input-subtitle">Edit Company if needed, then confirm to enrich. Contact/Source and Notes are kept.</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button className="btn" onClick={() => setParsePreview(null)}>Cancel</button>
+                    <button className="btn btn-primary" onClick={handleConfirmEnrichment}>
+                      <CheckIcon size={14} />
+                      <span>Confirm & Enrich ({parsePreview.length})</span>
+                    </button>
+                  </div>
+                </div>
+                <div style={{ overflowX: 'auto', maxHeight: '280px' }}>
+                  <table className="parse-preview-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '28%' }}>Company (editable)</th>
+                        <th style={{ width: '28%' }}>Contact / Source</th>
+                        <th style={{ width: '20%' }}>Notes</th>
+                        <th>Original line</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parsePreview.map(row => (
+                        <tr key={row.id}>
+                          <td>
+                            <input
+                              value={row.companyName}
+                              onChange={(e) => updatePreviewRow(row.id, { companyName: e.target.value })}
+                              placeholder="Company name"
+                            />
+                          </td>
+                          <td>{row.sourceContact || '—'}</td>
+                          <td>
+                            <input
+                              value={row.notes}
+                              onChange={(e) => updatePreviewRow(row.id, { notes: e.target.value })}
+                              placeholder="Notes"
+                            />
+                          </td>
+                          <td><div className="parse-preview-raw" title={row.raw}>{row.raw}</div></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Stats Bar */}
