@@ -22,6 +22,7 @@ import { resolveDomain, enrichCompanyDetails } from './aiSimulator';
 
 export default function App() {
   // Spreadsheet row state
+  // Terminal statuses: found (Found & Verified), unverified (Found but Unverified), not_found (Not Found)
   // Schema: { id, companyName, website, industry, headcount, location, notes, status }
   const [rows, setRows] = useState([]);
   
@@ -73,7 +74,7 @@ export default function App() {
     if (queue.length === 0 && !processingId) {
       if (isProcessingActive) {
         // Queue just finished
-        const successCount = rows.filter(r => r.status === 'found').length;
+        const successCount = rows.filter(r => r.status === 'found' || r.status === 'unverified').length;
         if (successCount > 0) {
           // Trigger a gentle confetti shower
           confetti({
@@ -108,15 +109,18 @@ export default function App() {
 
     const processRow = async () => {
       const factor = getDelayFactor();
+      const blankFields = {
+        industry: '-',
+        headcount: '-',
+        location: '-',
+      };
       
-      // If there's no company name, we can't search. Mark unverified immediately
+      // If there's no company name, we can't search.
       if (!rowToProcess.companyName || !rowToProcess.companyName.trim()) {
         updateRow(processingId, { 
-          status: 'unverified',
+          status: 'not_found',
           website: '',
-          industry: '-',
-          headcount: '-',
-          location: '-',
+          ...blankFields,
           notes: 'No company name provided'
         });
         setProcessingId(null);
@@ -126,41 +130,59 @@ export default function App() {
       // Step 1: Resolve Domain (unless it was already overridden manually)
       let domain = rowToProcess.website;
       let isDomainPrepopulated = !!domain && domain.includes('.');
+      let verification = 'verified'; // manual override treated as confirmed for enrichment path
 
       if (!isDomainPrepopulated) {
-        // Set state to searching
         updateRow(processingId, { status: 'searching' });
         
         try {
-          // Apply latency multiplier
           const delayStart = Date.now();
-          const resolved = await resolveDomain(rowToProcess.companyName);
+          // Pass any user-provided industry/location as disambiguation context
+          const resolved = await resolveDomain(rowToProcess.companyName, {
+            industry: rowToProcess.industry,
+            location: rowToProcess.location
+          });
           const elapsed = Date.now() - delayStart;
           
-          // Apply latency speed setting factor dynamically
           const remainingDelay = (1000 * factor) - elapsed;
           if (remainingDelay > 0) {
             await new Promise(r => setTimeout(r, remainingDelay));
           }
 
-          if (resolved) {
-            domain = resolved;
-            updateRow(processingId, { website: domain, status: 'enriching' });
-          } else {
+          verification = resolved?.verification || 'not_found';
+          domain = resolved?.domain || '';
+
+          if (verification === 'not_found' || !domain) {
             updateRow(processingId, { 
-              status: 'unverified',
-              industry: '-',
-              headcount: '-',
-              location: '-',
-              notes: 'Could not resolve official domain'
+              status: 'not_found',
+              website: '',
+              ...blankFields,
+              notes: resolved?.reason || 'Could not resolve official domain'
             });
             setProcessingId(null);
             return;
           }
+
+          if (verification === 'unverified') {
+            // Found but Unverified: show candidate + warning, do NOT enrich from a guess
+            updateRow(processingId, {
+              website: domain,
+              status: 'unverified',
+              ...blankFields,
+              notes: resolved?.reason || 'Possible website found but not confidently verified'
+            });
+            setProcessingId(null);
+            return;
+          }
+
+          // Verified — proceed to enrichment only after confirmation
+          updateRow(processingId, { website: domain, status: 'enriching' });
         } catch (err) {
           updateRow(processingId, { 
-            status: 'unverified',
-            notes: 'AI search engine error'
+            status: 'not_found',
+            website: '',
+            ...blankFields,
+            notes: 'Search engine error while resolving domain'
           });
           setProcessingId(null);
           return;
@@ -169,7 +191,7 @@ export default function App() {
         updateRow(processingId, { status: 'enriching' });
       }
 
-      // Step 2: Enrich details
+      // Step 2: Enrich details only for verified websites
       try {
         const delayStart = Date.now();
         const details = await enrichCompanyDetails(domain, rowToProcess.companyName);
@@ -181,13 +203,20 @@ export default function App() {
         }
 
         updateRow(processingId, {
-          ...details,
+          industry: details.industry || 'Unknown',
+          headcount: details.headcount || 'Unknown',
+          location: details.location || 'Unknown',
+          notes: details.notes || 'Verified website; enrichment complete',
           status: 'found'
         });
       } catch (err) {
         updateRow(processingId, {
-          status: 'unverified',
-          notes: 'AI enrichment details failed'
+          website: domain,
+          status: 'found',
+          industry: 'Unknown',
+          headcount: 'Unknown',
+          location: 'Unknown',
+          notes: 'Website verified, but enrichment could not complete confidently'
         });
       }
 
@@ -307,14 +336,19 @@ export default function App() {
   };
 
   // Re-run single row process
-  const triggerRowReRun = (rowId) => {
+  const triggerRowReRun = (rowId, { clearWebsite = true } = {}) => {
     // If already in queue or processing, skip
     if (queue.includes(rowId) || processingId === rowId) return;
 
     setRows(prev => prev.map(row => {
       if (row.id === rowId) {
         return { 
-          ...row, 
+          ...row,
+          // Clear prior website so resolution runs again (unless user just set it manually)
+          ...(clearWebsite ? { website: '' } : {}),
+          industry: '-',
+          headcount: '-',
+          location: '-',
           status: 'pending',
           notes: 'Re-running enrichment...'
         };
@@ -353,9 +387,12 @@ export default function App() {
 
     // Core rule: "edited row re-runs enrichment with corrected value"
     // Trigger re-enrichment if companyName or website was changed
-    if (column === 'companyName' || column === 'website') {
-      // If website was modified, it maintains that website value as pre-populated domain override
-      triggerRowReRun(id);
+    if (column === 'companyName') {
+      // Name change → re-resolve from scratch
+      triggerRowReRun(id, { clearWebsite: true });
+    } else if (column === 'website') {
+      // Manual website override → enrich using the edited domain
+      triggerRowReRun(id, { clearWebsite: false });
     }
   };
 
@@ -411,7 +448,8 @@ export default function App() {
     pending: rows.filter(r => r.status === 'pending').length + queue.length,
     searching: rows.filter(r => r.status === 'searching' || r.status === 'enriching').length + (processingId ? 1 : 0),
     found: rows.filter(r => r.status === 'found').length,
-    unverified: rows.filter(r => r.status === 'unverified').length
+    unverified: rows.filter(r => r.status === 'unverified').length,
+    notFound: rows.filter(r => r.status === 'not_found').length
   };
 
   // Normalize searching indicators
@@ -529,12 +567,16 @@ export default function App() {
             <span className="stat-value">{stats.total}</span>
           </div>
           <div className="stat-item">
-            <span className="stat-label">Enriched (Found):</span>
+            <span className="stat-label">Found & Verified:</span>
             <span className="stat-value" style={{ color: 'var(--success-text)' }}>{stats.found}</span>
           </div>
           <div className="stat-item">
-            <span className="stat-label">Unverified:</span>
-            <span className="stat-value" style={{ color: 'var(--error-text)' }}>{stats.unverified}</span>
+            <span className="stat-label">Found but Unverified:</span>
+            <span className="stat-value" style={{ color: '#B45309' }}>{stats.unverified}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">Not Found:</span>
+            <span className="stat-value" style={{ color: 'var(--error-text)' }}>{stats.notFound}</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Remaining Queue:</span>
@@ -609,15 +651,21 @@ export default function App() {
                             </span>
                           )}
                           {row.status === 'found' && (
-                            <span className="status-badge found">
+                            <span className="status-badge found" title={row.notes}>
                               <Check size={12} />
-                              <span>Found</span>
+                              <span>Found & Verified</span>
                             </span>
                           )}
                           {row.status === 'unverified' && (
                             <span className="status-badge unverified" title={row.notes}>
                               <AlertCircle size={12} />
-                              <span>Unverified</span>
+                              <span>Found but Unverified</span>
+                            </span>
+                          )}
+                          {row.status === 'not_found' && (
+                            <span className="status-badge not-found" title={row.notes}>
+                              <AlertCircle size={12} />
+                              <span>Not Found</span>
                             </span>
                           )}
                           
@@ -820,9 +868,9 @@ export default function App() {
               <label className="form-label">Simulated AI Model Prompt</label>
               <textarea 
                 className="form-input" 
-                style={{ fontSize: '0.8rem', resize: 'none', height: '60px' }} 
+                style={{ fontSize: '0.8rem', resize: 'none', height: '110px' }} 
                 readOnly
-                value='Find the official website domain for the company named [X]. Return only the domain.'
+                value='Search the web for candidate domains for [X] (use industry/location if provided). Cross-check before returning a domain; only mark Verified when confident it is the official site. Otherwise return Unverified or Not Found — never silently guess. Enrich Industry/Headcount/Location/Notes only after verification, from website content; leave Unknown when not confident.'
               />
             </div>
 

@@ -338,7 +338,7 @@ body {
 }
 
 /* Column Widths */
-.col-status { width: 140px; }
+.col-status { width: 190px; }
 .col-name { width: 220px; }
 .col-website { width: 220px; }
 .col-industry { width: 180px; }
@@ -354,7 +354,7 @@ body {
   background-color: var(--table-header-bg);
   border-bottom: 2px solid var(--border-color);
   border-right: 1px solid var(--border-color);
-  padding: 0.65rem 0.75rem;
+  padding: 0.4rem 0.75rem;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-secondary);
@@ -383,13 +383,15 @@ body {
 .spreadsheet-table td {
   border-bottom: 1px solid var(--border-color);
   border-right: 1px solid var(--border-color);
-  padding: 0.5rem 0.75rem;
+  padding: 0.25rem 0.75rem;
   font-size: 0.85rem;
+  line-height: 1.35;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   position: relative;
+  vertical-align: middle;
 }
 
 .spreadsheet-table td:last-child {
@@ -420,11 +422,12 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.2rem 0.5rem;
+  padding: 0.12rem 0.5rem;
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 500;
   font-family: var(--font-sans);
+  line-height: 1.3;
 }
 
 .status-badge.searching {
@@ -440,6 +443,12 @@ body {
 }
 
 .status-badge.unverified {
+  background-color: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #F59E0B;
+}
+
+.status-badge.not-found {
   background-color: var(--error-bg);
   color: var(--error-text);
   border: 1px solid var(--error-border);
@@ -479,7 +488,7 @@ body {
   width: 100%;
   height: 100%;
   border: 2px solid var(--accent-color);
-  padding: 0.45rem 0.7rem;
+  padding: 0.2rem 0.7rem;
   font-family: inherit;
   font-size: inherit;
   color: inherit;
