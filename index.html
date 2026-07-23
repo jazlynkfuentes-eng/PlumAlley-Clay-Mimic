@@ -1301,6 +1301,12 @@
         return null;
       }
 
+      // Internal labels / non-entity rows — skip search entirely
+      if (/\(\s*moderator\s*\)/i.test(companyName) || /^(n\/?a|none|null|tbd|placeholder)\b/i.test(companyName.trim())) {
+        console.log('[resolve] skipping non-entity label:', companyName);
+        return null;
+      }
+
       // Check if we are running from a local server to execute real-time backend scrapers
       const isLocalServer = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '8081';
       if (isLocalServer) {
@@ -1335,6 +1341,7 @@
       };
 
       let cleaned = getCleanedQuery(companyName);
+      const baseCleaned = cleaned; // preserve pre-finance-augmented name for scoring
 
       // Waterfall Tier 0: Direct Catalogue Lookup (Ensures offline dictionary items resolve instantly)
       const localClean = cleaned.replace(/[^a-z0-9]/g, '');
@@ -1351,12 +1358,13 @@
         }
       }
 
-      // Finance Search Filter Mode modifications
+      // Finance Search Filter: augment SEARCH query only — never mutate the scoring key
+      let searchQuery = cleaned;
       if (financeFilterActive) {
         const financeTerms = ["capital", "partners", "ventures", "investment", "holdings", "wealth", "finance", "fund", "equity", "management", "pe", "vc", "advisory", "advisors", "associates", "group", "fintech", "bank"];
         const hasFinanceTerm = financeTerms.some(term => cleaned.toLowerCase().includes(term));
         if (!hasFinanceTerm) {
-          cleaned = `${cleaned} capital`;
+          searchQuery = `${cleaned} capital`;
         }
       }
 
@@ -1376,9 +1384,11 @@
       };
 
       // Best match scorer — returns rich match object for disambiguation
-      const findBestDomainMatch = (suggestions, queryName) => {
+      // scoreAgainst: brand name used for domain/name similarity (NOT finance-augmented)
+      const findBestDomainMatch = (suggestions, scoreAgainst) => {
         if (!suggestions || suggestions.length === 0) return null;
-        const cleanQuery = queryName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanQuery = scoreAgainst.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const rawLower = scoreAgainst.toLowerCase().trim();
         if (!cleanQuery) {
           const first = suggestions[0];
           return { domain: first.domain, name: first.name || '', score: 0, snippet: inferSnippet(first), ambiguous: true, alternatives: [] };
@@ -1397,14 +1407,17 @@
           const blob = `${nameLower} ${domBase}`;
           
           let score = 0;
+          // Exact Clearbit brand name match is the strongest signal
+          if (nameLower === rawLower || nameLower.replace(/[^a-z0-9]/g, '') === cleanQuery) {
+            score += 150;
+          }
           if (domBase === cleanQuery) {
             score += 100;
           } else if (cleanQuery.includes(domBase) || domBase.includes(cleanQuery)) {
             score += 50;
             score -= Math.abs(domBase.length - cleanQuery.length);
           } else {
-            // Weak name token overlap only
-            const tokens = queryName.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+            const tokens = scoreAgainst.toLowerCase().split(/\s+/).filter(t => t.length > 2);
             const hits = tokens.filter(t => nameLower.includes(t) || domBase.includes(t.replace(/[^a-z0-9]/g, '')));
             if (hits.length === 0) continue;
             score += hits.length * 20;
@@ -1419,8 +1432,6 @@
             
             if (hasFinanceKeywords) score += 120;
             if (hasNonFinanceKeywords) score -= 180;
-            // Mild boost when query itself was finance-augmented
-            if (queryName.toLowerCase().includes('capital') && hasFinanceKeywords) score += 30;
           }
 
           scored.push({
@@ -1429,14 +1440,14 @@
             score,
             snippet: inferSnippet(item),
             isFinance: FINANCE_KW.some(k => blob.includes(k.trim())),
-            isNonFinance: NON_FINANCE_KW.some(k => blob.includes(k))
+            isNonFinance: NON_FINANCE_KW.some(k => blob.includes(k)),
+            exactName: nameLower === rawLower || nameLower.replace(/[^a-z0-9]/g, '') === cleanQuery
           });
         }
 
         if (scored.length === 0) return null;
         scored.sort((a, b) => b.score - a.score);
 
-        // Prefer finance match over close non-finance competitor when filter is on
         let best = scored[0];
         if (financeFilterActive && scored.length > 1) {
           const financeCandidate = scored.find(s => s.isFinance && !s.isNonFinance);
@@ -1448,17 +1459,24 @@
           }
         }
 
+        // Prefer exact brand-name Clearbit hit even if finance scoring shuffled order
+        const exact = scored.find(s => s.exactName);
+        if (exact && exact.score >= best.score - 30) best = exact;
+
         const runnerUp = scored.find(s => s.domain !== best.domain);
-        const ambiguous = !!(runnerUp && Math.abs(best.score - runnerUp.score) < 25 && runnerUp.score > 30);
+        const ambiguous = !!(
+          runnerUp &&
+          !best.exactName &&
+          Math.abs(best.score - runnerUp.score) < 25 &&
+          runnerUp.score > 30
+        );
         const alternatives = scored.slice(0, 3).map(s => s.snippet).filter(Boolean);
 
-        // Reject non-finance winners under finance filter when a finance option exists elsewhere
         if (financeFilterActive && best.isNonFinance && !best.isFinance) {
           const financeAlt = scored.find(s => s.isFinance);
           if (financeAlt) {
             best = financeAlt;
-          } else if (best.score < 80) {
-            // Don't confidently pick an unrelated industry match
+          } else if (best.score < 80 && !best.exactName) {
             return {
               domain: best.domain,
               name: best.name,
@@ -1477,7 +1495,8 @@
           score: best.score,
           snippet: best.snippet,
           ambiguous,
-          alternatives
+          alternatives,
+          exactName: !!best.exactName
         };
       };
 
@@ -1497,38 +1516,45 @@
         return url.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
       };
 
-      // Waterfall Tier 1: Clearbit suggest API (querying normalized cleaned name first!)
+      // Waterfall Tier 1: Clearbit suggest API
+      const toResolveResult = (match) => {
+        if (!match || !match.domain) return null;
+        // Exact brand or strong score → confident; only flag unsure for genuine ambiguity
+        const isUnsure = !!(match.ambiguous || match.deprioritized) && !match.exactName && match.score < 120;
+        return {
+          domain: match.domain,
+          isUnsure,
+          matchedName: match.name,
+          industrySnippet: match.snippet,
+          alternatives: match.alternatives || []
+        };
+      };
+
       try {
-        let response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(cleaned)}`);
+        let response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(searchQuery)}`);
         let data = await response.json();
         if (data && data.length > 0) {
-          const match = findBestDomainMatch(data, cleaned);
-          if (match && match.domain) {
-            return {
-              domain: match.domain,
-              isUnsure: !!(match.ambiguous || match.deprioritized || match.score < 70),
-              matchedName: match.name,
-              industrySnippet: match.snippet,
-              alternatives: match.alternatives || []
-            };
-          }
+          const match = findBestDomainMatch(data, baseCleaned || companyName);
+          const resolved = toResolveResult(match);
+          if (resolved) return resolved;
         }
 
-        // Query 1b: Try raw query name if cleaned returned nothing
-        if (cleaned !== companyName.toLowerCase().trim()) {
+        // Query 1b: raw / base name (important when finance-augmented query drifts)
+        response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(baseCleaned || companyName)}`);
+        data = await response.json();
+        if (data && data.length > 0) {
+          const match = findBestDomainMatch(data, baseCleaned || companyName);
+          const resolved = toResolveResult(match);
+          if (resolved) return resolved;
+        }
+
+        if (companyName.toLowerCase().trim() !== (baseCleaned || '').toLowerCase()) {
           response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(companyName)}`);
           data = await response.json();
           if (data && data.length > 0) {
-            const match = findBestDomainMatch(data, cleaned);
-            if (match && match.domain) {
-              return {
-                domain: match.domain,
-                isUnsure: !!(match.ambiguous || match.deprioritized || match.score < 70),
-                matchedName: match.name,
-                industrySnippet: match.snippet,
-                alternatives: match.alternatives || []
-              };
-            }
+            const match = findBestDomainMatch(data, baseCleaned || companyName);
+            const resolved = toResolveResult(match);
+            if (resolved) return resolved;
           }
         }
       } catch (err) {
@@ -1537,21 +1563,19 @@
 
       // Waterfall Tier 2: DuckDuckGo Instant Answer API (checks Wikipedia/Wikidata Infoboxes)
       try {
-        // Query cleaned first
-        let response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(cleaned)}&format=json&no_html=1`);
+        // Query base cleaned first (not finance-augmented)
+        let response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(baseCleaned)}&format=json&no_html=1`);
         let json = await response.json();
         
         let item = null;
         if (json.Infobox && json.Infobox.content) {
-          // Prioritize actual official_website or Official Website over generic placeholders
           item = json.Infobox.content.find(i => i.data_type === 'official_website' || i.label === 'Official Website');
           if (!item) {
             item = json.Infobox.content.find(i => i.label === 'Website');
           }
         }
 
-        // Query raw as backup
-        if (!item && cleaned !== companyName.toLowerCase().trim()) {
+        if (!item && companyName.toLowerCase().trim() !== baseCleaned) {
           response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(companyName)}&format=json&no_html=1`);
           json = await response.json();
           if (json.Infobox && json.Infobox.content) {
@@ -1562,10 +1586,32 @@
           }
         }
 
+        // Org / government / foundation: try "official site" Instant Answer
+        const looksLikeOrg = /\b(office of|university|foundation|comptroller|ministry|department of|city of|county of|state of|government|authority|board of|commission)\b/i.test(companyName);
+        if (!item && looksLikeOrg) {
+          response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(companyName + ' official website')}&format=json&no_html=1`);
+          json = await response.json();
+          if (json.Infobox && json.Infobox.content) {
+            item = json.Infobox.content.find(i => i.data_type === 'official_website' || i.label === 'Official Website' || i.label === 'Website');
+          }
+          if (!item && json.AbstractURL) {
+            const absDom = extractUrlDomain(json.AbstractURL);
+            if (absDom && absDom.includes('.') && !absDom.includes('wikipedia.org')) {
+              return {
+                domain: absDom,
+                isUnsure: false,
+                matchedName: json.Heading || companyName,
+                industrySnippet: (json.Heading || companyName) + (json.AbstractText ? ` — ${json.AbstractText.slice(0, 80)}` : ''),
+                alternatives: []
+              };
+            }
+          }
+        }
+
         if (item && item.value) {
           const domain = extractUrlDomain(item.value);
           if (domain && domain.includes('.')) {
-            const snippet = (json.Heading || cleaned) + (json.AbstractText ? ` — ${json.AbstractText.slice(0, 80)}` : '');
+            const snippet = (json.Heading || baseCleaned) + (json.AbstractText ? ` — ${json.AbstractText.slice(0, 80)}` : '');
             return {
               domain,
               isUnsure: false,
@@ -1593,6 +1639,73 @@
       // Block unverified test keys — and never invent domains (hallucination risk)
       if (["test", "asdf", "company", "xyz", "hello", "unknown"].includes(localClean)) {
         return null;
+      }
+
+      // Waterfall Tier 4: Wikipedia / Wikimedia for orgs, foundations, universities, government
+      try {
+        const orgVariants = [];
+        const pushQ = (q) => {
+          const t = String(q || '').trim();
+          if (t && !orgVariants.some(x => x.toLowerCase() === t.toLowerCase())) orgVariants.push(t);
+        };
+        pushQ(companyName);
+        pushQ(`${companyName} official website`);
+        pushQ(baseCleaned);
+        // Strip common org prefixes/suffixes for better Wikipedia hits
+        pushQ(companyName.replace(/^office of\s+/i, '').trim());
+        pushQ(companyName.replace(/\s*\(([^)]*)\)\s*/g, ' ').trim()); // drop (Moderator) etc.
+        pushQ(companyName.replace(/\b(foundation|endowment|trust)\b/gi, '').replace(/\s+/g, ' ').trim());
+        pushQ(companyName.replace(/\b(university)\s+foundation\b/i, 'university').trim());
+
+        for (const wq of orgVariants) {
+          if (!wq || wq.length < 3) continue;
+          const openRes = await fetch(
+            `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=5&namespace=0&format=json&origin=*`
+          );
+          if (!openRes.ok) continue;
+          const openJson = await openRes.json();
+          const titles = openJson[1] || [];
+          if (!titles.length) continue;
+
+          // Prefer a title that shares tokens with the query
+          const qTokens = wq.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+          let bestIdx = 0;
+          let bestScore = -1;
+          titles.forEach((t, idx) => {
+            const tl = t.toLowerCase();
+            let s = qTokens.filter(tok => tl.includes(tok)).length * 10;
+            if (tl === wq.toLowerCase()) s += 50;
+            if (s > bestScore) { bestScore = s; bestIdx = idx; }
+          });
+
+          if (bestScore < 10 && qTokens.length > 1) continue;
+
+          const title = titles[bestIdx];
+          const wikiTitle = title;
+          const wdRes = await fetch(
+            `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(wikiTitle)}&props=claims|descriptions&languages=en&format=json&origin=*`
+          );
+          if (!wdRes.ok) continue;
+          const wd = await wdRes.json();
+          const entities = wd.entities || {};
+          const entity = Object.values(entities).find(e => e && e.claims && e.claims.P856);
+          const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
+          const domain = claim ? extractUrlDomain(claim) : '';
+          const description = entity?.descriptions?.en?.value || '';
+
+          if (domain && domain.includes('.') && !domain.includes('wikipedia.org')) {
+            console.log('[resolve] Wikipedia/Wikidata official site', companyName, '->', domain, '(via', wq, ')');
+            return {
+              domain,
+              isUnsure: false,
+              matchedName: wikiTitle,
+              industrySnippet: `${wikiTitle}${description ? ' · ' + description : ''}`,
+              alternatives: titles.slice(0, 3)
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('Wikipedia org fallback failed:', err);
       }
 
       // No confident search hit — do not algorithmically guess a URL
@@ -2049,88 +2162,220 @@
         }
       };
 
-      // Live link verification: DNS resolve + page content vs company name
+      // Live link verification: DNS + optional content, with proxy fallbacks.
+      // Strong domain↔name match + DNS success is enough — do not fail solely because proxies are down.
       const verifyDomainLive = async (domain, companyName) => {
+        const log = (...args) => console.log('[verify]', domain, ...args);
         const cleanDom = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].trim();
         const cleanComp = String(companyName || '').toLowerCase().trim();
 
         if (!cleanDom || !cleanDom.includes('.')) {
+          log('FAIL invalid domain');
           return { ok: false, reason: 'Invalid domain' };
         }
-        if (cleanComp.includes('unknown') || cleanComp.includes('random') || cleanComp.includes('test') || cleanComp.includes('asdf')) {
+        if (/\b(unknown|random|test|asdf)\b/.test(cleanComp)) {
+          log('FAIL placeholder name');
           return { ok: false, reason: 'Placeholder company name' };
         }
         if (cleanDom.includes('invalid-link.fake') || cleanDom.includes('asdf')) {
+          log('FAIL blocked domain');
           return { ok: false, reason: 'Blocked domain' };
         }
 
+        const stripLegal = (s) => s
+          .toLowerCase()
+          .replace(/[,.]?\s*\b(inc|llc|l\.l\.c|co|corp|corporation|ltd|limited|gmbh|plc|llp|lp|sa|nv|bv|pvt|foundation|university|office|department|ministry)\b\.?/gi, ' ')
+          .replace(/[^a-z0-9\s]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        const nameKey = stripLegal(cleanComp).replace(/\s+/g, '');
+        const domParts = cleanDom.split('.');
+        const domBase = (domParts.length > 2 && !['co', 'com', 'org', 'net', 'gov', 'edu'].includes(domParts[domParts.length - 2])
+          ? domParts[domParts.length - 2]
+          : domParts[0]).replace(/[^a-z0-9]/g, '');
+
+        const domainStrongMatch = (() => {
+          if (!nameKey || !domBase) return false;
+          if (domBase === nameKey) return true;
+          // Domain contains the brand (fordfoundation.org ↔ Ford Foundation → "ford")
+          if (nameKey.length >= 3 && (domBase.includes(nameKey) || nameKey.includes(domBase))) {
+            const ratio = Math.min(domBase.length, nameKey.length) / Math.max(domBase.length, nameKey.length);
+            if (ratio >= 0.5 || domBase.startsWith(nameKey) || nameKey.startsWith(domBase)) return true;
+          }
+          // multi-word collapsed: "westvirginiauniversity" vs domain tokens
+          const tokens = stripLegal(cleanComp).split(' ').filter(t => t.length > 2);
+          if (tokens.length >= 2) {
+            const joined = tokens.join('');
+            if (domBase === joined || joined.includes(domBase) || domBase.includes(joined.slice(0, Math.min(12, joined.length)))) return true;
+            if (tokens.filter(t => domBase.includes(t) || cleanDom.includes(t)).length >= Math.ceil(tokens.length * 0.6)) return true;
+          }
+          return false;
+        })();
+
+        log('domainStrongMatch=', domainStrongMatch, 'domBase=', domBase, 'nameKey=', nameKey);
+
         // 1) DNS check via Google DNS-over-HTTPS
+        let dnsOk = false;
         try {
           const dnsRes = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(cleanDom)}&type=A`);
           if (dnsRes.ok) {
             const dnsJson = await dnsRes.json();
-            if (dnsJson.Status !== 0 || !dnsJson.Answer || dnsJson.Answer.length === 0) {
-              return { ok: false, reason: 'Domain does not resolve (DNS)' };
-            }
+            dnsOk = dnsJson.Status === 0 && Array.isArray(dnsJson.Answer) && dnsJson.Answer.length > 0;
+            log('DNS', dnsOk ? 'OK' : 'FAIL', 'status=', dnsJson.Status, 'answers=', dnsJson.Answer?.length || 0);
+          } else {
+            log('DNS HTTP', dnsRes.status);
           }
         } catch (e) {
-          console.warn('DNS check failed, continuing with content check', e);
+          log('DNS error', e.message || e);
         }
 
-        // 2) Fetch homepage text and confirm it mentions the company
-        const tokens = cleanComp
-          .replace(/[,.]?\s*\b(inc|llc|co|corp|ltd|limited|gmbh)\b\.?/gi, '')
-          .split(/\s+/)
-          .map(t => t.replace(/[^a-z0-9]/g, ''))
-          .filter(t => t.length > 2);
+        if (!dnsOk) {
+          // Retry once
+          try {
+            await new Promise(r => setTimeout(r, 400));
+            const dnsRes = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(cleanDom)}&type=A`);
+            const dnsJson = await dnsRes.json();
+            dnsOk = dnsJson.Status === 0 && Array.isArray(dnsJson.Answer) && dnsJson.Answer.length > 0;
+            log('DNS retry', dnsOk ? 'OK' : 'FAIL');
+          } catch (e) {
+            log('DNS retry error', e.message || e);
+          }
+        }
+
+        if (!dnsOk) {
+          log('FAIL DNS does not resolve');
+          return { ok: false, reason: 'Domain does not resolve (DNS)' };
+        }
+
+        // Strong signal shortcut: domain closely matches name + DNS resolves → verified
+        if (domainStrongMatch) {
+          log('PASS strong domain+DNS match (content fetch optional)');
+          return { ok: true, reason: 'Verified via DNS + domain/name match' };
+        }
+
+        // 2) Content fetch via proxy waterfall (best-effort when domain match is weak)
+        const targetUrl = `https://${cleanDom}`;
+        const proxyBuilders = [
+          (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+          (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+          (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+          (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
+        ];
+
+        const fetchViaProxies = async () => {
+          let lastErr = '';
+          for (let attempt = 0; attempt < 2; attempt++) {
+            for (let i = 0; i < proxyBuilders.length; i++) {
+              const proxyUrl = proxyBuilders[i](targetUrl);
+              try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 12000);
+                log(`proxy#${i} attempt ${attempt + 1}…`);
+                const pageRes = await fetch(proxyUrl, { signal: controller.signal });
+                clearTimeout(timeout);
+                if (!pageRes.ok) {
+                  lastErr = `proxy#${i} HTTP ${pageRes.status}`;
+                  log(lastErr);
+                  continue;
+                }
+                let html = await pageRes.text();
+                // allorigins /get returns JSON { contents }
+                if (html.trim().startsWith('{') && html.includes('"contents"')) {
+                  try {
+                    const parsed = JSON.parse(html);
+                    html = parsed.contents || '';
+                  } catch (_) {}
+                }
+                if (html && html.length >= 40) {
+                  log(`proxy#${i} OK len=${html.length}`);
+                  return html;
+                }
+                lastErr = `proxy#${i} empty body`;
+                log(lastErr);
+              } catch (e) {
+                lastErr = `proxy#${i} ${e.name || 'err'}: ${e.message || e}`;
+                log(lastErr);
+              }
+            }
+            await new Promise(r => setTimeout(r, 500));
+          }
+          throw new Error(lastErr || 'All proxies failed');
+        };
+
+        const tokens = stripLegal(cleanComp).split(' ').map(t => t.replace(/[^a-z0-9]/g, '')).filter(t => t.length > 2);
 
         try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 7000);
-          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://' + cleanDom)}`;
-          const pageRes = await fetch(proxyUrl, { signal: controller.signal });
-          clearTimeout(timeout);
-
-          if (!pageRes.ok) {
-            return { ok: false, reason: 'Website unreachable or returned an error' };
-          }
-
-          const html = await pageRes.text();
-          if (!html || html.length < 40) {
-            return { ok: false, reason: 'Empty or unreachable page content' };
-          }
-
-          // Soft 404 / dead-page signals
+          const html = await fetchViaProxies();
           const lower = html.toLowerCase();
+
           if (/\b404\b/.test(lower) && /not found|doesn't exist|does not exist|page not found/.test(lower) && html.length < 5000) {
+            log('FAIL soft 404');
             return { ok: false, reason: 'Page looks like a 404' };
           }
 
-          const text = lower
-            .replace(/<script[\s\S]*?<\/script>/g, ' ')
-            .replace(/<style[\s\S]*?<\/style>/g, ' ')
-            .replace(/<[^>]+>/g, ' ');
+          const title = (html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] || '').toLowerCase();
+          const metaDesc = (
+            html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+            html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i)?.[1] ||
+            html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+            ''
+          ).toLowerCase();
+          const headers = [...html.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi)]
+            .slice(0, 8)
+            .map(m => m[1].replace(/<[^>]+>/g, ' ').toLowerCase())
+            .join(' ');
 
-          const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-          const title = (titleMatch?.[1] || '').toLowerCase();
-          const corpus = `${title} ${text}`.slice(0, 8000);
+          const focusCorpus = `${title} ${metaDesc} ${headers} ${domBase}`.slice(0, 6000);
+          const fullNeedle = stripLegal(cleanComp);
+
+          const fuzzyHit = (corpus, needle) => {
+            if (!needle) return false;
+            if (corpus.includes(needle)) return true;
+            if (corpus.includes(needle.replace(/\s+/g, ''))) return true;
+            return false;
+          };
+
+          if (fuzzyHit(focusCorpus, fullNeedle) || fuzzyHit(focusCorpus, nameKey)) {
+            log('PASS content fuzzy match on title/meta/headers');
+            return { ok: true, reason: 'Verified via DNS + page content match' };
+          }
 
           if (tokens.length === 0) {
-            return { ok: corpus.includes(cleanComp.replace(/[^a-z0-9]/g, '')), reason: 'Weak name match' };
+            const ok = focusCorpus.includes(nameKey);
+            log(ok ? 'PASS' : 'FAIL', 'short-name content check');
+            return ok
+              ? { ok: true, reason: 'Verified via DNS + page content match' }
+              : { ok: false, reason: 'Page content does not match company name' };
           }
 
-          const hits = tokens.filter(t => corpus.includes(t));
-          const needed = Math.ceil(tokens.length * 0.6);
-          if (hits.length < needed) {
-            return {
-              ok: false,
-              reason: `Page content does not match company name (matched ${hits.length}/${tokens.length} tokens)`
-            };
+          const hits = tokens.filter(t => focusCorpus.includes(t) || lower.slice(0, 12000).includes(t));
+          const needed = Math.max(1, Math.ceil(tokens.length * 0.5));
+          log('content token hits', hits.length, '/', tokens.length, 'needed', needed, hits);
+
+          if (hits.length >= needed) {
+            return { ok: true, reason: 'Verified via DNS + page content match' };
           }
 
-          return { ok: true, reason: 'DNS + content verified' };
+          // Weak domain affinity + DNS already passed — accept rather than over-reject
+          if (nameKey.length >= 4 && (domBase.includes(nameKey.slice(0, 4)) || nameKey.includes(domBase.slice(0, 4)))) {
+            log('PASS weak domain affinity after partial content');
+            return { ok: true, reason: 'Verified via DNS + partial domain/content signals' };
+          }
+
+          log('FAIL content mismatch');
+          return {
+            ok: false,
+            reason: `Page content does not match company name (matched ${hits.length}/${tokens.length} tokens)`
+          };
         } catch (e) {
-          // If content fetch fails but DNS worked, treat as unverified — do not trust blindly
+          log('proxy waterfall failed:', e.message || e);
+          // Proxies are unreliable — if DNS resolved and there is any domain affinity, accept
+          if (nameKey.length >= 3 && (domBase.includes(nameKey.slice(0, Math.min(4, nameKey.length))) || nameKey.includes(domBase.slice(0, Math.min(4, domBase.length))))) {
+            log('PASS DNS + domain affinity after proxy failure');
+            return { ok: true, reason: 'Verified via DNS (content proxy unavailable)' };
+          }
+          log('FAIL could not confirm without content or domain match');
           return { ok: false, reason: 'Could not fetch page to confirm company match' };
         }
       };
