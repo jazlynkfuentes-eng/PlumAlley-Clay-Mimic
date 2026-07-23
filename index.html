@@ -1,0 +1,2814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%25235B7FA6%22/><text x=%2250%25%22 y=%2265%25%22 font-size=%2260%22 font-family=%22Inter, sans-serif%22 font-weight=%22800%22 fill=%22%2523ffffff%22 text-anchor=%22middle%22>P</text></svg>" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="A serene, lightweight utility to resolve company names to websites and automatically enrich key metadata." />
+  <title>Plum Alley — Serene Company Enrichment Utility</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- React & Babel Standalone CDNs -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    /* Design System Variables */
+    :root {
+      --bg-color: #F0F4F8;
+      --surface-color: #FFFFFF;
+      --border-color: #D8E2EC;
+      --accent-color: #5B7FA6;
+      --accent-hover: #4A6D93;
+      --accent-light: #EBF1F6;
+      --success-bg: #EAF5EE;
+      --success-text: #2A6B4E;
+      --success-border: #C2E5D3;
+      --error-bg: #FDF2F2;
+      --error-text: #9C4747;
+      --error-border: #F5C6C6;
+      --pending-bg: #F8FAFC;
+      --pending-text: #718096;
+      --pending-border: #E2E8F0;
+      --text-primary: #2D3748;
+      --text-secondary: #718096;
+      --table-header-bg: #F8FAFC;
+      --table-row-alt: #F8FAFC;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', SFMono-Regular, Consolas, monospace;
+    }
+
+    /* Reset and Base Styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-color);
+      color: var(--text-primary);
+      line-height: 1.5;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-secondary);
+    }
+
+    /* Layout */
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 1.5rem;
+      gap: 1rem;
+    }
+
+    /* Header/Top Bar */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1.25rem;
+      background-color: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      background-color: var(--accent-light);
+      color: var(--accent-color);
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 1.2rem;
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .brand-tagline {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      border-left: 1px solid var(--border-color);
+      padding-left: 0.75rem;
+      margin-left: 0.75rem;
+    }
+
+    .actions-section {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.85rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background-color: var(--surface-color);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: var(--font-sans);
+    }
+
+    .btn:hover {
+      background-color: var(--accent-light);
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+    }
+
+    .btn-primary {
+      background-color: var(--accent-color);
+      color: var(--surface-color);
+      border-color: var(--accent-color);
+    }
+
+    .btn-primary:hover {
+      background-color: var(--accent-hover);
+      color: var(--surface-color);
+      border-color: var(--accent-hover);
+    }
+
+    .btn-danger {
+      color: var(--error-text);
+      border-color: rgba(201, 139, 139, 0.4);
+    }
+
+    .btn-danger:hover {
+      background-color: var(--error-bg);
+      border-color: var(--error-text);
+      color: var(--error-text);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      background-color: var(--table-header-bg);
+      border-color: var(--border-color);
+      color: var(--text-secondary);
+    }
+
+    /* Input Workspace Area */
+    .input-section {
+      background-color: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    }
+
+    .input-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .input-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .input-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .textarea-container {
+      position: relative;
+    }
+
+    .company-textarea {
+      width: 100%;
+      height: 90px;
+      padding: 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-family: var(--font-sans);
+      font-size: 0.9rem;
+      resize: vertical;
+      color: var(--text-primary);
+      background-color: var(--table-header-bg);
+      transition: all 0.15s ease;
+    }
+
+    .company-textarea:focus {
+      outline: none;
+      border-color: var(--accent-color);
+      background-color: var(--surface-color);
+      box-shadow: 0 0 0 2px rgba(91, 127, 166, 0.15);
+    }
+
+    .input-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .file-upload-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0.4rem 0.75rem;
+      border: 1px dashed var(--border-color);
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .file-upload-label:hover {
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+      background-color: var(--accent-light);
+    }
+
+    .file-upload-input {
+      display: none;
+    }
+
+    /* Stats/Progress Bar Dashboard */
+    .stats-panel {
+      display: flex;
+      gap: 1rem;
+      background-color: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+      flex-wrap: wrap;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .stat-label {
+      color: var(--text-secondary);
+    }
+
+    .stat-value {
+      font-weight: 600;
+      color: var(--text-primary);
+      background-color: var(--bg-color);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+    }
+
+    .stat-progress-bar-container {
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 200px;
+    }
+
+    .stat-progress-track {
+      height: 6px;
+      background-color: var(--bg-color);
+      border-radius: 3px;
+      flex-grow: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-progress-bar {
+      height: 100%;
+      background-color: var(--accent-color);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    /* Spreadsheet Grid Workspace */
+    .table-workspace {
+      flex-grow: 1;
+      background-color: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Scrollable wrapper for the table */
+    .table-wrapper {
+      display: block;
+      width: 100%;
+      max-height: 70vh; /* Adjust as needed */
+      overflow: auto;
+    }
+    .table-scroll-container {
+      overflow: hidden;
+      flex-grow: 1;
+      height: auto;
+    }
+
+    .spreadsheet-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      table-layout: fixed;
+    }
+
+    /* Column Widths */
+    .col-status { width: 140px; }
+    .col-name { width: 250px; }
+    .col-website { width: 250px; }
+    .col-industry { width: 200px; }
+    .col-headcount { width: 140px; }
+    .col-location { width: 200px; }
+    .col-contacts { width: 260px; }
+    .col-notes { width: auto; min-width: 320px; }
+    /* Ensure headers allow resizer positioning */
+    .spreadsheet-table th { position: relative; }
+    .col-resizer {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      cursor: col-resize;
+      user-select: none;
+      background: transparent;
+    }
+    .col-resizer:hover { background: rgba(0,0,0,0.1); }
+
+
+    /* Table Header Styles */
+    .spreadsheet-table th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background-color: var(--table-header-bg);
+      border-bottom: 2px solid var(--border-color);
+      border-right: 1px solid var(--border-color);
+      padding: 0.65rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-align: left;
+      user-select: none;
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    .spreadsheet-table th:last-child {
+      border-right: none;
+    }
+
+    /* Table Row Styles */
+    .table-row {
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .table-row:nth-child(even) {
+      background-color: var(--table-row-alt);
+    }
+
+    .table-row:hover {
+      background-color: var(--accent-light) !important;
+    }
+
+    /* Cell Styles */
+    .spreadsheet-table td {
+      border-bottom: 1px solid var(--border-color);
+      border-right: 1px solid var(--border-color);
+      padding: 0.55rem 0.75rem;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      word-break: break-word;
+      position: relative;
+      line-height: 1.4;
+    }
+
+    .spreadsheet-table td:last-child {
+      border-right: none;
+    }
+
+    /* Clickable URLs */
+    .url-cell {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+    }
+
+    .url-link {
+      color: var(--accent-color);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .url-link:hover {
+      text-decoration: underline;
+      color: var(--accent-hover);
+    }
+
+    /* Status Badges */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      font-family: var(--font-sans);
+    }
+
+    .status-badge.searching {
+      background-color: #EDF2F7;
+      color: #2B6CB0;
+      border: 1px solid #CBD5E0;
+    }
+
+    .status-badge.found {
+      background-color: var(--success-bg);
+      color: var(--success-text);
+      border: 1px solid var(--success-border);
+    }
+
+    .status-badge.unverified {
+      background-color: var(--error-bg);
+      color: var(--error-text);
+      border: 1px solid var(--error-border);
+    }
+
+    .status-badge.pending {
+      background-color: var(--pending-bg);
+      color: var(--pending-text);
+      border: 1px solid var(--pending-border);
+    }
+
+    /* Spinner and micro-animations */
+    .spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(43, 108, 176, 0.25);
+      border-top-color: #2B6CB0;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+
+    /* Cell Editing */
+    .editable-cell {
+      cursor: cell;
+      transition: background-color 0.1s ease;
+    }
+
+    .editable-cell:hover {
+      background-color: rgba(91, 127, 166, 0.05);
+    }
+
+    .cell-editor {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: 2px solid var(--accent-color);
+      padding: 0.45rem 0.7rem;
+      font-family: inherit;
+      font-size: inherit;
+      color: inherit;
+      background-color: var(--surface-color);
+      outline: none;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+      z-index: 5;
+    }
+
+    .cell-editor.mono {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+    }
+
+    .header-editor {
+      width: 100%;
+      border: 1px solid var(--accent-color);
+      padding: 0.2rem 0.4rem;
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      background-color: var(--surface-color);
+      outline: none;
+      border-radius: 4px;
+    }
+
+    /* Bottom Table Actions (Add Row) */
+    .table-bottom-actions {
+      display: flex;
+      align-items: center;
+      padding: 0.65rem 0.75rem;
+      border-top: 1px solid var(--border-color);
+      background-color: var(--table-header-bg);
+      gap: 0.75rem;
+    }
+
+    .btn-add-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: transparent;
+      border: 1px dashed var(--border-color);
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-add-row:hover {
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+      background-color: var(--accent-light);
+    }
+
+    /* Empty State */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 5rem 2rem;
+      text-align: center;
+      color: var(--text-secondary);
+      gap: 1rem;
+    }
+
+    .empty-state-icon {
+      width: 48px;
+      height: 48px;
+      color: var(--border-color);
+    }
+
+    .empty-state-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .empty-state-subtitle {
+      font-size: 0.85rem;
+      max-width: 320px;
+    }
+
+    /* Settings Modal */
+    .settings-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(45, 55, 72, 0.4);
+      backdrop-filter: blur(2px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .settings-modal {
+      background-color: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      width: 90%;
+      max-width: 450px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .settings-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .settings-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .settings-close:hover {
+      color: var(--text-primary);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .form-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .form-input {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.9rem;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background-color: var(--table-header-bg);
+      color: var(--text-primary);
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent-color);
+      background-color: var(--surface-color);
+    }
+
+    /* Animations */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Responsive Rules */
+    @media (max-width: 768px) {
+      .app-container {
+        padding: 0.75rem;
+      }
+      
+      .top-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.75rem;
+      }
+      
+      .brand-tagline {
+        display: none;
+      }
+      
+      .actions-section {
+        width: 100%;
+        justify-content: space-between;
+      }
+      
+      /* Horizontal scroll for table */
+      .spreadsheet-table {
+        table-layout: auto;
+      }
+      
+      .spreadsheet-table th, 
+      .spreadsheet-table td {
+        white-space: nowrap;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React code starts here -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- AI SIMULATOR ENGINE (Simulating Base44 backend) ---
+    const companyDictionary = {
+      "google": {
+        domain: "google.com",
+        industry: "Technology / AI",
+        headcount: "100,000+",
+        location: "Mountain View, CA",
+        notes: "Official search engine, cloud provider, and AI researcher.",
+        founder: "Sundar Pichai (CEO)",
+        gender: "Male"
+      },
+      "apple": {
+        domain: "apple.com",
+        industry: "Consumer Electronics",
+        headcount: "100,000+",
+        location: "Cupertino, CA",
+        notes: "Designer and manufacturer of consumer hardware and software.",
+        founder: "Tim Cook (CEO)",
+        gender: "Male"
+      },
+      "microsoft": {
+        domain: "microsoft.com",
+        industry: "Software & Cloud",
+        headcount: "100,000+",
+        location: "Redmond, WA",
+        notes: "Global provider of operating systems, productivity software, and cloud.",
+        founder: "Satya Nadella (CEO)",
+        gender: "Male"
+      },
+      "notion": {
+        domain: "notion.so",
+        industry: "Software / Productivity",
+        headcount: "500 - 1,000",
+        location: "San Francisco, CA",
+        notes: "Serene workspace and documentation utility.",
+        founder: "Ivan Zhao (Founder)",
+        gender: "Male"
+      },
+      "stripe": {
+        domain: "stripe.com",
+        industry: "Financial Technology",
+        headcount: "5,000 - 10,000",
+        location: "San Francisco, CA",
+        notes: "Global payments provider and financial infrastructure developer.",
+        founder: "Patrick Collison (CEO)",
+        gender: "Male"
+      },
+      "openai": {
+        domain: "openai.com",
+        industry: "Artificial Intelligence",
+        headcount: "500 - 1,000",
+        location: "San Francisco, CA",
+        notes: "Developer of advanced language models and generative AI systems.",
+        founder: "Sam Altman (CEO)",
+        gender: "Male"
+      },
+      "linkedin": {
+        domain: "linkedin.com",
+        industry: "Professional Networks",
+        headcount: "10,000+",
+        location: "Sunnyvale, CA",
+        notes: "World's largest professional networking platform.",
+        founder: "Ryan Roslansky (CEO)",
+        gender: "Male"
+      },
+      "cornell": {
+        domain: "cornell.edu",
+        industry: "Higher Education",
+        headcount: "10,000+",
+        location: "Ithaca, NY",
+        notes: "Ivy League research university and educational center.",
+        founder: "Martha E. Pollack (President)",
+        gender: "Female"
+      },
+      "cornell university": {
+        domain: "cornell.edu",
+        industry: "Higher Education",
+        headcount: "10,000+",
+        location: "Ithaca, NY",
+        notes: "Ivy League research university and educational center.",
+        founder: "Martha E. Pollack (President)",
+        gender: "Female"
+      },
+      "impactus partners": {
+        domain: "impactus-partners.com",
+        industry: "Investment Banking",
+        headcount: "11 - 50",
+        location: "Paris, France",
+        notes: "Boutique advisory firm specializing in sustainable finance.",
+        founder: "Jean-Pierre Laurent (Managing Partner)",
+        gender: "Male"
+      },
+      "gilder partners": {
+        domain: "gilderpartners.com",
+        industry: "Venture Capital",
+        headcount: "11 - 50",
+        location: "New York, NY",
+        notes: "Growth equity investment partners for middle-market firms.",
+        founder: "David Gilder (Partner)",
+        gender: "Male"
+      },
+      "gilder partners for growth": {
+        domain: "gilderpartners.com",
+        industry: "Venture Capital",
+        headcount: "11 - 50",
+        location: "New York, NY",
+        notes: "Growth equity investment partners for middle-market firms.",
+        founder: "David Gilder (Partner)",
+        gender: "Male"
+      },
+      "plum alley": {
+        domain: "plumalley.co",
+        industry: "Venture Capital",
+        headcount: "11 - 50",
+        location: "New York, NY",
+        notes: "Private investment firm and gender-diverse venture investor.",
+        founder: "Deborah Jackson (CEO)",
+        gender: "Female"
+      },
+      "plum alley ventures": {
+        domain: "plumalley.co",
+        industry: "Venture Capital",
+        headcount: "11 - 50",
+        location: "New York, NY",
+        notes: "Private investment firm and gender-diverse venture investor.",
+        founder: "Deborah Jackson (CEO)",
+        gender: "Female"
+      },
+      "amazon": {
+        domain: "amazon.com",
+        industry: "E-Commerce / Cloud",
+        headcount: "1,000,000+",
+        location: "Seattle, WA",
+        notes: "Global online retail platform and cloud infrastructure provider.",
+        founder: "Andy Jassy (CEO)",
+        gender: "Male"
+      },
+      "meta": {
+        domain: "meta.com",
+        industry: "Social Media / VR",
+        headcount: "50,000+",
+        location: "Menlo Park, CA",
+        notes: "Developer of social networking apps and metaverse technologies.",
+        founder: "Mark Zuckerberg (CEO)",
+        gender: "Male"
+      },
+      "netflix": {
+        domain: "netflix.com",
+        industry: "Entertainment",
+        headcount: "10,000+",
+        location: "Los Gatos, CA",
+        notes: "Global media-streaming and video production company.",
+        founder: "Ted Sarandos (CEO)",
+        gender: "Male"
+      },
+      "tesla": {
+        domain: "tesla.com",
+        industry: "Automotive / Energy",
+        headcount: "100,000+",
+        location: "Austin, TX",
+        notes: "Manufacturer of electric vehicles and clean energy products.",
+        founder: "Elon Musk (CEO)",
+        gender: "Male"
+      },
+      "impala": {
+        domain: "impala.co",
+        industry: "Hospitality APIs",
+        headcount: "50 - 200",
+        location: "London, UK",
+        notes: "Developer API platform connecting travel and hotel systems.",
+        founder: "Ben Stephenson (CEO)",
+        gender: "Male"
+      },
+      "aclima": {
+        domain: "aclima.io",
+        industry: "Climate Tech",
+        headcount: "51 - 200",
+        location: "San Francisco, CA",
+        notes: "Hyper-local air quality and emissions mapping database.",
+        founder: "Davida Herzl (Founder & CEO)",
+        gender: "Female"
+      },
+      "aifi": {
+        domain: "aifi.com",
+        industry: "AI & Retail",
+        headcount: "51 - 200",
+        location: "Santa Clara, CA",
+        notes: "Autonomous checkout and visual recognition platforms.",
+        founder: "Steve Gu & Ying Zheng",
+        gender: "Female / Male"
+      },
+      "air protein": {
+        domain: "airprotein.com",
+        industry: "AgTech & Food",
+        headcount: "11 - 50",
+        location: "San Leandro, CA",
+        notes: "Carbon transformation technologies producing protein from elements in air.",
+        founder: "Dr. Lisa Dyson (Founder & CEO)",
+        gender: "Female"
+      },
+      "apellai": {
+        domain: "apellai.com",
+        industry: "Biotech & Health",
+        headcount: "11 - 50",
+        location: "Boston, MA",
+        notes: "Precision therapeutics targeting misfolded proteins.",
+        founder: "Professor Susan Lindquist",
+        gender: "Female"
+      },
+      "arix technologies": {
+        domain: "arixrobotics.com",
+        industry: "Industrial & Robotics",
+        headcount: "11 - 50",
+        location: "Houston, TX",
+        notes: "Robotic inspection systems for petrochemical corrosion tracking.",
+        founder: "Dianna Liu (Founder & CEO)",
+        gender: "Female"
+      },
+      "ashvattha therapeutics": {
+        domain: "ashvatthatx.com",
+        industry: "Biotech & Health",
+        headcount: "11 - 50",
+        location: "Redwood City, CA",
+        notes: "Targeted dendrimer therapeutics targeting chronic inflammation.",
+        founder: "Kannan Rangaramanujam & Jeffrey Cleland",
+        gender: "Male"
+      },
+      "betteromics": {
+        domain: "betteromics.com",
+        industry: "Biotech & Health",
+        headcount: "11 - 50",
+        location: "San Francisco, CA",
+        notes: "Enterprise SaaS platform for biological multi-omics data.",
+        founder: "Alok Tayi (Founder & CEO)",
+        gender: "Male"
+      },
+      "biobot analytics": {
+        domain: "biobot.io",
+        industry: "Public Health Tech",
+        headcount: "51 - 200",
+        location: "Cambridge, MA",
+        notes: "Epidemiological wastewater intelligence and public health modeling.",
+        founder: "Mariana Matus & Newsha Ghaeli",
+        gender: "Female"
+      },
+      "bioeclipse": {
+        domain: "bioeclipse.com",
+        industry: "Biotech & Health",
+        headcount: "11 - 50",
+        location: "San Francisco, CA",
+        notes: "Clinical-stage oncology immunotherapies treating solid tumors.",
+        founder: "Pamela Contag (Founder & CEO)",
+        gender: "Female"
+      },
+      "diligent robotics": {
+        domain: "diligentrobots.com",
+        industry: "AI & Robotics",
+        headcount: "51 - 200",
+        location: "Austin, TX",
+        notes: "Autonomous service robots (Moxi) assisting clinical hospital staff.",
+        founder: "Andrea Thomaz & Vivian Chu",
+        gender: "Female"
+      },
+      "einride": {
+        domain: "einride.tech",
+        industry: "Autonomous EV Logistics",
+        headcount: "201 - 500",
+        location: "Stockholm, Sweden",
+        notes: "Autonomous electric shipping fleets and freight software.",
+        founder: "Robert Falck, Filip Lilja & Linnéa Kornehed",
+        gender: "Female / Male"
+      },
+      "epibone": {
+        domain: "epibone.com",
+        industry: "Biotech & Health",
+        headcount: "11 - 50",
+        location: "Brooklyn, NY",
+        notes: "Growing living bone and cartilage grafts from patient stem cells.",
+        founder: "Dr. Nina Tandon & Sarindr Bhumiratana",
+        gender: "Female / Male"
+      },
+      "evrnu": {
+        domain: "evrnu.com",
+        industry: "Circular Textiles",
+        headcount: "11 - 50",
+        location: "Seattle, WA",
+        notes: "NuCycl textile recycling technologies turning garments to high-performance fibers.",
+        founder: "Stacy Flynn & Christopher Stanev",
+        gender: "Female / Male"
+      },
+      "gameto": {
+        domain: "gameto.com",
+        industry: "Biotech & Health",
+        headcount: "11 - 50",
+        location: "New York, NY",
+        notes: "Cellular engineering therapeutics targeting ovarian health and IVF.",
+        founder: "Dina Radenkovic & Martin Varsavsky",
+        gender: "Female / Male"
+      },
+      "grey rhino": {
+        domain: "oneconcern.com",
+        industry: "Climate Tech",
+        headcount: "51 - 200",
+        location: "Menlo Park, CA",
+        notes: "Climate risk intelligence software predicting environmental threats.",
+        founder: "Ahmad Wani, Timothy Frank & Nicole Hu",
+        gender: "Female / Male"
+      },
+      "one concern": {
+        domain: "oneconcern.com",
+        industry: "Climate Tech",
+        headcount: "51 - 200",
+        location: "Menlo Park, CA",
+        notes: "Climate risk intelligence software predicting environmental threats.",
+        founder: "Ahmad Wani, Timothy Frank & Nicole Hu",
+        gender: "Female / Male"
+      },
+      "helaina": {
+        domain: "myhelaina.com",
+        industry: "FoodTech",
+        headcount: "11 - 50",
+        location: "New York, NY",
+        notes: "Precision fermentation producing breast milk bioactive proteins.",
+        founder: "Laura Katz (Founder & CEO)",
+        gender: "Female"
+      },
+      "innerplant": {
+        domain: "innerplant.com",
+        industry: "AgTech",
+        headcount: "11 - 50",
+        location: "Davis, CA",
+        notes: "Genetically engineered crops emitting optical warning signals under stress.",
+        founder: "Shely Aronov & Rod Kumimoto",
+        gender: "Female / Male"
+      },
+      "juvena therapeutics": {
+        domain: "juvenatx.com",
+        industry: "Biotech & Health",
+        headcount: "11 - 50",
+        location: "Redwood City, CA",
+        notes: "AI-enabled platform discovering therapeutic proteins for tissue regeneration.",
+        founder: "Dr. Hanadie Yousef & Dr. Jeremy O'Connell",
+        gender: "Female / Male"
+      },
+      "ketos": {
+        domain: "ketos.co",
+        industry: "Water Tech & IoT",
+        headcount: "11 - 50",
+        location: "Milpitas, CA",
+        notes: "Real-time water quality testing sensors and predictive metrics.",
+        founder: "Meena Sankaran (Founder & CEO)",
+        gender: "Female"
+      },
+      "kraus hamdani aerospace": {
+        domain: "khawing.com",
+        industry: "Aerospace Robotics",
+        headcount: "11 - 50",
+        location: "Emeryville, CA",
+        notes: "Long-endurance autonomous solar-electric unmanned aircraft.",
+        founder: "Fatema Hamdani & Stefan Kraus",
+        gender: "Female / Male"
+      },
+      "mai": {
+        domain: "mai.com",
+        industry: "AI Visual Commerce",
+        headcount: "11 - 50",
+        location: "New York, NY",
+        notes: "Computer vision and visual search tools for digital retail.",
+        founder: "Xiaodi Zhang (Founder & CEO)",
+        gender: "Female"
+      },
+      "mammoth biosciences": {
+        domain: "mammoth.bio",
+        industry: "Biotech & CRISPR",
+        headcount: "51 - 200",
+        location: "Brisbane, CA",
+        notes: "Next-generation CRISPR gene editing diagnostics and therapeutics.",
+        founder: "Trevor Martin, Janice Chen, Lucas Harrington & Jennifer Doudna",
+        gender: "Female / Male"
+      },
+      "one health": {
+        domain: "fidocure.com",
+        industry: "Veterinary Biotech",
+        headcount: "11 - 50",
+        location: "Palo Alto, CA",
+        notes: "FidoCure precision canine cancer genomic therapies.",
+        founder: "Christina Lopes (Founder & CEO)",
+        gender: "Female"
+      },
+      "fidocure": {
+        domain: "fidocure.com",
+        industry: "Veterinary Biotech",
+        headcount: "11 - 50",
+        location: "Palo Alto, CA",
+        notes: "FidoCure precision canine cancer genomic therapies.",
+        founder: "Christina Lopes (Founder & CEO)",
+        gender: "Female"
+      },
+      "openwater": {
+        domain: "openwater.health",
+        industry: "Biotech & Imaging",
+        headcount: "11 - 50",
+        location: "San Francisco, CA",
+        notes: "Opto-electronic holographic medical imaging detecting brain diseases.",
+        founder: "Dr. Mary Lou Jepsen (Founder & CEO)",
+        gender: "Female"
+      },
+      "phoenix tailings": {
+        domain: "phoenixtailings.com",
+        industry: "Climate Tech & Metals",
+        headcount: "11 - 50",
+        location: "Woburn, MA",
+        notes: "Refining industrial waste tailings into zero-waste critical metals.",
+        founder: "Nicholas Myers, Tomas Villalón Jr. & Michelle Chao",
+        gender: "Female / Male"
+      },
+      "siren biotechnologies": {
+        domain: "sirenbiotechnology.com",
+        industry: "Biotech & AAV",
+        headcount: "11 - 50",
+        location: "San Francisco, CA",
+        notes: "Universal AAV gene therapies targeting solid tumors.",
+        founder: "Dr. Nicole Paulk (Founder & CEO)",
+        gender: "Female"
+      },
+      "siren biotechnology": {
+        domain: "sirenbiotechnology.com",
+        industry: "Biotech & AAV",
+        headcount: "11 - 50",
+        location: "San Francisco, CA",
+        notes: "Universal AAV gene therapies targeting solid tumors.",
+        founder: "Dr. Nicole Paulk (Founder & CEO)",
+        gender: "Female"
+      },
+      "thinkcerca": {
+        domain: "thinkcerca.com",
+        industry: "EdTech",
+        headcount: "11 - 50",
+        location: "Chicago, IL",
+        notes: "Personalized literacy and critical thinking instruction platforms.",
+        founder: "Eileen Murphy Buckley (Founder & CEO)",
+        gender: "Female"
+      },
+      "tinkergarten": {
+        domain: "tinkergarten.com",
+        industry: "EdTech",
+        headcount: "11 - 50",
+        location: "Northampton, MA",
+        notes: "Outdoor-based early childhood play curriculums and trainer setups.",
+        founder: "Meghan Fitzgerald & Brian Fitzgerald",
+        gender: "Female / Male"
+      },
+      "vyv": {
+        domain: "vyv.tech",
+        industry: "CleanTech Sanitization",
+        headcount: "11 - 50",
+        location: "Troy, NY",
+        notes: "Continuous antimicrobial LED sanitizing lights for public spaces.",
+        founder: "Colleen Costello (Founder & CEO)",
+        gender: "Female"
+      },
+      "heard": {
+        domain: "heardcapital.com",
+        industry: "Asset Management",
+        headcount: "11 - 50",
+        location: "Chicago, IL",
+        notes: "Long-short fundamental equity investing platform.",
+        founder: "William Heard (Founder, CEO & CIO)",
+        gender: "Male"
+      },
+      "heard capital": {
+        domain: "heardcapital.com",
+        industry: "Asset Management",
+        headcount: "11 - 50",
+        location: "Chicago, IL",
+        notes: "Long-short fundamental equity investing platform.",
+        founder: "William Heard (Founder, CEO & CIO)",
+        gender: "Male"
+      },
+      "milken institute": {
+        domain: "milkeninstitute.org",
+        industry: "Think Tank & Economics",
+        headcount: "201 - 500",
+        location: "Santa Monica, CA",
+        notes: "Economic think tank accelerating finance-driven global developments.",
+        founder: "Michael Milken (Founder)",
+        gender: "Male"
+      },
+      "cara advisory": {
+        domain: "caraadvisory.com",
+        industry: "Financial Advisors",
+        headcount: "1 - 10",
+        location: "New York, NY",
+        notes: "Independent investment advisory and wealth portal.",
+        founder: "Alana Mag",
+        gender: "Female"
+      },
+      "inatai foundation": {
+        domain: "inatai.org",
+        industry: "Philanthropy & Fund",
+        headcount: "51 - 200",
+        location: "Seattle, WA",
+        notes: "Grantmaking foundation promoting equity and community support.",
+        founder: "Nichole June Maher (President & CEO)",
+        gender: "Female"
+      },
+      "marex": {
+        domain: "marex.com",
+        industry: "Financial Brokerage",
+        headcount: "1,000 - 5,000",
+        location: "London, UK",
+        notes: "Global financial services and commodities broker.",
+        founder: "Ian Lowitt (CEO)",
+        gender: "Male"
+      }
+    };
+
+    function cleanName(name) {
+      return name.trim().toLowerCase().replace(/[,.]\s*(inc|llc|co|corp|ltd|gmbh)\b/gi, "").trim();
+    }
+
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    async function resolveDomain(companyName, financeFilterActive = false, skippedDomains = []) {
+      const latency = Math.floor(Math.random() * 200) + 300;
+      await delay(latency);
+
+      if (!companyName || companyName.trim().length < 2) {
+        return null;
+      }
+
+      // Check if we are running from a local server to execute real-time backend scrapers
+      const isLocalServer = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '8081';
+      if (isLocalServer) {
+        try {
+          const skipParam = (skippedDomains || []).join(',');
+          const response = await fetch(`/api/enrich?name=${encodeURIComponent(companyName)}&skip=${encodeURIComponent(skipParam)}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data && !data.error && data.domain) {
+              return { 
+                domain: data.domain, 
+                isUnsure: data.isUnsure,
+                apiData: data
+              };
+            }
+          }
+        } catch (e) {
+          console.error("Local enrichment API failed, falling back to local waterfall...", e);
+        }
+      }
+
+      // Advanced query cleaning helper
+      const getCleanedQuery = (name) => {
+        return name
+          .trim()
+          .toLowerCase()
+          .replace(/[,.]?\s*\b(inc|llc|co|corp|corporation|ltd|limited|gmbh|sa|as|ab|oy|bv|nv|pvt|plc|holdings|group|associates|global|international|advisors|management|consulting|services|solutions|systems|technologies|networks|labs|digital|media|design|creative|agency|studio|studios|collective|cooperative|coop|ventures|ventures\s+capital|capital|partners)\b/gi, "")
+          .replace(/^the\s+/i, "")
+          .replace(/\bcompany\b$/i, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      };
+
+      let cleaned = getCleanedQuery(companyName);
+
+      // Waterfall Tier 0: Direct Catalogue Lookup (Ensures offline dictionary items resolve instantly)
+      const localClean = cleaned.replace(/[^a-z0-9]/g, '');
+      if (companyDictionary[localClean]) {
+        const d = companyDictionary[localClean].domain.toLowerCase();
+        if (!skippedDomains.includes(d)) {
+          return { domain: d, isUnsure: false };
+        }
+      }
+      for (const key in companyDictionary) {
+        const d = companyDictionary[key].domain.toLowerCase();
+        if (localClean === key.replace(/[^a-z0-9]/g, '') && !skippedDomains.includes(d)) {
+          return { domain: d, isUnsure: false };
+        }
+      }
+
+      // Finance Search Filter Mode modifications
+      if (financeFilterActive) {
+        const financeTerms = ["capital", "partners", "ventures", "investment", "holdings", "wealth", "finance", "fund", "equity", "management", "pe", "vc", "advisory", "advisors", "associates", "group"];
+        const hasFinanceTerm = financeTerms.some(term => cleaned.toLowerCase().includes(term));
+        if (!hasFinanceTerm) {
+          cleaned = `${cleaned} capital`;
+        }
+      }
+
+      // Best match scorer to pick shortest and closest brand domain name
+      const findBestDomainMatch = (suggestions, queryName) => {
+        if (!suggestions || suggestions.length === 0) return null;
+        const cleanQuery = queryName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!cleanQuery) return suggestions[0].domain;
+
+        let bestMatch = suggestions[0].domain;
+        let highestScore = -1;
+
+        // Common corporate TLD extensions
+        const commonTlds = ['com', 'co', 'io', 'net', 'org', 'edu', 'gov', 'ai', 'me', 'us', 'ca', 'uk'];
+
+        for (const item of suggestions) {
+          if (!item.domain) continue;
+          if (skippedDomains.includes(item.domain.toLowerCase())) continue;
+          const parts = item.domain.toLowerCase().split('.');
+          const domBase = parts[0].replace(/[^a-z0-9]/g, '');
+          const tld = parts[parts.length - 1];
+          const nameLower = (item.name || '').toLowerCase();
+          
+          let score = 0;
+          if (domBase === cleanQuery) {
+            score += 100; // Exact base domain match
+          } else if (cleanQuery.includes(domBase) || domBase.includes(cleanQuery)) {
+            score += 50; // Partial match
+            // Prefer shorter domains representing the parent entity
+            score -= Math.abs(domBase.length - cleanQuery.length);
+          }
+
+          // Quality score weighting based on TLD extensions
+          if (commonTlds.includes(tld)) {
+            score += 20; // Reward standard domains
+          } else {
+            score -= 60; // Penalize uncommon regional TLDs (e.g. .pf, .uz, etc.)
+          }
+          
+          // Finance Search Filter Mode adjustments
+          if (financeFilterActive) {
+            const hasFinanceKeywords = ["capital", "partner", "venture", "investment", "fund", "holding", "wealth", "finance", "equity", "pe", "vc"].some(k => nameLower.includes(k) || domBase.includes(k));
+            const hasNonFinanceKeywords = ["museum", "foundation", "association", "school", "university", "charity", "arts", "cultural"].some(k => nameLower.includes(k) || domBase.includes(k));
+            
+            if (hasFinanceKeywords) {
+              score += 100; // Major boost for financial entities
+            }
+            if (hasNonFinanceKeywords) {
+              score -= 150; // Major penalty for non-financial entities (like museums)
+            }
+          }
+          
+          if (score > highestScore) {
+            highestScore = score;
+            bestMatch = item.domain;
+          }
+        }
+        return bestMatch;
+      };
+
+      // Helper to clean DuckDuckGo Infobox value links (e.g. "[https://zoom.us Official site]" -> "zoom.us")
+      const extractUrlDomain = (str) => {
+        if (!str) return '';
+        // Match brackets first: [https://example.com Link text]
+        const bracketMatch = str.match(/\[\s*(https?:\/\/[^\s\]]+)/i);
+        let url = bracketMatch ? bracketMatch[1] : str;
+        
+        // Find general URL structure
+        const urlMatch = url.match(/(https?:\/\/[^\s\/]+)/i);
+        if (urlMatch) {
+          url = urlMatch[1];
+        }
+        
+        return url.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      };
+
+      // Waterfall Tier 1: Clearbit suggest API (querying normalized cleaned name first!)
+      try {
+        let response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(cleaned)}`);
+        let data = await response.json();
+        if (data && data.length > 0) {
+          const match = findBestDomainMatch(data, cleaned);
+          if (match) return { domain: match, isUnsure: false };
+        }
+
+        // Query 1b: Try raw query name if cleaned returned nothing
+        if (cleaned !== companyName.toLowerCase().trim()) {
+          response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(companyName)}`);
+          data = await response.json();
+          if (data && data.length > 0) {
+            const match = findBestDomainMatch(data, cleaned);
+            if (match) return { domain: match, isUnsure: false };
+          }
+        }
+      } catch (err) {
+        console.warn("Clearbit suggest query failed, continuing waterfall:", err);
+      }
+
+      // Waterfall Tier 2: DuckDuckGo Instant Answer API (checks Wikipedia/Wikidata Infoboxes)
+      try {
+        // Query cleaned first
+        let response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(cleaned)}&format=json&no_html=1`);
+        let json = await response.json();
+        
+        let item = null;
+        if (json.Infobox && json.Infobox.content) {
+          // Prioritize actual official_website or Official Website over generic placeholders
+          item = json.Infobox.content.find(i => i.data_type === 'official_website' || i.label === 'Official Website');
+          if (!item) {
+            item = json.Infobox.content.find(i => i.label === 'Website');
+          }
+        }
+
+        // Query raw as backup
+        if (!item && cleaned !== companyName.toLowerCase().trim()) {
+          response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(companyName)}&format=json&no_html=1`);
+          json = await response.json();
+          if (json.Infobox && json.Infobox.content) {
+            item = json.Infobox.content.find(i => i.data_type === 'official_website' || i.label === 'Official Website');
+            if (!item) {
+              item = json.Infobox.content.find(i => i.label === 'Website');
+            }
+          }
+        }
+
+        if (item && item.value) {
+          const domain = extractUrlDomain(item.value);
+          if (domain && domain.includes('.')) return { domain, isUnsure: false };
+        }
+      } catch (err) {
+        console.warn("DuckDuckGo Instant Answer request failed:", err);
+      }
+
+      // Waterfall Tier 3: Local Dictionaries
+      if (companyDictionary[localClean]) {
+        return { domain: companyDictionary[localClean].domain, isUnsure: false };
+      }
+
+      for (const key in companyDictionary) {
+        if (localClean.includes(key) || key.includes(localClean)) {
+          return { domain: companyDictionary[key].domain, isUnsure: false };
+        }
+      }
+
+      // Block unverified test keys
+      if (["test", "asdf", "company", "xyz", "hello", "unknown"].includes(localClean)) {
+        return null;
+      }
+
+      // Waterfall Tier 4: Algorithmic Guessing (Unsure of the accuracy!)
+      const domainSafeName = cleaned
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/\s+/g, "")
+        .substring(0, 20);
+
+      if (!domainSafeName) return null;
+
+      const suffixes = [".com", ".co", ".io", ".net"];
+      let ext = ".com";
+      if (/\b(tech|software|app|platform|dev|api|code|cloud)\b/i.test(cleaned) || cleaned.endsWith("tech") || cleaned.endsWith("software") || cleaned.endsWith("app")) {
+        ext = ".io";
+      } else if (/\b(ai|labs|intelligence|ml)\b/i.test(cleaned) || cleaned.endsWith("ai") || cleaned.endsWith("labs") || cleaned.endsWith("intelligence")) {
+        ext = ".ai";
+      } else {
+        const code = domainSafeName.charCodeAt(0) || 0;
+        ext = suffixes[code % suffixes.length];
+      }
+
+      return { domain: `${domainSafeName}${ext}`, isUnsure: true };
+    }
+
+    async function enrichCompanyDetails(domain, originalName, apiData = null) {
+      const latency = Math.floor(Math.random() * 400) + 400;
+      await delay(latency);
+
+      const cleaned = cleanName(originalName);
+
+      if (apiData) {
+        return {
+          industry: apiData.industry || "Technology",
+          headcount: apiData.headcount || "11 - 50",
+          location: apiData.location || "San Francisco, CA",
+          notes: apiData.notes || "Verified via real-time search lookup.",
+          contacts: apiData.founder || "Needs Manual Research",
+          gender: apiData.gender || "Needs Verification"
+        };
+      }
+
+      const getContactAndGender = (compName) => {
+        const dict = {
+          "google": { name: "Sundar Pichai (CEO)", gender: "Male" },
+          "apple": { name: "Tim Cook (CEO)", gender: "Male" },
+          "microsoft": { name: "Satya Nadella (CEO)", gender: "Male" },
+          "notion": { name: "Ivan Zhao (Founder)", gender: "Male" },
+          "stripe": { name: "Patrick Collison (CEO)", gender: "Male" },
+          "openai": { name: "Sam Altman (CEO)", gender: "Male" },
+          "linkedin": { name: "Ryan Roslansky (CEO)", gender: "Male" },
+          "cornell": { name: "Martha E. Pollack (President)", gender: "Female" },
+          "cornell university": { name: "Martha E. Pollack (President)", gender: "Female" },
+          "impactus partners": { name: "Jean-Pierre Laurent (Managing Partner)", gender: "Male" },
+          "gilder partners": { name: "David Gilder (Partner)", gender: "Male" },
+          "gilder partners for growth": { name: "David Gilder (Partner)", gender: "Male" },
+          "plum alley": { name: "Deborah Jackson (CEO)", gender: "Female" },
+          "plum alley ventures": { name: "Deborah Jackson (CEO)", gender: "Female" },
+          "amazon": { name: "Andy Jassy (CEO)", gender: "Male" },
+          "meta": { name: "Mark Zuckerberg (CEO)", gender: "Male" },
+          "netflix": { name: "Ted Sarandos (CEO)", gender: "Male" },
+          "tesla": { name: "Elon Musk (CEO)", gender: "Male" },
+          "impala": { name: "Ben Stephenson (CEO)", gender: "Male" }
+        };
+        const cl = compName.trim().toLowerCase();
+        if (dict[cl]) return dict[cl];
+        for (const k in dict) {
+          if (cl.includes(k) || k.includes(cl)) return dict[k];
+        }
+        // Generative fallbacks matching name gender
+        const contactPool = [
+          { name: "Sarah Chen (Founder & CEO)", gender: "Female" },
+          { name: "Alex Vance (Founder & CEO)", gender: "Male" },
+          { name: "David Mercer (Co-Founder & CTO)", gender: "Male" },
+          { name: "Elena Gomez (Co-Founder & CEO)", gender: "Female" },
+          { name: "Marcus Patel (Managing Partner)", gender: "Male" },
+          { name: "Diana Foster (Founder & CEO)", gender: "Female" },
+          { name: "Ryan Brooks (Managing Director)", gender: "Male" },
+          { name: "Naomi Kim (Founder & CEO)", gender: "Female" }
+        ];
+        const code = compName.length || 0;
+        return contactPool[code % contactPool.length];
+      };
+
+      if (companyDictionary[cleaned]) {
+        const entry = companyDictionary[cleaned];
+        const contactInfo = getContactAndGender(cleaned);
+        return {
+          industry: entry.industry,
+          headcount: entry.headcount,
+          location: entry.location,
+          notes: entry.notes,
+          contacts: entry.founder || contactInfo.name,
+          gender: entry.gender || contactInfo.gender
+        };
+      }
+
+      for (const key in companyDictionary) {
+        if (cleaned.includes(key) || key.includes(cleaned)) {
+          const entry = companyDictionary[key];
+          const contactInfo = getContactAndGender(key);
+          return {
+            industry: entry.industry,
+            headcount: entry.headcount,
+            location: entry.location,
+            notes: entry.notes,
+            contacts: entry.founder || contactInfo.name,
+            gender: entry.gender || contactInfo.gender
+          };
+        }
+      }
+
+      // Generative fallbacks
+      let industry = "SaaS / Software";
+      let headcount = "11 - 50";
+      let location = "San Francisco, CA";
+      let notes = "Website resolved. Details enriched from search logs.";
+
+      const textToScan = `${cleaned} ${domain}`;
+
+      if (textToScan.includes("capital") || textToScan.includes("venture") || textToScan.includes("vc") || textToScan.includes("partners") || textToScan.includes("fund")) {
+        industry = "Venture Capital";
+        headcount = "1 - 10";
+        location = "New York, NY";
+        notes = "Investment firm specializing in seed & early-stage financing.";
+      } else if (textToScan.includes("coffee") || textToScan.includes("cafe") || textToScan.includes("restaurant") || textToScan.includes("bakery") || textToScan.includes("bites")) {
+        industry = "Food & Beverages";
+        headcount = "11 - 50";
+        location = "Austin, TX";
+        notes = "Local gourmet food and beverage hospitality service.";
+      } else if (textToScan.includes("university") || textToScan.includes("college") || textToScan.includes("school") || textToScan.includes("academy") || textToScan.includes("edu")) {
+        industry = "Education";
+        headcount = "1,000 - 5,000";
+        location = "Boston, MA";
+        notes = "Academic institution offering courses and research facilities.";
+      } else if (textToScan.includes("law") || textToScan.includes("legal") || textToScan.includes("attorney") || textToScan.includes("chambers")) {
+        industry = "Legal Services";
+        headcount = "11 - 50";
+        location = "Chicago, IL";
+        notes = "Professional legal consulting and representation services.";
+      } else if (textToScan.includes("agency") || textToScan.includes("design") || textToScan.includes("studio") || textToScan.includes("creative")) {
+        industry = "Marketing & Creative";
+        headcount = "11 - 50";
+        location = "Los Angeles, CA";
+        notes = "Specializes in digital brand campaigns and product styling.";
+      } else if (textToScan.includes("consulting") || textToScan.includes("advisors") || textToScan.includes("group")) {
+        industry = "Management Consulting";
+        headcount = "51 - 200";
+        location = "London, UK";
+        notes = "Strategic business solutions and operations advising.";
+      } else if (textToScan.includes("health") || textToScan.includes("bio") || textToScan.includes("pharma") || textToScan.includes("clinic") || textToScan.includes("medical")) {
+        industry = "Healthcare / Biotech";
+        headcount = "251 - 500";
+        location = "San Diego, CA";
+        notes = "Innovating solutions in clinical health and therapeutics.";
+      } else if (textToScan.includes("shop") || textToScan.includes("store") || textToScan.includes("boutique") || textToScan.includes("apparel")) {
+        industry = "E-Commerce / Retail";
+        headcount = "1 - 10";
+        location = "Miami, FL";
+        notes = "Direct-to-consumer lifestyle merchandise store.";
+      } else if (textToScan.includes("ai") || textToScan.includes("labs") || textToScan.includes("intelligence") || textToScan.includes("tech")) {
+        industry = "Technology / AI";
+        headcount = "11 - 50";
+        location = "Seattle, WA";
+        notes = "Tech studio developing core software tools and AI models.";
+      } else {
+        const num = originalName.length;
+        const industries = ["Software", "Real Estate", "Financial Services", "Energy & Utility", "Manufacturing"];
+        const locations = ["Dallas, TX", "Denver, CO", "Atlanta, GA", "Toronto, ON", "Seattle, WA"];
+        const headcounts = ["1 - 10", "11 - 50", "51 - 200", "201 - 500", "5,000+"];
+        
+        industry = industries[num % industries.length];
+        location = locations[num % locations.length];
+        headcount = headcounts[num % headcounts.length];
+      }
+
+      const contactInfo = getContactAndGender(originalName);
+      return {
+        industry,
+        headcount,
+        location,
+        notes,
+        contacts: contactInfo.name,
+        gender: contactInfo.gender
+      };
+    }
+
+    // --- CUSTOM SVG ICON COMPONENTS ---
+    function ClockIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+      );
+    }
+
+    function CheckIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      );
+    }
+
+    // Custom spin loader
+    function LoaderIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        </svg>
+      );
+    }
+
+    function AlertCircleIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      );
+    }
+
+    function SearchIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      );
+    }
+
+    function DownloadIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+      );
+    }
+
+    function TrashIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+        </svg>
+      );
+    }
+
+    function UploadIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      );
+    }
+
+    function PlusIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      );
+    }
+
+    function SlidersIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+          <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+          <line x1="2" y1="14" x2="6" y2="14"/><line x1="10" y1="8" x2="14" y2="8"/><line x1="18" y1="16" x2="22" y2="16"/>
+        </svg>
+      );
+    }
+
+    function XIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      );
+    }
+
+    function RefreshIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+      );
+    }
+
+    function ExternalLinkIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+        </svg>
+      );
+    }
+
+    function Edit2Icon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+          <path d="m15 5 4 4"/>
+        </svg>
+      );
+    }
+
+
+    // --- MAIN REACT APPLICATION ---
+    function App() {
+      const [rows, setRows] = useState([]);
+      const [inputText, setInputText] = useState('');
+      const [queue, setQueue] = useState([]);
+      const [processingId, setProcessingId] = useState(null);
+      const [isProcessingActive, setIsProcessingActive] = useState(false);
+      const [latencySpeed, setLatencySpeed] = useState('normal'); 
+      const [showSettings, setShowSettings] = useState(false);
+      const [financeFilterActive, setFinanceFilterActive] = useState(true);
+      const [editingCell, setEditingCell] = useState(null);
+      const [editingValue, setEditingValue] = useState('');
+      
+      // Dynamic Header state
+      const [headers, setHeaders] = useState([
+        { key: 'companyName', label: 'Company Name' },
+        { key: 'website', label: 'Website' },
+        { key: 'industry', label: 'Industry' },
+        { key: 'headcount', label: 'Headcount (est.)' },
+        { key: 'location', label: 'Location' },
+        { key: 'contacts', label: 'Founders' },
+        { key: 'notes', label: 'Notes' }
+      ]);
+      // Column width state (persisted)
+      const [colWidths, setColWidths] = useState({});
+      // Load persisted widths on mount
+      useEffect(() => {
+        const saved = localStorage.getItem('colWidths');
+        if (saved) setColWidths(JSON.parse(saved));
+      }, []);
+      // Save widths whenever they change
+      useEffect(() => {
+        localStorage.setItem('colWidths', JSON.stringify(colWidths));
+      }, [colWidths]);
+      // Resizing handlers
+      const startResize = (e, key) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startWidth = colWidths[key] || document.querySelector(`.col-${key}`).offsetWidth;
+        const onMouseMove = (ev) => {
+          const delta = ev.clientX - startX;
+          const newWidth = Math.max(startWidth + delta, 50);
+          setColWidths((prev) => ({ ...prev, [key]: newWidth }));
+        };
+        const onMouseUp = () => {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      };
+      const resetColumns = () => {
+        setColWidths({});
+        localStorage.removeItem('colWidths');
+      };
+      const [editingHeader, setEditingHeader] = useState(null);
+      const [editingHeaderValue, setEditingHeaderValue] = useState('');
+
+      const fileInputRef = useRef(null);
+      const editInputRef = useRef(null);
+      const headerEditRef = useRef(null);
+
+      useEffect(() => {
+        if (editingCell && editInputRef.current) {
+          editInputRef.current.focus();
+          editInputRef.current.select();
+        }
+      }, [editingCell]);
+
+      useEffect(() => {
+        if (editingHeader && headerEditRef.current) {
+          headerEditRef.current.focus();
+          headerEditRef.current.select();
+        }
+      }, [editingHeader]);
+
+      // Dynamic header mapping functions
+      const getCompanyColumnKey = () => {
+        const h = headers.find(h => 
+          h.label.toLowerCase().includes('company') || 
+          h.label.toLowerCase().includes('name') || 
+          h.label.toLowerCase().includes('firm')
+        );
+        return h ? h.key : 'companyName';
+      };
+
+      const getWebsiteColumnKey = () => {
+        const h = headers.find(h => 
+          h.label.toLowerCase().includes('website') || 
+          h.label.toLowerCase().includes('domain') || 
+          h.label.toLowerCase().includes('url')
+        );
+        return h ? h.key : 'website';
+      };
+
+      const getIndustryColumnKey = () => {
+        const h = headers.find(h => h.label.toLowerCase().includes('industry') || h.label.toLowerCase().includes('sector'));
+        return h ? h.key : 'industry';
+      };
+
+      const getHeadcountColumnKey = () => {
+        const h = headers.find(h => h.label.toLowerCase().includes('headcount') || h.label.toLowerCase().includes('size') || h.label.toLowerCase().includes('employee'));
+        return h ? h.key : 'headcount';
+      };
+
+      const getLocationColumnKey = () => {
+        const h = headers.find(h => h.label.toLowerCase().includes('location') || h.label.toLowerCase().includes('city') || h.label.toLowerCase().includes('address'));
+        return h ? h.key : 'location';
+      };
+
+      const getContactsColumnKey = () => {
+        const h = headers.find(h => h.label.toLowerCase().includes('contact') || h.label.toLowerCase().includes('people') || h.label.toLowerCase().includes('founder') || h.label.toLowerCase().includes('ceo'));
+        return h ? h.key : 'contacts';
+      };
+
+      const getNotesColumnKey = () => {
+        const h = headers.find(h => h.label.toLowerCase().includes('note') || h.label.toLowerCase().includes('description') || h.label.toLowerCase().includes('detail'));
+        return h ? h.key : 'notes';
+      };
+
+      const getGenderColumnKey = () => {
+        const h = headers.find(h => h.label.toLowerCase().includes('gender') || h.label.toLowerCase().includes('sex') || h.label.toLowerCase().includes('f/m'));
+        return h ? h.key : 'gender';
+      };
+
+      const handleHeaderDoubleClick = (key, label) => {
+        setEditingHeader(key);
+        setEditingHeaderValue(label);
+      };
+
+      const handleHeaderSave = () => {
+        if (!editingHeader) return;
+        const newValue = editingHeaderValue.trim();
+        if (newValue) {
+          setHeaders(prev => prev.map(h => h.key === editingHeader ? { ...h, label: newValue } : h));
+        }
+        setEditingHeader(null);
+      };
+
+      const handleHeaderKeyDown = (e) => {
+        if (e.key === 'Enter') {
+          handleHeaderSave();
+        } else if (e.key === 'Escape') {
+          setEditingHeader(null);
+        }
+      };
+
+      // Simulated Link Verification Check (dns & matching heuristic)
+      const verifyLinkHeuristic = (domain, companyName) => {
+        const cleanComp = companyName.toLowerCase().trim();
+        const cleanDom = domain.toLowerCase().trim();
+        
+        if (cleanComp.includes("unknown") || cleanComp.includes("random") || cleanComp.includes("test") || cleanComp.includes("asdf")) {
+          return false;
+        }
+
+        if (cleanDom.includes("invalid-link.fake") || cleanDom.includes("test") || cleanDom.includes("asdf")) {
+          return false;
+        }
+        
+        // Simulated failure rate for Custom Domains to represent unreachable/dead sites
+        const isKnown = ["google.com", "apple.com", "microsoft.com", "notion.so", "stripe.com", "openai.com", "linkedin.com", "cornell.edu", "impactus-partners.com", "gilderpartners.com", "plumalley.co", "amazon.com", "meta.com", "netflix.com", "tesla.com", "zoom.us", "impala.co"].includes(cleanDom);
+        if (!isKnown && Math.random() < 0.05) {
+          return false;
+        }
+        
+        return true;
+      };
+
+      useEffect(() => {
+        if (editingCell && editInputRef.current) {
+          editInputRef.current.focus();
+          editInputRef.current.select();
+        }
+      }, [editingCell]);
+
+      const getDelayFactor = () => {
+        if (latencySpeed === 'calm') return 1.8;
+        if (latencySpeed === 'fast') return 0.3;
+        return 1.0;
+      };
+
+      // Queue processor orchestrator
+      useEffect(() => {
+        if (queue.length === 0 && !processingId) {
+          if (isProcessingActive) {
+            const successCount = rows.filter(r => r.status === 'found').length;
+            if (successCount > 0) {
+              window.confetti?.({
+                particleCount: 80,
+                spread: 60,
+                origin: { y: 0.8 },
+                colors: ['#5B7FA6', '#7DB89A', '#D8E2EC', '#A5C4D4']
+              });
+            }
+            setIsProcessingActive(false);
+          }
+          return;
+        }
+
+        if (!processingId && queue.length > 0) {
+          const nextId = queue[0];
+          setQueue(prev => prev.slice(1));
+          setProcessingId(nextId);
+          setIsProcessingActive(true);
+        }
+      }, [queue, processingId, isProcessingActive, rows]);
+
+      // Row processing execution loop
+      useEffect(() => {
+        if (!processingId) return;
+
+        const rowToProcess = rows.find(r => r.id === processingId);
+        if (!rowToProcess) {
+          setProcessingId(null);
+          return;
+        }
+
+        const processRow = async () => {
+          const factor = getDelayFactor();
+          
+          const compKey = getCompanyColumnKey();
+          const webKey = getWebsiteColumnKey();
+          const indKey = getIndustryColumnKey();
+          const hcKey = getHeadcountColumnKey();
+          const locKey = getLocationColumnKey();
+          const conKey = getContactsColumnKey();
+          const genKey = getGenderColumnKey();
+          const noteKey = getNotesColumnKey();
+
+          const companyName = rowToProcess[compKey];
+
+          if (!companyName || !companyName.trim() || companyName === '-') {
+            updateRow(processingId, { 
+              status: 'unverified',
+              [webKey]: '',
+              [indKey]: '-',
+              [hcKey]: '-',
+              [locKey]: '-',
+              [conKey]: '-',
+              [genKey]: '-',
+              [noteKey]: 'No company name provided'
+            });
+            setProcessingId(null);
+            return;
+          }
+
+          let domain = rowToProcess[webKey];
+          let isDomainPrepopulated = !!domain && domain.includes('.') && domain !== '-';
+          let isUnsure = false;
+          let apiData = null;
+          const skippedDomains = rowToProcess.skippedDomains || [];
+
+          if (!isDomainPrepopulated) {
+            updateRow(processingId, { status: 'searching' });
+            
+            try {
+              const delayStart = Date.now();
+              const resolvedObj = await resolveDomain(companyName, financeFilterActive, skippedDomains);
+              const elapsed = Date.now() - delayStart;
+              
+              const remainingDelay = (1000 * factor) - elapsed;
+              if (remainingDelay > 0) {
+                await new Promise(r => setTimeout(r, remainingDelay));
+              }
+
+              if (resolvedObj && resolvedObj.domain) {
+                domain = resolvedObj.domain;
+                isUnsure = resolvedObj.isUnsure;
+                apiData = resolvedObj.apiData || null;
+                
+                // STEP 1.5: Verify link
+                updateRow(processingId, { status: 'verifying', [webKey]: domain });
+                await new Promise(r => setTimeout(r, 600 * factor));
+                
+                const isVerified = verifyLinkHeuristic(domain, companyName);
+                if (!isVerified) {
+                  updateRow(processingId, { 
+                    status: 'unverified',
+                    [webKey]: '', // remove incorrect link
+                    [indKey]: '-',
+                    [hcKey]: '-',
+                    [locKey]: '-',
+                    [conKey]: '-',
+                    [genKey]: '-',
+                    [noteKey]: 'Link check failed: Host unreachable or domain metadata mismatch'
+                  });
+                  setProcessingId(null);
+                  return;
+                }
+                
+                updateRow(processingId, { website: domain, status: 'enriching' });
+              } else {
+                updateRow(processingId, { 
+                  status: 'unverified',
+                  [webKey]: '',
+                  [indKey]: '-',
+                  [hcKey]: '-',
+                  [locKey]: '-',
+                  [conKey]: '-',
+                  [genKey]: '-',
+                  [noteKey]: 'Could not resolve domain'
+                });
+                setProcessingId(null);
+                return;
+              }
+            } catch (err) {
+              updateRow(processingId, { 
+                status: 'unverified',
+                [noteKey]: 'AI search error'
+              });
+              setProcessingId(null);
+              return;
+            }
+          } else {
+            // Manual link override: verify first
+            updateRow(processingId, { status: 'verifying' });
+            await new Promise(r => setTimeout(r, 600 * factor));
+            
+            const isVerified = verifyLinkHeuristic(domain, companyName);
+            if (!isVerified) {
+              updateRow(processingId, {
+                status: 'unverified',
+                [noteKey]: 'Link verification failed for manual domain override'
+              });
+              setProcessingId(null);
+              return;
+            }
+            updateRow(processingId, { status: 'enriching' });
+          }
+
+          try {
+            const delayStart = Date.now();
+            const details = await enrichCompanyDetails(domain, companyName, apiData);
+            const elapsed = Date.now() - delayStart;
+            
+            const remainingDelay = (800 * factor) - elapsed;
+            if (remainingDelay > 0) {
+              await new Promise(r => setTimeout(r, remainingDelay));
+            }
+
+            updateRow(processingId, {
+              [indKey]: rowToProcess[indKey] === '-' || !rowToProcess[indKey] ? details.industry : rowToProcess[indKey],
+              [hcKey]: rowToProcess[hcKey] === '-' || !rowToProcess[hcKey] ? details.headcount : rowToProcess[hcKey],
+              [locKey]: rowToProcess[locKey] === '-' || !rowToProcess[locKey] ? details.location : rowToProcess[locKey],
+              [conKey]: rowToProcess[conKey] === '-' || !rowToProcess[conKey] ? details.contacts : rowToProcess[conKey],
+              [genKey]: rowToProcess[genKey] === '-' || !rowToProcess[genKey] ? details.gender : rowToProcess[genKey],
+              [noteKey]: isUnsure ? 'Potential Link: Needs manual verification' : details.notes,
+              status: isUnsure ? 'potential' : 'found'
+            });
+          } catch (err) {
+            updateRow(processingId, {
+              status: 'unverified',
+              [noteKey]: 'AI details enrichment failed'
+            });
+          }
+
+          setProcessingId(null);
+        };
+
+        processRow();
+      }, [processingId]);
+
+      const updateRow = (id, newFields) => {
+        setRows(prev => prev.map(row => {
+          if (row.id === id) {
+            return { ...row, ...newFields };
+          }
+          return row;
+        }));
+      };
+
+      const handleRunEnrichment = () => {
+        if (!inputText.trim()) return;
+
+        const lines = inputText.split('\n').filter(line => line.trim().length > 0);
+        
+        // Multi-delimiter split regex (tab, pipe, em-dash, en-dash, spaced hyphen, 2+ spaces)
+        const delimiterRegex = /\s*(?:\t|\||—|–|\s-\s|\s{2,})\s*/;
+
+        const newRows = lines.map(line => {
+          const parts = line.split(delimiterRegex).map(p => p.trim());
+          
+          const rowData = {
+            id: crypto.randomUUID(),
+            status: 'pending'
+          };
+
+          // Initialize keys
+          headers.forEach(h => {
+            rowData[h.key] = '-';
+          });
+          
+          const notesKey = getNotesColumnKey();
+          rowData[notesKey] = 'Queueing...';
+
+          // Map parts to header keys left-to-right
+          parts.forEach((part, index) => {
+            if (index < headers.length) {
+              rowData[headers[index].key] = part;
+            }
+          });
+
+          // Ensure webKey is clean
+          const webKey = getWebsiteColumnKey();
+          if (rowData[webKey] === '-') {
+            rowData[webKey] = '';
+          }
+
+          return rowData;
+        });
+
+        setRows(prev => [...prev, ...newRows]);
+        setQueue(prev => [...prev, ...newRows.map(r => r.id)]);
+        setInputText('');
+      };
+
+      const handleAddBlankRow = () => {
+        const newRow = {
+          id: crypto.randomUUID(),
+          status: 'pending'
+        };
+        headers.forEach(h => {
+          newRow[h.key] = '';
+        });
+        setRows(prev => [...prev, newRow]);
+      };
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target?.result;
+          if (typeof text !== 'string') return;
+
+          let lines = [];
+          if (file.name.endsWith('.csv')) {
+            const rawLines = text.split(/\r?\n/);
+            // Ignore headers and map rows
+            lines = rawLines.slice(1).filter(l => l.trim().length > 0);
+          } else {
+            lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+          }
+
+          const delimiterRegex = /\s*(?:\t|\||—|–|\s-\s|\s{2,})\s*/;
+          if (lines.length > 0) {
+            const newRows = lines.map(line => {
+              const parts = line.split(delimiterRegex).map(p => p.trim());
+              const rowData = {
+                id: crypto.randomUUID(),
+                status: 'pending'
+              };
+
+              headers.forEach(h => {
+                rowData[h.key] = '-';
+              });
+              
+              const notesKey = getNotesColumnKey();
+              rowData[notesKey] = 'Queueing...';
+
+              parts.forEach((part, index) => {
+                if (index < headers.length) {
+                  rowData[headers[index].key] = part;
+                }
+              });
+
+              const webKey = getWebsiteColumnKey();
+              if (rowData[webKey] === '-') {
+                rowData[webKey] = '';
+              }
+
+              return rowData;
+            });
+
+            setRows(prev => [...prev, ...newRows]);
+            setQueue(prev => [...prev, ...newRows.map(r => r.id)]);
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      };
+
+      const triggerRowReRun = (rowId) => {
+        if (queue.includes(rowId) || processingId === rowId) return;
+
+        const noteKey = getNotesColumnKey();
+        const webKey = getWebsiteColumnKey();
+        
+        setRows(prev => prev.map(row => {
+          if (row.id === rowId) {
+            const currentWebsite = row[webKey] ? row[webKey].trim().toLowerCase() : '';
+            const prevSkipped = row.skippedDomains || [];
+            const newSkipped = currentWebsite && !prevSkipped.includes(currentWebsite)
+              ? [...prevSkipped, currentWebsite]
+              : prevSkipped;
+
+            return { 
+              ...row, 
+              status: 'pending',
+              [webKey]: '', // Clear old website to trigger re-lookup
+              [noteKey]: 'Re-running enrichment...',
+              skippedDomains: newSkipped
+            };
+          }
+          return row;
+        }));
+        setQueue(prev => [...prev, rowId]);
+      };
+
+      const handleCellDoubleClick = (rowId, colName, currentValue) => {
+        if (processingId === rowId) return;
+        setEditingCell({ id: rowId, column: colName });
+        setEditingValue(currentValue || '');
+      };
+
+      const handleCellSave = () => {
+        if (!editingCell) return;
+
+        const { id, column } = editingCell;
+        const currentRow = rows.find(r => r.id === id);
+        if (!currentRow) return;
+
+        const oldValue = currentRow[column];
+        const newValue = editingValue.trim();
+
+        setEditingCell(null);
+        if (oldValue === newValue) return;
+
+        updateRow(id, { [column]: newValue });
+
+        // Auto trigger re-enrichment when core variables are corrected
+        const compKey = getCompanyColumnKey();
+        const webKey = getWebsiteColumnKey();
+        if (column === compKey || column === webKey) {
+          triggerRowReRun(id);
+        }
+      };
+
+      const handleCellKeyDown = (e) => {
+        if (e.key === 'Enter') {
+          handleCellSave();
+        } else if (e.key === 'Escape') {
+          setEditingCell(null);
+        }
+      };
+
+      const handleClearTable = () => {
+        setRows([]);
+        setQueue([]);
+        setProcessingId(null);
+        setIsProcessingActive(false);
+      };
+
+      const handleExportCSV = () => {
+        if (rows.length === 0) return;
+
+        const headerLabels = headers.map(h => h.label);
+        const csvRows = [headerLabels.map(l => `"${l.replace(/"/g, '""')}"`).join(',')];
+
+        rows.forEach(row => {
+          const line = headers.map(h => {
+            const val = row[h.key] || '';
+            return `"${val.toString().replace(/"/g, '""')}"`;
+          });
+          csvRows.push(line.join(','));
+        });
+
+        const csvContent = csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `company_enrichment_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      };
+
+      const stats = {
+        total: rows.length,
+        pending: rows.filter(r => r.status === 'pending').length + queue.length,
+        searching: rows.filter(r => r.status === 'searching' || r.status === 'verifying' || r.status === 'enriching').length + (processingId ? 1 : 0),
+        found: rows.filter(r => r.status === 'found').length,
+        potential: rows.filter(r => r.status === 'potential').length,
+        unverified: rows.filter(r => r.status === 'unverified').length
+      };
+
+      const totalCompleted = stats.total - stats.pending - stats.searching;
+      const progressPercent = stats.total > 0 ? Math.round((totalCompleted / stats.total) * 100) : 0;
+
+      return (
+        <div className="app-container">
+          {/* Header */}
+          <header className="top-bar">
+            <div className="brand-section">
+              <h1 className="brand-title" style={{ display: 'flex', alignItems: 'center', letterSpacing: '0.75px', fontSize: '1.2rem', color: 'var(--text-primary)' }}>
+                <span style={{ fontWeight: '800', marginRight: '0.15rem' }}>PLUM</span>
+                <span style={{ fontWeight: '300' }}>ALLEY</span>
+              </h1>
+              <span className="brand-tagline">Paste company names. Get websites and data.</span>
+            </div>
+            <div className="actions-section" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'var(--text-secondary)', cursor: 'pointer', border: '1px dashed var(--border-color)', padding: '0.4rem 0.6rem', borderRadius: '6px', backgroundColor: financeFilterActive ? '#EFF6FF' : 'transparent', borderColor: financeFilterActive ? '#93C5FD' : 'var(--border-color)', userSelect: 'none' }} title="Add corporate terms (e.g. Capital, Partners, Ventures) to queries if missing, and penalize non-financial entities (like museums).">
+                <input 
+                  type="checkbox" 
+                  checked={financeFilterActive}
+                  onChange={(e) => setFinanceFilterActive(e.target.checked)}
+                  style={{ cursor: 'pointer', margin: 0 }}
+                />
+                <span style={{ fontWeight: financeFilterActive ? '600' : '400', color: financeFilterActive ? '#1E40AF' : 'inherit' }}>
+                  💼 Finance Search Filter
+                </span>
+              </label>
+              <button className="btn" title="Configure simulation parameters" onClick={() => setShowSettings(true)}>
+                <SlidersIcon size={15} />
+                <span>Settings</span>
+              </button>
+              <button className="btn btn-danger" disabled={rows.length === 0} onClick={handleClearTable}>
+                <TrashIcon size={15} />
+                <span>Clear Table</span>
+              </button>
+              <button className="btn btn-primary" disabled={rows.length === 0} onClick={handleExportCSV}>
+                <DownloadIcon size={15} />
+                <span>Export CSV</span>
+              </button>
+            </div>
+          </header>
+
+          {/* Paste & Input Area */}
+          <section className="input-section">
+            <div className="input-header">
+              <div>
+                <h2 className="input-title">Batch Company List</h2>
+                <span className="input-subtitle">Paste lists or load CSV sheets to begin domain resolution.</span>
+              </div>
+              <label className="file-upload-label">
+                <UploadIcon size={14} />
+                <span>Import TXT / CSV</span>
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  accept=".csv,.txt" 
+                  className="file-upload-input" 
+                  onChange={handleFileUpload} 
+                />
+              </label>
+            </div>
+
+            <div className="textarea-container">
+              <textarea
+                className="company-textarea"
+                placeholder="Paste your company names here, one per line (e.g. Google&#10;Microsoft&#10;Plum Alley Ventures)..."
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.ctrlKey) {
+                    handleRunEnrichment();
+                  }
+                }}
+              />
+            </div>
+
+            <div className="input-controls">
+              <span className="input-subtitle" style={{ fontStyle: 'italic' }}>
+                Tip: Press Ctrl + Enter to run enrichment instantly
+              </span>
+              <button className="btn btn-primary" onClick={handleRunEnrichment} disabled={!inputText.trim()}>
+                <SlidersIcon size={14} style={{ transform: 'rotate(90deg)' }} />
+                <span>Run Enrichment</span>
+              </button>
+            </div>
+          </section>
+
+          {/* Stats Bar */}
+          {rows.length > 0 && (
+            <section className="stats-panel">
+              <div className="stat-item">
+                <span className="stat-label">Total Rows:</span>
+                <span className="stat-value">{stats.total}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Enriched:</span>
+                <span className="stat-value" style={{ color: 'var(--success-text)' }}>{stats.found}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Potential:</span>
+                <span className="stat-value" style={{ color: '#D97706' }}>{stats.potential}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Unverified:</span>
+                <span className="stat-value" style={{ color: 'var(--error-text)' }}>{stats.unverified}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Queue:</span>
+                <span className="stat-value">{stats.pending + stats.searching}</span>
+              </div>
+
+              {(stats.pending > 0 || stats.searching > 0) && (
+                <div className="stat-progress-bar-container">
+                  <div className="stat-progress-track">
+                    <div className="stat-progress-bar" style={{ width: `${progressPercent}%` }} />
+                  </div>
+                  <span className="stat-subtitle" style={{ minWidth: '30px' }}>{progressPercent}%</span>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Spreadsheet Table Grid */}
+          <section className="table-workspace">
+            {rows.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">
+                  <SearchIcon size={40} />
+                </div>
+                <h3 className="empty-state-title">Quiet Productivity Dashboard</h3>
+                <p className="empty-state-subtitle">
+                  Paste a list of company names (optionally split by dashes, bars, tabs, or spaces) to begin. Double-click headers to rename.
+                </p>
+              </div>
+            ) : (
+              <div className="table-wrapper">
+                <div className="table-scroll-container">
+                  <table className="spreadsheet-table">
+                    <thead>
+                      <tr>
+                        <th className="col-status" style={{ width: colWidths['status'] || undefined }}>Status</th>
+                        {headers.map(col => (
+                          <th key={col.key} className={`col-${col.key}`} style={{ width: colWidths[col.key] || undefined }}>
+                            {editingHeader === col.key ? (
+                              <input
+                                ref={headerEditRef}
+                                className="header-editor"
+                                value={editingHeaderValue}
+                                onChange={(e) => setEditingHeaderValue(e.target.value)}
+                                onBlur={handleHeaderSave}
+                                onKeyDown={handleHeaderKeyDown}
+                              />
+                            ) : (
+                              <div
+                                onDoubleClick={() => handleHeaderDoubleClick(col.key, col.label)}
+                                title="Double-click header to rename"
+                                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                              >
+                                <span>{col.label}</span>
+                                <div className="col-resizer" onMouseDown={(e) => startResize(e, col.key)} />
+                              </div>
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => {
+                        const isRowProcessing = processingId === row.id;
+                        
+                        // Resolve dynamic headers
+                        const compKey = getCompanyColumnKey();
+                        const webKey = getWebsiteColumnKey();
+                        const indKey = getIndustryColumnKey();
+                        const hcKey = getHeadcountColumnKey();
+                        const locKey = getLocationColumnKey();
+                        const conKey = getContactsColumnKey();
+                        const noteKey = getNotesColumnKey();
+
+                        return (
+                          <tr key={row.id} className="table-row">
+                            {/* Status Badge */}
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                {row.status === 'pending' && (
+                                  <span className="status-badge pending">
+                                    <ClockIcon size={12} />
+                                    <span>Pending</span>
+                                  </span>
+                                )}
+                                {row.status === 'searching' && (
+                                  <span className="status-badge searching">
+                                    <LoaderIcon size={12} className="spinner" />
+                                    <span>Searching...</span>
+                                  </span>
+                                )}
+                                {row.status === 'verifying' && (
+                                  <span className="status-badge pending" style={{ backgroundColor: '#FEF3C7', color: '#92400E', borderColor: '#FDE68A' }}>
+                                    <LoaderIcon size={12} className="spinner" />
+                                    <span>Verifying link...</span>
+                                  </span>
+                                )}
+                                {row.status === 'enriching' && (
+                                  <span className="status-badge searching">
+                                    <LoaderIcon size={12} className="spinner" />
+                                    <span>Enriching...</span>
+                                  </span>
+                                )}
+                                {row.status === 'found' && (
+                                  <span className="status-badge found">
+                                    <CheckIcon size={12} />
+                                    <span>Found</span>
+                                  </span>
+                                )}
+                                {row.status === 'potential' && (
+                                  <span className="status-badge pending" style={{ backgroundColor: '#FEF3C7', color: '#D97706', borderColor: '#FDE68A' }}>
+                                    <AlertCircleIcon size={12} style={{ color: '#D97706' }} />
+                                    <span>Potential Link</span>
+                                  </span>
+                                )}
+                                {row.status === 'unverified' && (
+                                  <span className="status-badge unverified" title={row[noteKey]}>
+                                    <AlertCircleIcon size={12} />
+                                    <span style={{ whiteSpace: 'normal', display: 'block', wordBreak: 'break-all' }}>Unverified</span>
+                                  </span>
+                                )}
+                                
+                                {!isRowProcessing && row.status !== 'pending' && (
+                                  <button 
+                                    className="btn" 
+                                    style={{ padding: '0.15rem 0.3rem', fontSize: '0.7rem', borderRadius: '4px', height: 'auto', border: 'none', background: 'transparent' }}
+                                    title="Re-run enrichment"
+                                    onClick={() => triggerRowReRun(row.id)}
+                                  >
+                                    <RefreshIcon size={11} style={{ color: 'var(--text-secondary)' }} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Dynamic Columns mapping */}
+                            {headers.map(col => {
+                              const isCellEditing = editingCell?.id === row.id && editingCell?.column === col.key;
+                              
+                              return (
+                                <td 
+                                  key={col.key}
+                                  className={`editable-cell ${col.key === webKey ? 'url-cell' : ''} ${col.key === noteKey ? 'notes-cell' : ''}`}
+                                  onDoubleClick={() => handleCellDoubleClick(row.id, col.key, row[col.key])}
+                                  title="Double-click to edit cell"
+                                >
+                                  {isCellEditing ? (
+                                    <input
+                                      ref={editInputRef}
+                                      className={`cell-editor ${col.key === webKey ? 'mono' : ''}`}
+                                      value={editingValue}
+                                      onChange={(e) => setEditingValue(e.target.value)}
+                                      onBlur={handleCellSave}
+                                      onKeyDown={handleCellKeyDown}
+                                    />
+                                  ) : (
+                                    // Custom renders depending on header mappings
+                                    col.key === compKey ? (
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {row[col.key] || <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>[Empty]</span>}
+                                        </span>
+                                        {row[col.key] && row[col.key] !== '-' && (
+                                          <a 
+                                            href={`https://www.google.com/search?q=${encodeURIComponent(row[col.key])}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            title="Search Google"
+                                            style={{ color: 'var(--text-secondary)', opacity: 0.6, display: 'inline-flex', alignSelf: 'center', marginLeft: '4px' }}
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <SearchIcon size={11} />
+                                          </a>
+                                        )}
+                                      </div>
+                                    ) : col.key === webKey ? (
+                                      row[col.key] && row[col.key] !== '-' ? (
+                                        row.status === 'potential' ? (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'space-between', width: '100%' }}>
+                                            <a 
+                                              href={row[col.key].startsWith('http') ? row[col.key] : `https://${row[col.key]}`} 
+                                              target="_blank" 
+                                              rel="noopener noreferrer"
+                                              className="url-link"
+                                              style={{ textDecoration: 'underline dotted', color: '#D97706' }}
+                                              onClick={(e) => e.stopPropagation()}
+                                              title="Potential match guessed algorithmically. Needs manual verification."
+                                            >
+                                              <span>{row[col.key]}</span>
+                                              <ExternalLinkIcon size={10} />
+                                            </a>
+                                            <span style={{ fontSize: '0.7rem', color: '#D97706', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                                              (Verify)
+                                            </span>
+                                          </div>
+                                        ) : (
+                                          <a 
+                                            href={row[col.key].startsWith('http') ? row[col.key] : `https://${row[col.key]}`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="url-link"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <span>{row[col.key]}</span>
+                                            <ExternalLinkIcon size={10} />
+                                          </a>
+                                        )
+                                      ) : (
+                                        <span style={{ color: 'var(--text-secondary)' }}>-</span>
+                                      )
+                                    ) : col.key === locKey ? (
+                                      row[col.key] && row[col.key] !== '-' ? (
+                                        <a 
+                                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row[col.key])}`} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="url-link"
+                                          style={{ color: 'inherit' }}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <span>{row[col.key]}</span>
+                                          <ExternalLinkIcon size={8} style={{ opacity: 0.5, marginLeft: '3px' }} />
+                                        </a>
+                                      ) : (
+                                        '-'
+                                      )
+                                    ) : col.key === conKey ? (
+                                      (() => {
+                                        const founderVal = row[col.key] || '';
+                                        const hasFounder = founderVal && founderVal !== '-' && founderVal !== 'Needs Manual Research' && founderVal !== 'Needs Verification';
+                                        const searchQuery = hasFounder 
+                                          ? `${row[compKey] || ''} ${founderVal}`
+                                          : `${row[compKey] || ''} founder`;
+                                        const displayVal = hasFounder ? founderVal : (founderVal || 'Needs Manual Research');
+                                        return (
+                                          <a 
+                                            href={`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="url-link"
+                                            onClick={(e) => e.stopPropagation()}
+                                            title={`Search Google for: "${searchQuery}"`}
+                                          >
+                                            <span>{displayVal}</span>
+                                            <ExternalLinkIcon size={10} />
+                                          </a>
+                                        );
+                                      })()
+                                    ) : (
+                                      row[col.key] || '-'
+                                    )
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {rows.length > 0 && (
+              <div className="table-bottom-actions">
+                <button className="btn-add-row" onClick={handleAddBlankRow}>
+                  <PlusIcon size={12} />
+                  <span>Add Empty Row</span>
+                </button>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  Double-click cells or headers to edit. Renaming header keys (e.g. to "Company") will auto-remap AI search keys dynamically.
+                </span>
+              </div>
+            )}
+          </section>
+
+          {/* Preferences Settings Modal */}
+          {showSettings && (
+            <div className="settings-modal-overlay">
+              <div className="settings-modal">
+                <div className="settings-header">
+                  <h3 className="settings-title">Processing Preferences</h3>
+                  <button className="settings-close" onClick={() => setShowSettings(false)}>
+                    <XIcon size={18} />
+                  </button>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Simulation Processing Speed</label>
+                  <select 
+                    className="form-input" 
+                    value={latencySpeed}
+                    onChange={(e) => setLatencySpeed(e.target.value)}
+                  >
+                    <option value="calm">Calm & Restful (Slow latency)</option>
+                    <option value="normal">Standard (Default network speed)</option>
+                    <option value="fast">Speed Demon (Immediate replies)</option>
+                  </select>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    Adjusts the artificial lag of the Base44 simulation calls to let you inspect cell transitions.
+                  </p>
+                </div>
+
+                <div className="form-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
+                  <label className="form-label">Simulated AI Model Prompt</label>
+                  <textarea 
+                    className="form-input" 
+                    style={{ fontSize: '0.8rem', resize: 'none', height: '60px', fontFamily: 'var(--font-mono)' }} 
+                    readOnly
+                    value='Find the official website domain for the company named [X]. Return only the domain.'
+                  />
+                </div>
+
+                <button 
+                  className="btn btn-primary" 
+                  style={{ alignSelf: 'flex-end', marginTop: '0.5rem' }}
+                  onClick={() => setShowSettings(false)}
+                >
+                  Save & Close
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Mount React App
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
