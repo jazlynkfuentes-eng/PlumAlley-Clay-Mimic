@@ -23,6 +23,9 @@
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <!-- Supabase Auth + Projects -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./supabase-config.js"></script>
 
   <style>
     /* Design System Variables */
@@ -414,8 +417,8 @@
       margin-top: 0.35rem;
       display: flex;
       flex-direction: column;
-      gap: 0.25rem;
-      max-width: 260px;
+      gap: 0.35rem;
+      max-width: 280px;
     }
     .candidate-picker-label {
       font-size: 0.65rem;
@@ -431,8 +434,7 @@
       border: 1px solid var(--border-color);
       background: #fff;
       border-radius: 6px;
-      padding: 0.35rem 0.45rem;
-      cursor: pointer;
+      padding: 0.4rem 0.5rem;
       transition: border-color 0.15s, background 0.15s;
       font-family: inherit;
     }
@@ -448,18 +450,82 @@
       line-height: 1.2;
     }
     .candidate-option-domain {
-      display: block;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
       font-family: var(--font-mono);
       font-size: 0.68rem;
       color: var(--accent-color);
       line-height: 1.2;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      margin-top: 0.1rem;
+    }
+    .candidate-option-domain:hover {
+      color: var(--accent-hover);
     }
     .candidate-option-snippet {
       display: block;
       font-size: 0.65rem;
       color: var(--text-secondary);
       line-height: 1.25;
-      margin-top: 0.1rem;
+      margin-top: 0.15rem;
+    }
+    .candidate-select-btn {
+      margin-top: 0.35rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.28rem 0.5rem;
+      border-radius: 5px;
+      border: 1px solid var(--accent-color);
+      background: #fff;
+      color: var(--accent-color);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .candidate-select-btn:hover {
+      background: var(--accent-color);
+      color: #fff;
+    }
+    .candidate-confirm-box {
+      border: 1px solid #FDE68A;
+      background: #FFFBEB;
+      border-radius: 6px;
+      padding: 0.5rem 0.55rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .candidate-confirm-text {
+      font-size: 0.72rem;
+      color: #92400E;
+      line-height: 1.35;
+    }
+    .candidate-confirm-text strong {
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .candidate-confirm-actions {
+      display: flex;
+      gap: 0.35rem;
+    }
+    .candidate-confirm-actions button {
+      font-size: 0.7rem;
+      padding: 0.28rem 0.55rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+    }
+    .candidate-confirm-yes {
+      border: 1px solid var(--accent-color);
+      background: var(--accent-color);
+      color: #fff;
+    }
+    .candidate-confirm-no {
+      border: 1px solid var(--border-color);
+      background: #fff;
+      color: var(--text-secondary);
     }
     .candidate-manual-btn {
       font-size: 0.7rem;
@@ -490,6 +556,16 @@
       border: 1px solid var(--border-color);
       border-radius: 5px;
     }
+    .candidate-manual-row button {
+      font-size: 0.7rem;
+      padding: 0.28rem 0.45rem;
+      border-radius: 5px;
+      border: 1px solid var(--accent-color);
+      background: var(--accent-color);
+      color: #fff;
+      cursor: pointer;
+      white-space: nowrap;
+    }
     .candidate-change-btn {
       display: inline-flex;
       align-items: center;
@@ -516,6 +592,106 @@
       font-size: 0.8rem;
       color: var(--text-secondary);
     }
+
+    /* Auth + Projects */
+    .login-screen {
+      min-height: 70vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.75rem 1.5rem;
+      box-shadow: 0 8px 24px rgba(15, 40, 70, 0.06);
+    }
+    .login-card h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 0 0 0.35rem;
+      color: var(--text-primary);
+    }
+    .login-card p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin: 0 0 1.25rem;
+      line-height: 1.45;
+    }
+    .login-card label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 0.35rem;
+    }
+    .login-card input {
+      width: 100%;
+      border: 1px solid var(--border-color);
+      border-radius: 7px;
+      padding: 0.55rem 0.7rem;
+      font: inherit;
+      font-size: 0.9rem;
+      margin-bottom: 0.85rem;
+      box-sizing: border-box;
+    }
+    .login-card .btn-primary { width: 100%; justify-content: center; }
+    .login-msg { font-size: 0.8rem; margin-top: 0.85rem; line-height: 1.4; }
+    .login-msg.ok { color: var(--success-text); }
+    .login-msg.err { color: var(--error-text); }
+    .user-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      background: var(--accent-light);
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      padding: 0.28rem 0.55rem 0.28rem 0.65rem;
+      max-width: 260px;
+    }
+    .user-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-chip button {
+      border: none; background: transparent; color: var(--accent-color);
+      font-size: 0.7rem; font-weight: 600; cursor: pointer; padding: 0;
+      font-family: inherit; flex-shrink: 0;
+    }
+    .projects-wrap { position: relative; }
+    .projects-menu {
+      position: absolute; right: 0; top: calc(100% + 6px); width: 300px;
+      background: #fff; border: 1px solid var(--border-color); border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(15, 40, 70, 0.12); z-index: 50; overflow: hidden;
+    }
+    .projects-menu-header {
+      padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border-color);
+      background: var(--table-header-bg); font-size: 0.72rem; color: var(--text-secondary);
+    }
+    .projects-menu-actions {
+      display: flex; flex-wrap: wrap; gap: 0.35rem;
+      padding: 0.55rem 0.65rem; border-bottom: 1px solid var(--border-color);
+    }
+    .projects-menu-actions button {
+      font-size: 0.7rem; padding: 0.28rem 0.45rem; border-radius: 5px;
+      border: 1px solid var(--border-color); background: #fff; cursor: pointer; font-family: inherit;
+    }
+    .projects-menu-actions button:hover:not(:disabled) { border-color: var(--accent-color); color: var(--accent-color); }
+    .projects-menu-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .projects-list { max-height: 220px; overflow-y: auto; }
+    .projects-list button {
+      display: block; width: 100%; text-align: left; border: none; background: transparent;
+      padding: 0.5rem 0.75rem; cursor: pointer; font-family: inherit; border-bottom: 1px solid #EEF2F6;
+    }
+    .projects-list button:hover, .projects-list button.active { background: var(--accent-light); }
+    .projects-list .pname { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-primary); }
+    .projects-list .pmeta { display: block; font-size: 0.65rem; color: var(--text-secondary); margin-top: 0.1rem; }
+    .save-status { font-size: 0.7rem; color: var(--text-secondary); white-space: nowrap; }
+    .save-status.dirty { color: #B45309; font-weight: 600; }
+
     .parse-preview {
       margin-top: 0.75rem;
       border: 1px solid var(--border-color);
@@ -3335,8 +3511,172 @@
     }
 
 
+    // --- SUPABASE AUTH + SHARED PROJECTS ---
+    const SUPABASE_LS_KEY = 'plum_supabase_url';
+    const SUPABASE_ANON_KEY = 'plum_supabase_anon_key';
+
+    function getSupabaseConfig() {
+      const fromWindow = window.PLUM_SUPABASE || {};
+      const url = (localStorage.getItem(SUPABASE_LS_KEY) || fromWindow.url || '').trim();
+      const anonKey = (localStorage.getItem(SUPABASE_ANON_KEY) || fromWindow.anonKey || '').trim();
+      return { url, anonKey, configured: !!(url && anonKey) };
+    }
+
+    let _supabaseClient = null;
+    function getSupabase() {
+      const { url, anonKey, configured } = getSupabaseConfig();
+      if (!configured || !window.supabase || !window.supabase.createClient) return null;
+      if (!_supabaseClient) {
+        _supabaseClient = window.supabase.createClient(url, anonKey, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true
+          }
+        });
+      }
+      return _supabaseClient;
+    }
+
+    function formatSavedAt(iso) {
+      if (!iso) return '';
+      try {
+        const d = new Date(iso);
+        return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      } catch (_) {
+        return String(iso);
+      }
+    }
+
+    function LoginScreen({ onReady }) {
+      const cfg = getSupabaseConfig();
+      const [setupMode, setSetupMode] = useState(!cfg.configured);
+      const [url, setUrl] = useState(cfg.url);
+      const [anonKey, setAnonKey] = useState(cfg.anonKey);
+      const [email, setEmail] = useState('');
+      const [msg, setMsg] = useState('');
+      const [msgType, setMsgType] = useState('');
+      const [busy, setBusy] = useState(false);
+
+      const saveConfig = () => {
+        if (!url.trim() || !anonKey.trim()) {
+          setMsgType('err');
+          setMsg('Paste both Project URL and anon key from Supabase → Settings → API.');
+          return;
+        }
+        localStorage.setItem(SUPABASE_LS_KEY, url.trim());
+        localStorage.setItem(SUPABASE_ANON_KEY, anonKey.trim());
+        _supabaseClient = null;
+        window.PLUM_SUPABASE = { url: url.trim(), anonKey: anonKey.trim() };
+        setSetupMode(false);
+        setMsgType('ok');
+        setMsg('Supabase connected. Enter your email to receive a magic login link.');
+        onReady?.();
+      };
+
+      const sendMagicLink = async (e) => {
+        e.preventDefault();
+        const sb = getSupabase();
+        if (!sb) {
+          setSetupMode(true);
+          setMsgType('err');
+          setMsg('Configure Supabase first.');
+          return;
+        }
+        if (!email.trim() || !email.includes('@')) {
+          setMsgType('err');
+          setMsg('Enter a valid email address.');
+          return;
+        }
+        setBusy(true);
+        setMsg('');
+        const redirectTo = `${window.location.origin}${window.location.pathname || '/'}`;
+        const { error } = await sb.auth.signInWithOtp({
+          email: email.trim(),
+          options: {
+            emailRedirectTo: redirectTo,
+            shouldCreateUser: true
+          }
+        });
+        setBusy(false);
+        if (error) {
+          setMsgType('err');
+          setMsg(error.message || 'Could not send login link.');
+          return;
+        }
+        setMsgType('ok');
+        setMsg(`Login link sent to ${email.trim()}. Open it on this device to continue.`);
+      };
+
+      return (
+        <div className="login-screen">
+          <div className="login-card">
+            <h1>Plum Alley Enrichment</h1>
+            <p>
+              {setupMode
+                ? 'Connect your free Supabase project once, then sign in with a magic link (no password).'
+                : 'Enter your work email. We’ll send a one-click login link — no password.'}
+            </p>
+
+            {setupMode ? (
+              <div>
+                <label>Supabase Project URL</label>
+                <input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://xxxx.supabase.co"
+                  autoComplete="off"
+                />
+                <label>Anon / public key</label>
+                <input
+                  value={anonKey}
+                  onChange={(e) => setAnonKey(e.target.value)}
+                  placeholder="eyJhbGciOi..."
+                  autoComplete="off"
+                />
+                <button type="button" className="btn btn-primary" onClick={saveConfig}>
+                  Save & continue
+                </button>
+                <p style={{ marginTop: '0.85rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  Run <code>supabase/schema.sql</code> in the SQL Editor, enable Email auth, and add this origin to Redirect URLs.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={sendMagicLink}>
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  autoFocus
+                  required
+                />
+                <button type="submit" className="btn btn-primary" disabled={busy}>
+                  {busy ? 'Sending…' : 'Send login link'}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}
+                  onClick={() => setSetupMode(true)}
+                >
+                  Reconfigure Supabase
+                </button>
+              </form>
+            )}
+            {msg ? <div className={`login-msg ${msgType}`}>{msg}</div> : null}
+          </div>
+        </div>
+      );
+    }
+
     // --- MAIN REACT APPLICATION ---
     function App() {
+      const [authReady, setAuthReady] = useState(false);
+      const [session, setSession] = useState(null);
+      const [configTick, setConfigTick] = useState(0);
+
       const [rows, setRows] = useState([]);
       const [inputText, setInputText] = useState('');
       const [queue, setQueue] = useState([]);
@@ -3352,6 +3692,16 @@
       const [editingValue, setEditingValue] = useState('');
       // Parse preview before enrichment
       const [parsePreview, setParsePreview] = useState(null); // [{ id, raw, companyName, sourceContact, personName, personTitle, notes }]
+
+      // Shared projects (Supabase)
+      const [projects, setProjects] = useState([]);
+      const [projectsOpen, setProjectsOpen] = useState(false);
+      const [projectsBusy, setProjectsBusy] = useState(false);
+      const [currentProjectId, setCurrentProjectId] = useState(null);
+      const [currentProjectName, setCurrentProjectName] = useState('');
+      const [lastSavedAt, setLastSavedAt] = useState(null);
+      const [savedSnapshot, setSavedSnapshot] = useState('');
+      const [projectMsg, setProjectMsg] = useState('');
       
       // Dynamic Header state
       const [headers, setHeaders] = useState([
@@ -3440,6 +3790,237 @@
           headerEditRef.current.select();
         }
       }, [editingHeader]);
+
+      // Auth session
+      useEffect(() => {
+        const sb = getSupabase();
+        if (!sb) {
+          setAuthReady(true);
+          setSession(null);
+          return;
+        }
+        let unsub = () => {};
+        (async () => {
+          const { data } = await sb.auth.getSession();
+          setSession(data.session || null);
+          setAuthReady(true);
+          const { data: listener } = sb.auth.onAuthStateChange((_event, next) => {
+            setSession(next);
+          });
+          unsub = () => listener?.subscription?.unsubscribe?.();
+        })();
+        return () => unsub();
+      }, [configTick]);
+
+      const userEmail = session?.user?.email || '';
+
+      const buildProjectPayload = () => ({
+        rows,
+        headers,
+        inputText,
+        financeFilterActive,
+        latencySpeed,
+        colWidths,
+        parsePreview
+      });
+
+      const snapshotOf = (payload) => JSON.stringify(payload);
+      const currentSnapshot = snapshotOf(buildProjectPayload());
+      const hasContent = rows.length > 0 || !!(inputText && inputText.trim()) || !!(parsePreview && parsePreview.length);
+      const isDirty = hasContent && (
+        !savedSnapshot || currentSnapshot !== savedSnapshot
+      );
+
+      const refreshProjects = async () => {
+        const sb = getSupabase();
+        if (!sb || !session) return;
+        const { data, error } = await sb
+          .from('projects')
+          .select('id, owner_email, name, created_at, updated_at')
+          .order('updated_at', { ascending: false });
+        if (error) {
+          console.warn('[projects] list failed', error);
+          setProjectMsg(error.message);
+          return;
+        }
+        setProjects(data || []);
+        setProjectMsg('');
+      };
+
+      useEffect(() => {
+        if (session) refreshProjects();
+        else {
+          setProjects([]);
+          setCurrentProjectId(null);
+          setCurrentProjectName('');
+          setLastSavedAt(null);
+          setSavedSnapshot('');
+        }
+      }, [session]);
+
+      useEffect(() => {
+        const onBeforeUnload = (e) => {
+          if (!isDirty) return;
+          e.preventDefault();
+          e.returnValue = '';
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+      }, [isDirty]);
+
+      const applyProjectData = (data, meta = {}) => {
+        const d = data || {};
+        setRows(Array.isArray(d.rows) ? d.rows : []);
+        if (Array.isArray(d.headers) && d.headers.length) setHeaders(d.headers);
+        setInputText(d.inputText || '');
+        if (typeof d.financeFilterActive === 'boolean') setFinanceFilterActive(d.financeFilterActive);
+        if (d.latencySpeed) setLatencySpeed(d.latencySpeed);
+        if (d.colWidths && typeof d.colWidths === 'object') setColWidths({ ...DEFAULT_COL_WIDTHS, ...d.colWidths });
+        setParsePreview(d.parsePreview || null);
+        setQueue([]);
+        setActiveIds([]);
+        setCurrentProjectId(meta.id || null);
+        setCurrentProjectName(meta.name || '');
+        setLastSavedAt(meta.updated_at || null);
+        setSavedSnapshot(snapshotOf({
+          rows: Array.isArray(d.rows) ? d.rows : [],
+          headers: Array.isArray(d.headers) && d.headers.length ? d.headers : headers,
+          inputText: d.inputText || '',
+          financeFilterActive: typeof d.financeFilterActive === 'boolean' ? d.financeFilterActive : financeFilterActive,
+          latencySpeed: d.latencySpeed || latencySpeed,
+          colWidths: d.colWidths ? { ...DEFAULT_COL_WIDTHS, ...d.colWidths } : colWidths,
+          parsePreview: d.parsePreview || null
+        }));
+        setProjectsOpen(false);
+      };
+
+      const handleLogout = async () => {
+        if (isDirty && !window.confirm('You have unsaved changes. Log out anyway?')) return;
+        const sb = getSupabase();
+        await sb?.auth.signOut();
+        setSession(null);
+      };
+
+      const handleSaveProject = async ({ saveAs = false } = {}) => {
+        const sb = getSupabase();
+        if (!sb || !userEmail) return;
+        let name = currentProjectName;
+        if (saveAs || !currentProjectId) {
+          name = window.prompt('Project name', name || 'Untitled enrichment') || '';
+          name = name.trim();
+          if (!name) return;
+        }
+        setProjectsBusy(true);
+        const payload = buildProjectPayload();
+        try {
+          if (!saveAs && currentProjectId) {
+            const { data, error } = await sb
+              .from('projects')
+              .update({ name, data: payload, updated_at: new Date().toISOString() })
+              .eq('id', currentProjectId)
+              .select('id, name, updated_at')
+              .single();
+            if (error) throw error;
+            setCurrentProjectName(data.name);
+            setLastSavedAt(data.updated_at);
+            setSavedSnapshot(snapshotOf(payload));
+            setProjectMsg('Saved');
+          } else {
+            const { data, error } = await sb
+              .from('projects')
+              .insert({
+                owner_email: userEmail,
+                name,
+                data: payload
+              })
+              .select('id, name, updated_at')
+              .single();
+            if (error) throw error;
+            setCurrentProjectId(data.id);
+            setCurrentProjectName(data.name);
+            setLastSavedAt(data.updated_at);
+            setSavedSnapshot(snapshotOf(payload));
+            setProjectMsg('Saved as new project');
+          }
+          await refreshProjects();
+        } catch (err) {
+          console.error('[projects] save failed', err);
+          setProjectMsg(err.message || 'Save failed');
+          window.alert(err.message || 'Save failed');
+        } finally {
+          setProjectsBusy(false);
+        }
+      };
+
+      const handleLoadProject = async (projectId) => {
+        if (isDirty && !window.confirm('You have unsaved changes. Load this project anyway?')) return;
+        const sb = getSupabase();
+        if (!sb) return;
+        setProjectsBusy(true);
+        try {
+          const { data, error } = await sb
+            .from('projects')
+            .select('id, name, data, updated_at, owner_email')
+            .eq('id', projectId)
+            .single();
+          if (error) throw error;
+          applyProjectData(data.data, data);
+          setProjectMsg(`Loaded “${data.name}”`);
+        } catch (err) {
+          console.error('[projects] load failed', err);
+          window.alert(err.message || 'Load failed');
+        } finally {
+          setProjectsBusy(false);
+        }
+      };
+
+      const handleRenameProject = async () => {
+        if (!currentProjectId) return;
+        const next = window.prompt('Rename project', currentProjectName || '');
+        if (next == null) return;
+        const name = next.trim();
+        if (!name) return;
+        const sb = getSupabase();
+        setProjectsBusy(true);
+        try {
+          const { data, error } = await sb
+            .from('projects')
+            .update({ name, updated_at: new Date().toISOString() })
+            .eq('id', currentProjectId)
+            .select('id, name, updated_at')
+            .single();
+          if (error) throw error;
+          setCurrentProjectName(data.name);
+          setLastSavedAt(data.updated_at);
+          await refreshProjects();
+          setProjectMsg('Renamed');
+        } catch (err) {
+          window.alert(err.message || 'Rename failed');
+        } finally {
+          setProjectsBusy(false);
+        }
+      };
+
+      const handleDeleteProject = async () => {
+        if (!currentProjectId) return;
+        if (!window.confirm(`Delete project “${currentProjectName}”? This cannot be undone.`)) return;
+        const sb = getSupabase();
+        setProjectsBusy(true);
+        try {
+          const { error } = await sb.from('projects').delete().eq('id', currentProjectId);
+          if (error) throw error;
+          setCurrentProjectId(null);
+          setCurrentProjectName('');
+          setLastSavedAt(null);
+          setSavedSnapshot('');
+          await refreshProjects();
+          setProjectMsg('Deleted');
+        } catch (err) {
+          window.alert(err.message || 'Delete failed');
+        } finally {
+          setProjectsBusy(false);
+        }
+      };
 
       // Dynamic header mapping functions
       const getCompanyColumnKey = () => {
@@ -4220,8 +4801,26 @@
       };
 
       /**
-       * User picked a candidate (or typed a domain) for Potential/Unverified —
-       * skip re-search and verify+enrich that specific domain (does not force Found).
+       * Propose a domain for confirmation (does not verify yet).
+       */
+      const handleProposeCandidate = (rowId, rawDomain) => {
+        if (!rawDomain || queue.includes(rowId) || activeIds.includes(rowId)) return;
+        const clean = String(rawDomain)
+          .trim()
+          .toLowerCase()
+          .replace(/^(https?:\/\/)?(www\.)?/, '')
+          .split('/')[0]
+          .replace(/[^a-z0-9.-]/g, '');
+        if (!clean || !clean.includes('.')) return;
+        updateRow(rowId, { pendingConfirmDomain: clean });
+      };
+
+      const handleCancelProposeCandidate = (rowId) => {
+        updateRow(rowId, { pendingConfirmDomain: '', showManualDomain: false });
+      };
+
+      /**
+       * After Confirm: verify+enrich that specific domain (does not force Found).
        */
       const handleConfirmCandidate = (rowId, rawDomain) => {
         if (!rawDomain || queue.includes(rowId) || activeIds.includes(rowId)) return;
@@ -4260,6 +4859,7 @@
             pickerOpen: false,
             showManualDomain: false,
             manualDomainDraft: '',
+            pendingConfirmDomain: '',
             resolveMethod: 'user-confirmed',
             candidates: preserved,
             savedCandidates: preserved
@@ -4277,6 +4877,7 @@
             pickerOpen: true,
             selectionLocked: false,
             showManualDomain: false,
+            pendingConfirmDomain: '',
             candidates: list,
             savedCandidates: list
           };
@@ -4321,6 +4922,7 @@
       };
 
       const handleClearTable = () => {
+        if (isDirty && !window.confirm('Clear the table? Unsaved changes will be lost.')) return;
         setRows([]);
         setQueue([]);
         setActiveIds([]);
@@ -4428,6 +5030,22 @@
       const totalCompleted = stats.total - stats.pending - stats.searching;
       const progressPercent = stats.total > 0 ? Math.round((totalCompleted / stats.total) * 100) : 0;
 
+      if (!authReady) {
+        return (
+          <div className="app-container">
+            <div className="login-screen"><div className="login-card"><p>Loading…</p></div></div>
+          </div>
+        );
+      }
+
+      if (!getSupabaseConfig().configured || !session) {
+        return (
+          <div className="app-container">
+            <LoginScreen onReady={() => setConfigTick(t => t + 1)} />
+          </div>
+        );
+      }
+
       return (
         <div className="app-container">
           {/* Header */}
@@ -4439,7 +5057,71 @@
               </h1>
               <span className="brand-tagline">Paste company names. Get websites and data.</span>
             </div>
-            <div className="actions-section" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className="actions-section" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <div className="user-chip" title={userEmail}>
+                <span>{userEmail}</span>
+                <button type="button" onClick={handleLogout}>Log out</button>
+              </div>
+              <span className={`save-status ${isDirty ? 'dirty' : ''}`}>
+                {currentProjectName ? (
+                  <>
+                    {currentProjectName}
+                    {isDirty ? ' · Unsaved changes' : (lastSavedAt ? ` · Saved ${formatSavedAt(lastSavedAt)}` : '')}
+                  </>
+                ) : (
+                  isDirty ? 'Unsaved changes' : (projectMsg || 'No project loaded')
+                )}
+              </span>
+              <div className="projects-wrap">
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => { setProjectsOpen(o => !o); if (!projectsOpen) refreshProjects(); }}
+                >
+                  <span>Projects</span>
+                </button>
+                {projectsOpen && (
+                  <div className="projects-menu">
+                    <div className="projects-menu-header">
+                      Shared team projects {projectsBusy ? '· …' : ''}
+                    </div>
+                    <div className="projects-menu-actions">
+                      <button type="button" disabled={projectsBusy || !hasContent} onClick={() => handleSaveProject({ saveAs: false })}>
+                        Save
+                      </button>
+                      <button type="button" disabled={projectsBusy || !hasContent} onClick={() => handleSaveProject({ saveAs: true })}>
+                        Save As
+                      </button>
+                      <button type="button" disabled={projectsBusy || !currentProjectId} onClick={handleRenameProject}>
+                        Rename
+                      </button>
+                      <button type="button" disabled={projectsBusy || !currentProjectId} onClick={handleDeleteProject}>
+                        Delete
+                      </button>
+                    </div>
+                    <div className="projects-list">
+                      {projects.length === 0 ? (
+                        <div style={{ padding: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          No saved projects yet.
+                        </div>
+                      ) : projects.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={p.id === currentProjectId ? 'active' : ''}
+                          onClick={() => handleLoadProject(p.id)}
+                          title={`Owner: ${p.owner_email}`}
+                        >
+                          <span className="pname">{p.name}</span>
+                          <span className="pmeta">
+                            {p.owner_email} · {formatSavedAt(p.updated_at)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'var(--text-secondary)', cursor: 'pointer', border: '1px dashed var(--border-color)', padding: '0.4rem 0.6rem', borderRadius: '6px', backgroundColor: financeFilterActive ? '#EFF6FF' : 'transparent', borderColor: financeFilterActive ? '#93C5FD' : 'var(--border-color)', userSelect: 'none' }} title="Prioritize finance/fintech/VC matches and deprioritize unrelated industries (publishing, media, education, etc.). Shows industry snippets when names collide.">
                 <input 
                   type="checkbox" 
@@ -4782,70 +5464,109 @@
                                         const isFoundLink = row.status === 'found' && row.linkVerified !== false && row[col.key] && row[col.key] !== '-';
 
                                         if (showPicker) {
+                                          const companyLabel = row[compKey] || 'this company';
+                                          const pendingDomain = row.pendingConfirmDomain || '';
                                           return (
                                             <div className="candidate-picker" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-                                              {row[col.key] && row[col.key] !== '-' && (
+                                              {row[col.key] && row[col.key] !== '-' && !pendingDomain && (
                                                 <span className="url-plain" title="Current selection / best guess">
                                                   {row[col.key]}
                                                 </span>
                                               )}
-                                              <span className="candidate-picker-label">
-                                                {list.length
-                                                  ? (row.candidatesUnconfirmed || row.status === 'unverified'
-                                                    ? 'Possible matches (unconfirmed)'
-                                                    : 'Select correct website')
-                                                  : 'Enter website'}
-                                              </span>
-                                              {list.slice(0, 6).map((c) => (
-                                                <button
-                                                  key={c.domain}
-                                                  type="button"
-                                                  className="candidate-option"
-                                                  title={`Verify and use ${c.domain}`}
-                                                  onClick={() => handleConfirmCandidate(row.id, c.domain)}
-                                                >
-                                                  <span className="candidate-option-name">{c.name || c.domain}</span>
-                                                  <span className="candidate-option-domain">{c.domain}</span>
-                                                  {c.snippet ? (
-                                                    <span className="candidate-option-snippet">{c.snippet}</span>
-                                                  ) : null}
-                                                </button>
-                                              ))}
-                                              {row.showManualDomain ? (
-                                                <div className="candidate-manual-row">
-                                                  <input
-                                                    type="text"
-                                                    placeholder="example.com"
-                                                    value={row.manualDomainDraft || ''}
-                                                    onChange={(e) => updateRow(row.id, { manualDomainDraft: e.target.value })}
-                                                    onKeyDown={(e) => {
-                                                      if (e.key === 'Enter') handleConfirmCandidate(row.id, row.manualDomainDraft);
-                                                    }}
-                                                  />
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => handleConfirmCandidate(row.id, row.manualDomainDraft)}
-                                                  >
-                                                    Use
-                                                  </button>
+                                              {pendingDomain ? (
+                                                <div className="candidate-confirm-box">
+                                                  <div className="candidate-confirm-text">
+                                                    Confirm <strong>{pendingDomain}</strong> as the website for {companyLabel}?
+                                                  </div>
+                                                  <div className="candidate-confirm-actions">
+                                                    <button
+                                                      type="button"
+                                                      className="candidate-confirm-yes"
+                                                      onClick={() => handleConfirmCandidate(row.id, pendingDomain)}
+                                                    >
+                                                      Confirm
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      className="candidate-confirm-no"
+                                                      onClick={() => handleCancelProposeCandidate(row.id)}
+                                                    >
+                                                      Cancel
+                                                    </button>
+                                                  </div>
                                                 </div>
                                               ) : (
-                                                <button
-                                                  type="button"
-                                                  className="candidate-manual-btn"
-                                                  onClick={() => updateRow(row.id, { showManualDomain: true })}
-                                                >
-                                                  None of these / Enter manually
-                                                </button>
-                                              )}
-                                              {row.status === 'found' && (
-                                                <button
-                                                  type="button"
-                                                  className="candidate-change-btn"
-                                                  onClick={() => updateRow(row.id, { pickerOpen: false, selectionLocked: true, showManualDomain: false })}
-                                                >
-                                                  Cancel
-                                                </button>
+                                                <>
+                                                  <span className="candidate-picker-label">
+                                                    {list.length
+                                                      ? (row.candidatesUnconfirmed || row.status === 'unverified'
+                                                        ? 'Possible matches (unconfirmed)'
+                                                        : 'Select correct website')
+                                                      : 'Enter website'}
+                                                  </span>
+                                                  {list.slice(0, 6).map((c) => (
+                                                    <div key={c.domain} className="candidate-option">
+                                                      <span className="candidate-option-name">{c.name || c.domain}</span>
+                                                      <a
+                                                        className="candidate-option-domain"
+                                                        href={`https://${c.domain}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title={`Open ${c.domain} in a new tab (preview only)`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                      >
+                                                        <span>{c.domain}</span>
+                                                        <ExternalLinkIcon size={9} />
+                                                      </a>
+                                                      {c.snippet ? (
+                                                        <span className="candidate-option-snippet">{c.snippet}</span>
+                                                      ) : null}
+                                                      <button
+                                                        type="button"
+                                                        className="candidate-select-btn"
+                                                        onClick={() => handleProposeCandidate(row.id, c.domain)}
+                                                      >
+                                                        Select this one
+                                                      </button>
+                                                    </div>
+                                                  ))}
+                                                  {row.showManualDomain ? (
+                                                    <div className="candidate-manual-row">
+                                                      <input
+                                                        type="text"
+                                                        placeholder="example.com"
+                                                        value={row.manualDomainDraft || ''}
+                                                        onChange={(e) => updateRow(row.id, { manualDomainDraft: e.target.value })}
+                                                        onKeyDown={(e) => {
+                                                          if (e.key === 'Enter') handleProposeCandidate(row.id, row.manualDomainDraft);
+                                                        }}
+                                                      />
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => handleProposeCandidate(row.id, row.manualDomainDraft)}
+                                                      >
+                                                        Use
+                                                      </button>
+                                                    </div>
+                                                  ) : (
+                                                    <button
+                                                      type="button"
+                                                      className="candidate-manual-btn"
+                                                      onClick={() => updateRow(row.id, { showManualDomain: true })}
+                                                    >
+                                                      None of these / Enter manually
+                                                    </button>
+                                                  )}
+                                                  {row.status === 'found' && (
+                                                    <button
+                                                      type="button"
+                                                      className="candidate-change-btn"
+                                                      onClick={() => updateRow(row.id, { pickerOpen: false, selectionLocked: true, showManualDomain: false, pendingConfirmDomain: '' })}
+                                                    >
+                                                      Cancel
+                                                    </button>
+                                                  )}
+                                                </>
                                               )}
                                             </div>
                                           );
