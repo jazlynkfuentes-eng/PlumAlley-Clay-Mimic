@@ -640,53 +640,6 @@
       box-sizing: border-box;
     }
     .login-card .btn-primary { width: 100%; justify-content: center; }
-    .login-oauth {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      margin-top: 0.35rem;
-    }
-    .login-oauth .btn {
-      width: 100%;
-      justify-content: center;
-      font-weight: 600;
-    }
-    .btn-oauth-google {
-      background: #fff;
-      border-color: #dadce0;
-      color: #3c4043;
-    }
-    .btn-oauth-google:hover {
-      background: #f8f9fa;
-      border-color: #dadce0;
-    }
-    .btn-oauth-github {
-      background: #24292f;
-      border-color: #24292f;
-      color: #fff;
-    }
-    .btn-oauth-github:hover {
-      background: #1b1f23;
-      border-color: #1b1f23;
-      color: #fff;
-    }
-    .login-divider {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin: 1rem 0 0.85rem;
-      color: var(--text-secondary);
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    .login-divider::before,
-    .login-divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border-color);
-    }
     .login-help {
       margin-top: 0.85rem;
       font-size: 0.72rem;
@@ -702,6 +655,13 @@
     .login-msg { font-size: 0.8rem; margin-top: 0.85rem; line-height: 1.4; }
     .login-msg.ok { color: var(--success-text); }
     .login-msg.err { color: var(--error-text); }
+    .login-code-input {
+      letter-spacing: 0.28em;
+      font-size: 1.15rem !important;
+      font-weight: 600;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
     .user-chip {
       display: inline-flex;
       align-items: center;
@@ -3662,8 +3622,7 @@
           auth: {
             persistSession: true,
             autoRefreshToken: true,
-            detectSessionInUrl: true,
-            flowType: 'pkce'
+            detectSessionInUrl: false
           }
         });
         _supabaseClientKey = clientKey;
@@ -3692,19 +3651,6 @@
       const [msg, setMsg] = useState('');
       const [msgType, setMsgType] = useState('');
       const [busy, setBusy] = useState(false);
-
-      const authRedirectTo = () => {
-        // Always use the origin of the page that requested the login.
-        // Never hardcode localhost — that would break production magic links.
-        // Use origin only (no path) so it matches Supabase Redirect URLs exactly.
-        const origin = (window.location && window.location.origin) ? window.location.origin : '';
-        if (!origin || origin === 'null') {
-          console.error('[plum] authRedirectTo: missing window.location.origin');
-          return '';
-        }
-        console.log('[plum] authRedirectTo →', origin);
-        return origin;
-      };
 
       const saveConfig = async () => {
         if (!url.trim() || !anonKey.trim()) {
@@ -3737,43 +3683,19 @@
         setSetupMode(false);
         setBusy(false);
         setMsgType('ok');
-        setMsg('Supabase connected. Enter your email to get a login link (or use Google).');
+        setMsg('Supabase connected. Enter your email to receive a 6-digit login code.');
         onReady?.();
       };
 
-      const signInWithProvider = async (provider) => {
-        const sb = getSupabase();
-        if (!sb) {
-          setSetupMode(true);
-          setMsgType('err');
-          setMsg('Configure Supabase first.');
-          return;
-        }
-        setBusy(true);
-        setMsg('');
-        const { error } = await sb.auth.signInWithOAuth({
-          provider,
-          options: {
-            redirectTo: authRedirectTo(),
-            queryParams: provider === 'google' ? { access_type: 'online', prompt: 'select_account' } : undefined
-          }
-        });
-        if (error) {
-          setBusy(false);
-          setMsgType('err');
-          setMsg(error.message || `Could not start ${provider} sign-in. Enable it under Authentication → Providers.`);
-        }
-      };
-
-      const sendMagicLink = async (e) => {
+      const sendLoginCode = async (e) => {
         e.preventDefault();
-        const cfg = getSupabaseConfig();
+        const currentCfg = getSupabaseConfig();
         logSupabaseConfigOnce();
         const sb = getSupabase();
         if (!sb) {
           setSetupMode(true);
           setMsgType('err');
-          setMsg(explainFetchFailure(null, cfg) || 'Configure Supabase first.');
+          setMsg(explainFetchFailure(null, currentCfg) || 'Configure Supabase first.');
           return;
         }
         const trimmed = email.trim().toLowerCase();
@@ -3786,39 +3708,31 @@
         setMsg('');
         setOtpCode('');
         try {
-          const probe = await probeSupabaseReachable(cfg.url, cfg.anonKey);
+          const probe = await probeSupabaseReachable(currentCfg.url, currentCfg.anonKey);
           console.log('[plum] supabase probe before OTP', probe);
           if (!probe.ok) {
             setMsgType('err');
-            setMsg(explainFetchFailure(probe, cfg) || 'Could not reach Supabase.');
+            setMsg(explainFetchFailure(probe, currentCfg) || 'Could not reach Supabase.');
             return;
           }
 
-          const redirectTo = authRedirectTo();
-          if (!redirectTo) {
-            setMsgType('err');
-            setMsg('Could not determine redirect URL from this page. Open the app via its real URL (Vercel or localhost) and try again.');
-            return;
-          }
-          console.log('[plum] signInWithOtp', { emailRedirectTo: redirectTo, email: trimmed, pageHref: window.location.href });
+          // OTP-only: no emailRedirectTo / magic-link redirect.
+          console.log('[plum] signInWithOtp (email OTP code only)', { email: trimmed });
           const { error } = await sb.auth.signInWithOtp({
             email: trimmed,
             options: {
-              emailRedirectTo: redirectTo,
               shouldCreateUser: true
             }
           });
           if (error) {
             const m = (error.message || '').toLowerCase();
-            let hint = error.message || 'Could not send login link.';
+            let hint = error.message || 'Could not send login code.';
             if (/failed to fetch|networkerror|load failed/i.test(hint)) {
-              hint = explainFetchFailure({ networkError: true, reason: hint, url: `${cfg.url}/auth/v1/otp` }, cfg);
+              hint = explainFetchFailure({ networkError: true, reason: hint, url: `${currentCfg.url}/auth/v1/otp` }, currentCfg);
             } else if (m.includes('rate') || m.includes('security purposes') || m.includes('after')) {
-              hint = `${error.message} Free-tier email is limited (~2–4/hour). Wait a bit, check spam, or use Google / set up custom SMTP (see tip below).`;
+              hint = `${error.message} Free-tier email is limited (~2–4/hour). Wait a bit, check spam, or set custom SMTP (Resend).`;
             } else if (m.includes('smtp') || m.includes('error sending') || m.includes('unable to send')) {
-              hint = `${error.message} Supabase’s built-in mailer failed — set custom SMTP (Resend) under Project Settings → Auth → SMTP, or use Continue with Google.`;
-            } else if (m.includes('redirect')) {
-              hint = `${error.message} Add exactly ${redirectTo} and ${redirectTo}/** to Supabase → Authentication → URL Configuration → Redirect URLs. Set Site URL to your live Vercel origin (not localhost).`;
+              hint = `${error.message} Email send failed — set custom SMTP (Resend) under Project Settings → Auth → SMTP.`;
             }
             setMsgType('err');
             setMsg(hint);
@@ -3827,12 +3741,7 @@
           setEmail(trimmed);
           setAwaitingCode(true);
           setMsgType('ok');
-          setMsg(
-            `Sent to ${trimmed}. The login link will return you to: ${redirectTo}. ` +
-            `If it opens localhost instead, discard that email — either ${redirectTo} is missing from Supabase Redirect URLs ` +
-            `(add ${redirectTo} and ${redirectTo}/**; Site URL = Vercel, not localhost) or you clicked an old link. ` +
-            `Request a new link from the live site, or paste the 6-digit code below.`
-          );
+          setMsg(`Code sent to ${trimmed}. Enter the 6-digit code from the email (nothing to click).`);
         } catch (err) {
           console.error('[plum] signInWithOtp threw', err);
           const cfg2 = getSupabaseConfig();
@@ -3840,46 +3749,44 @@
           setMsg(
             explainFetchFailure({ networkError: true, reason: err.message, url: `${cfg2.url}/auth/v1/otp` }, cfg2) ||
             err.message ||
-            'Network error sending login email.'
+            'Network error sending login code.'
           );
         } finally {
           setBusy(false);
         }
       };
 
-      const verifyEmailCode = async (e) => {
+      const verifyLoginCode = async (e) => {
         e.preventDefault();
         const sb = getSupabase();
         if (!sb) return;
         const token = otpCode.replace(/\s/g, '');
-        if (!/^\d{6,8}$/.test(token)) {
+        if (!/^\d{6}$/.test(token)) {
           setMsgType('err');
-          setMsg('Enter the 6-digit code from the email (update your Magic Link template to include {{ .Token }} if missing).');
+          setMsg('Enter the 6-digit code from your email.');
           return;
         }
         setBusy(true);
         setMsg('');
         try {
-          // Try email OTP first, then magiclink type (template-dependent).
-          let result = await sb.auth.verifyOtp({
+          const { data, error } = await sb.auth.verifyOtp({
             email: email.trim().toLowerCase(),
             token,
             type: 'email'
           });
-          if (result.error) {
-            result = await sb.auth.verifyOtp({
-              email: email.trim().toLowerCase(),
-              token,
-              type: 'magiclink'
-            });
-          }
-          if (result.error) {
+          if (error) {
             setMsgType('err');
-            setMsg(result.error.message || 'Invalid or expired code. Request a new link.');
+            setMsg(error.message || 'Invalid or expired code. Click Send code again.');
+            return;
+          }
+          if (!data?.session) {
+            setMsgType('err');
+            setMsg('Code accepted but no session was created. Try sending a new code.');
             return;
           }
           setMsgType('ok');
           setMsg('Signed in.');
+          // onAuthStateChange in App will pick up the session.
         } catch (err) {
           setMsgType('err');
           setMsg(err.message || 'Could not verify code.');
@@ -3894,8 +3801,8 @@
             <h1>Plum Alley Enrichment</h1>
             <p>
               {setupMode
-                ? 'Connect your free Supabase project once, then sign in with email or Google.'
-                : 'Enter your email for a one-click login link (no password). Or use Google / GitHub.'}
+                ? 'Connect your free Supabase project once, then sign in with an email code.'
+                : 'Enter your work email. We’ll send a 6-digit code — no password, no link to click.'}
             </p>
 
             {setupMode ? (
@@ -3919,75 +3826,57 @@
                 </button>
                 <p className="login-help">
                   Run <code>supabase/schema.sql</code>. Enable Email under Authentication → Providers.
-                  Add <code>{typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'}</code> to Redirect URLs
-                  and set <strong>Site URL</strong> to that same origin.
-                  On Vercel, set <code>VITE_SUPABASE_URL</code> + <code>VITE_SUPABASE_ANON_KEY</code> (Production) and Redeploy so every visitor gets config automatically.
+                  Set the Magic Link email template to show only <code>{'{{ .Token }}'}</code> (OTP code, no login URL).
+                  On Vercel, set <code>VITE_SUPABASE_URL</code> + <code>VITE_SUPABASE_ANON_KEY</code> (Production) and Redeploy.
                 </p>
               </div>
             ) : (
               <div>
-                <form onSubmit={sendMagicLink}>
+                <form onSubmit={sendLoginCode}>
                   <label>Email</label>
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (awaitingCode) setAwaitingCode(false);
+                    }}
                     placeholder="you@company.com"
-                    autoFocus
+                    autoFocus={!awaitingCode}
                     required
                     autoComplete="email"
+                    disabled={busy && awaitingCode}
                   />
                   <button type="submit" className="btn btn-primary" disabled={busy}>
-                    {busy && !awaitingCode ? 'Sending…' : 'Send login link'}
+                    {busy && !awaitingCode ? 'Sending…' : (awaitingCode ? 'Resend code' : 'Send code')}
                   </button>
                 </form>
 
                 {awaitingCode ? (
-                  <form onSubmit={verifyEmailCode} style={{ marginTop: '0.85rem' }}>
-                    <label>Or enter code from email</label>
+                  <form onSubmit={verifyLoginCode} style={{ marginTop: '0.85rem' }}>
+                    <label>6-digit code</label>
                     <input
+                      className="login-code-input"
                       type="text"
                       inputMode="numeric"
                       autoComplete="one-time-code"
                       value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value.replace(/[^\d]/g, '').slice(0, 8))}
-                      placeholder="123456"
-                      maxLength={8}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+                      placeholder="••••••"
+                      maxLength={6}
+                      autoFocus
+                      required
                     />
-                    <button type="submit" className="btn btn-primary" disabled={busy || otpCode.length < 6}>
-                      {busy ? 'Verifying…' : 'Verify code & sign in'}
+                    <button type="submit" className="btn btn-primary" disabled={busy || otpCode.length !== 6}>
+                      {busy ? 'Logging in…' : 'Log in'}
                     </button>
                   </form>
                 ) : null}
 
-                <div className="login-divider">or</div>
-
-                <div className="login-oauth">
-                  <button
-                    type="button"
-                    className="btn btn-oauth-google"
-                    disabled={busy}
-                    onClick={() => signInWithProvider('google')}
-                  >
-                    Continue with Google
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-oauth-github"
-                    disabled={busy}
-                    onClick={() => signInWithProvider('github')}
-                  >
-                    Continue with GitHub
-                  </button>
-                </div>
-
                 <p className="login-help">
-                  <strong>Emails not arriving?</strong> Supabase’s free mailer often fails or hits a rate limit.
-                  Fix: Supabase → Project Settings → Authentication → SMTP Settings → enable custom SMTP with{' '}
-                  <a href="https://resend.com" target="_blank" rel="noreferrer">Resend</a> (free).
-                  Also: Authentication → Email Templates → Magic Link — include{' '}
-                  <code>{'{{ .Token }}'}</code> so the 6-digit code appears.
-                  Auth logs: Authentication → Users / Logs.
+                  <strong>No email?</strong> Check spam. Supabase’s free mailer is limited — use custom SMTP (Resend) under
+                  Project Settings → Authentication → SMTP. Email template must include <code>{'{{ .Token }}'}</code> only
+                  (remove the clickable confirmation link so nothing redirects).
                 </p>
 
                 <button
