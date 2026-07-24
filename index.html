@@ -640,6 +640,53 @@
       box-sizing: border-box;
     }
     .login-card .btn-primary { width: 100%; justify-content: center; }
+    .login-oauth {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .login-oauth .btn {
+      width: 100%;
+      justify-content: center;
+      font-weight: 600;
+    }
+    .btn-oauth-google {
+      background: #fff;
+      border-color: #dadce0;
+      color: #3c4043;
+    }
+    .btn-oauth-google:hover {
+      background: #f8f9fa;
+      border-color: #dadce0;
+    }
+    .btn-oauth-github {
+      background: #24292f;
+      border-color: #24292f;
+      color: #fff;
+    }
+    .btn-oauth-github:hover {
+      background: #1b1f23;
+      border-color: #1b1f23;
+      color: #fff;
+    }
+    .login-divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 0.25rem 0 1rem;
+      color: var(--text-secondary);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .login-divider::before,
+    .login-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-color);
+    }
     .login-msg { font-size: 0.8rem; margin-top: 0.85rem; line-height: 1.4; }
     .login-msg.ok { color: var(--success-text); }
     .login-msg.err { color: var(--error-text); }
@@ -3554,9 +3601,12 @@
       const [url, setUrl] = useState(cfg.url);
       const [anonKey, setAnonKey] = useState(cfg.anonKey);
       const [email, setEmail] = useState('');
+      const [showEmail, setShowEmail] = useState(false);
       const [msg, setMsg] = useState('');
       const [msgType, setMsgType] = useState('');
       const [busy, setBusy] = useState(false);
+
+      const authRedirectTo = () => `${window.location.origin}${window.location.pathname || '/'}`;
 
       const saveConfig = () => {
         if (!url.trim() || !anonKey.trim()) {
@@ -3570,8 +3620,33 @@
         window.PLUM_SUPABASE = { url: url.trim(), anonKey: anonKey.trim() };
         setSetupMode(false);
         setMsgType('ok');
-        setMsg('Supabase connected. Enter your email to receive a magic login link.');
+        setMsg('Supabase connected. Sign in with Google or GitHub.');
         onReady?.();
+      };
+
+      const signInWithProvider = async (provider) => {
+        const sb = getSupabase();
+        if (!sb) {
+          setSetupMode(true);
+          setMsgType('err');
+          setMsg('Configure Supabase first.');
+          return;
+        }
+        setBusy(true);
+        setMsg('');
+        const { error } = await sb.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo: authRedirectTo(),
+            queryParams: provider === 'google' ? { access_type: 'online', prompt: 'select_account' } : undefined
+          }
+        });
+        if (error) {
+          setBusy(false);
+          setMsgType('err');
+          setMsg(error.message || `Could not start ${provider} sign-in. Enable it under Authentication → Providers.`);
+        }
+        // On success Supabase redirects away; leave busy true until that happens.
       };
 
       const sendMagicLink = async (e) => {
@@ -3590,11 +3665,10 @@
         }
         setBusy(true);
         setMsg('');
-        const redirectTo = `${window.location.origin}${window.location.pathname || '/'}`;
         const { error } = await sb.auth.signInWithOtp({
           email: email.trim(),
           options: {
-            emailRedirectTo: redirectTo,
+            emailRedirectTo: authRedirectTo(),
             shouldCreateUser: true
           }
         });
@@ -3605,7 +3679,7 @@
           return;
         }
         setMsgType('ok');
-        setMsg(`Login link sent to ${email.trim()}. Open it on this device to continue.`);
+        setMsg(`Login link sent to ${email.trim()}. Check spam if it doesn’t appear — Google/GitHub sign-in is more reliable.`);
       };
 
       return (
@@ -3614,8 +3688,8 @@
             <h1>Plum Alley Enrichment</h1>
             <p>
               {setupMode
-                ? 'Connect your free Supabase project once, then sign in with a magic link (no password).'
-                : 'Enter your work email. We’ll send a one-click login link — no password.'}
+                ? 'Connect your free Supabase project once, then sign in with Google or GitHub (same idea as connecting GitHub).'
+                : 'Sign in with your Google or GitHub account — one click, no password or email link.'}
             </p>
 
             {setupMode ? (
@@ -3638,23 +3712,58 @@
                   Save & continue
                 </button>
                 <p style={{ marginTop: '0.85rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  Run <code>supabase/schema.sql</code> in the SQL Editor, enable Email auth, and add this origin to Redirect URLs.
+                  Run <code>supabase/schema.sql</code>, enable <strong>Google</strong> (and/or GitHub) under Authentication → Providers, and add this origin to Redirect URLs.
                 </p>
               </div>
             ) : (
-              <form onSubmit={sendMagicLink}>
-                <label>Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  autoFocus
-                  required
-                />
-                <button type="submit" className="btn btn-primary" disabled={busy}>
-                  {busy ? 'Sending…' : 'Send login link'}
-                </button>
+              <div>
+                <div className="login-oauth">
+                  <button
+                    type="button"
+                    className="btn btn-oauth-google"
+                    disabled={busy}
+                    onClick={() => signInWithProvider('google')}
+                  >
+                    {busy ? 'Redirecting…' : 'Continue with Google'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-oauth-github"
+                    disabled={busy}
+                    onClick={() => signInWithProvider('github')}
+                  >
+                    Continue with GitHub
+                  </button>
+                </div>
+
+                <div className="login-divider">or email link</div>
+
+                {showEmail ? (
+                  <form onSubmit={sendMagicLink}>
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@company.com"
+                      autoFocus
+                      required
+                    />
+                    <button type="submit" className="btn btn-primary" disabled={busy}>
+                      {busy ? 'Sending…' : 'Send login link'}
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={() => setShowEmail(true)}
+                  >
+                    Use email magic link instead
+                  </button>
+                )}
+
                 <button
                   type="button"
                   className="btn"
@@ -3663,7 +3772,7 @@
                 >
                   Reconfigure Supabase
                 </button>
-              </form>
+              </div>
             )}
             {msg ? <div className={`login-msg ${msgType}`}>{msg}</div> : null}
           </div>
