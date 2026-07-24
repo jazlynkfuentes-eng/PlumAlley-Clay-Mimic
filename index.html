@@ -1875,6 +1875,57 @@
       return out;
     }
 
+    /**
+     * Always try to surface multiple website options for the picker.
+     * Pads a thin candidate list with Clearbit suggestions for the company name.
+     */
+    async function ensureWebsiteOptions(companyName, existing = [], primaryDomain = '', primaryMeta = {}) {
+      let list = normalizeCandidates(
+        existing,
+        primaryDomain
+          ? [{
+              domain: primaryDomain,
+              name: primaryMeta.name || companyName || primaryDomain,
+              snippet: primaryMeta.snippet || ''
+            }]
+          : []
+      );
+      if (list.length >= 4) return list.slice(0, 8);
+
+      const queries = [];
+      const cleaned = String(companyName || '')
+        .replace(/\b(llc|inc|ltd|limited|corp|corporation|co|gmbh|plc)\b/gi, '')
+        .replace(/&/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (companyName) queries.push(String(companyName).trim());
+      if (cleaned && cleaned.toLowerCase() !== String(companyName || '').trim().toLowerCase()) queries.push(cleaned);
+      const first = cleaned.split(/\s+/)[0];
+      if (first && first.length >= 4) queries.push(first);
+
+      for (const q of queries) {
+        if (list.length >= 6) break;
+        if (!q || q.length < 2) continue;
+        try {
+          const res = await fetch(
+            `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(q)}`
+          );
+          const data = await res.json();
+          if (Array.isArray(data) && data.length) {
+            list = normalizeCandidates(
+              list,
+              data.map(item => ({
+                domain: item.domain,
+                name: item.name || item.domain,
+                snippet: item.industry || item.description || ''
+              }))
+            );
+          }
+        } catch (_) { /* best-effort */ }
+      }
+      return list.slice(0, 8);
+    }
+
     function isKnownUnambiguousCompany(name) {
       return KNOWN_UNAMBIGUOUS.has(companyKeyNorm(name));
     }
@@ -2422,16 +2473,43 @@
         return store(null);
       }
 
-      // Globally recognized firms: always prefer the canonical domain over lesser same-name hits
+      // Globally recognized firms: prefer the canonical domain, but still gather
+      // Clearbit alternatives so the UI can always show website options.
       const majorFirm = lookupMajorKnownFirm(companyName);
       if (majorFirm && !skippedDomains.includes(majorFirm.domain.toLowerCase())) {
         console.log('[resolve] MAJOR FIRM canonical', companyName, '->', majorFirm.domain);
+        gatheredCandidates = normalizeCandidates(
+          [{
+            domain: majorFirm.domain.toLowerCase(),
+            name: majorFirm.label,
+            snippet: `${majorFirm.label} · ${majorFirm.industry}`
+          }],
+          gatheredCandidates
+        );
+        try {
+          const cbRes = await fetch(
+            `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(companyName)}`
+          );
+          const cbData = await cbRes.json();
+          if (Array.isArray(cbData) && cbData.length) {
+            gatheredCandidates = normalizeCandidates(
+              gatheredCandidates,
+              cbData.map(item => ({
+                domain: item.domain,
+                name: item.name || item.domain,
+                snippet: item.industry || item.description || ''
+              }))
+            );
+          }
+        } catch (_) { /* options are best-effort */ }
         return store({
           domain: majorFirm.domain.toLowerCase(),
-          isUnsure: false,
+          isUnsure: true,
           matchedName: majorFirm.label,
           industrySnippet: `${majorFirm.label} · ${majorFirm.industry}`,
-          alternatives: [],
+          alternatives: gatheredCandidates.map(c => c.snippet || c.name || c.domain),
+          alternativeDomains: gatheredCandidates.map(c => c.domain),
+          candidates: gatheredCandidates,
           resolveMethod: 'name-only',
           fastPath: true
         });
@@ -4408,11 +4486,16 @@
                   apiData = resolvedObj.apiData || null;
                   industrySnippet = resolvedObj.industrySnippet || resolvedObj.matchedName || '';
                   alternatives = resolvedObj.alternatives || [];
-                  candidates = normalizeCandidates(
-                    resolvedObj.candidates,
-                    resolvedObj.alternativeDomains,
-                    alternatives,
-                    [{ domain, name: resolvedObj.matchedName, snippet: industrySnippet }]
+                  candidates = await ensureWebsiteOptions(
+                    companyName,
+                    normalizeCandidates(
+                      resolvedObj.candidates,
+                      resolvedObj.alternativeDomains,
+                      alternatives,
+                      [{ domain, name: resolvedObj.matchedName, snippet: industrySnippet }]
+                    ),
+                    domain,
+                    { name: resolvedObj.matchedName || companyName, snippet: industrySnippet }
                   );
                   resolveMethod = resolvedObj.resolveMethod || 'name-only';
                   fastPath = !!resolvedObj.fastPath || isKnownUnambiguousCompany(companyName);
@@ -4420,6 +4503,7 @@
                   updateRow(rowId, { status: 'verifying', [webKey]: domain, resolveMethod, candidates });
                   const verification = await verifyDomainLive(domain, companyName, { fastPath });
                   if (!verification.ok) {
+                    const moreOpts = await ensureWebsiteOptions(companyName, candidates, '', {});
                     finishUnverified({
                       [webKey]: '',
                       [indKey]: industrySnippet || '-',
@@ -4427,10 +4511,10 @@
                       [locKey]: '-',
                       [conKey]: '-',
                       [genKey]: '-',
-                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', verification.reason, candidates.length ? 'Possible matches below (unconfirmed)' : ''].filter(Boolean).join(' · '),
+                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', verification.reason, moreOpts.length ? 'Pick a website below (unconfirmed)' : 'Enter a website manually'].filter(Boolean).join(' · '),
                       matchSnippet: industrySnippet,
-                      candidates,
-                      savedCandidates: candidates,
+                      candidates: moreOpts,
+                      savedCandidates: moreOpts,
                       selectionLocked: false,
                       pickerOpen: true,
                       candidatesUnconfirmed: true,
@@ -4439,7 +4523,9 @@
                     return;
                   }
 
-                  if (isUnsure) {
+                  // Always show website options — never auto-accept Found without a user pick.
+                  // (User-confirmed domains skip this and continue to enrich below.)
+                  if (!userConfirmed) {
                     updateRow(rowId, {
                       status: 'potential',
                       [webKey]: domain,
@@ -4448,16 +4534,17 @@
                       [locKey]: '-',
                       [conKey]: '-',
                       [genKey]: '-',
-                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', candidates.length ? 'Select the correct website below' : 'Possible match needs manual confirmation'].filter(Boolean).join(' · '),
+                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', candidates.length ? 'Select the correct website below' : 'Enter the website manually'].filter(Boolean).join(' · '),
                       matchSnippet: industrySnippet,
                       linkVerified: false,
                       candidates,
                       savedCandidates: candidates,
                       selectionLocked: false,
                       pickerOpen: true,
-                      candidatesUnconfirmed: false,
+                      candidatesUnconfirmed: isUnsure,
                       resolveMethod,
-                      userConfirmedDomain: false
+                      userConfirmedDomain: false,
+                      showManualDomain: candidates.length === 0
                     });
                     release(rowId);
                     return;
@@ -4465,12 +4552,17 @@
 
                   updateRow(rowId, { [webKey]: domain, status: 'enriching', matchSnippet: industrySnippet, linkVerified: true, resolveMethod, userConfirmedDomain: false });
                 } else {
-                  // No confident domain — still attach any loose candidates for the picker
-                  const looseCandidates = normalizeCandidates(
-                    resolvedObj?.candidates,
-                    resolvedObj?.alternativeDomains,
-                    alternatives,
-                    candidates
+                  // No confident domain — still attach / fetch loose candidates for the picker
+                  const looseCandidates = await ensureWebsiteOptions(
+                    companyName,
+                    normalizeCandidates(
+                      resolvedObj?.candidates,
+                      resolvedObj?.alternativeDomains,
+                      alternatives,
+                      candidates
+                    ),
+                    '',
+                    {}
                   );
                   finishUnverified({
                     [webKey]: '',
@@ -4479,12 +4571,13 @@
                     [locKey]: '-',
                     [conKey]: '-',
                     [genKey]: '-',
-                    [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', 'Could not resolve a verified domain', looseCandidates.length ? 'Possible matches below (unconfirmed)' : 'No candidates found — enter a domain manually'].filter(Boolean).join(' · '),
+                    [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', 'Could not auto-pick a website', looseCandidates.length ? 'Pick from options below' : 'Enter a website manually'].filter(Boolean).join(' · '),
                     candidates: looseCandidates,
                     savedCandidates: looseCandidates,
                     selectionLocked: false,
                     pickerOpen: true,
                     candidatesUnconfirmed: true,
+                    showManualDomain: looseCandidates.length === 0,
                     resolveMethod: resolveMethod || 'none'
                   });
                   return;
@@ -5421,7 +5514,7 @@
                                                         : 'Select correct website')
                                                       : 'Enter website'}
                                                   </span>
-                                                  {list.slice(0, 6).map((c) => (
+                                                  {list.slice(0, 8).map((c) => (
                                                     <div key={c.domain} className="candidate-option">
                                                       <span className="candidate-option-name">{c.name || c.domain}</span>
                                                       <a
