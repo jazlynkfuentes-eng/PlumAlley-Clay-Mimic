@@ -594,6 +594,47 @@ function pageConfirmsCompany(site, companyName) {
 }
 
 /**
+ * Batch uniqueness registry — same Industry / notes text cannot be written
+ * to two different domains in one batch (bug signal → Unknown).
+ */
+const enrichmentValueRegistry = {
+  industry: new Map(),
+  notes: new Map(),
+  reset() {
+    this.industry.clear();
+    this.notes.clear();
+  }
+};
+
+export function resetEnrichmentBatchGuards() {
+  enrichmentValueRegistry.reset();
+}
+
+function applyBatchUniquenessGuard(domain, fields) {
+  const host = normalizeDomain(domain);
+  const out = { ...fields };
+  for (const key of ["industry", "notes"]) {
+    const raw = out[key];
+    const norm = String(raw || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    if (!norm || norm === "unknown" || norm.length < 4) {
+      if (key === "industry") out[key] = "Unknown";
+      continue;
+    }
+    const owner = enrichmentValueRegistry[key].get(norm);
+    if (owner && owner !== host) {
+      console.warn(`[enrich] BLOCK duplicate ${key} for ${host} (already used by ${owner})`);
+      out[key] = "Unknown";
+    } else {
+      enrichmentValueRegistry[key].set(norm, host);
+    }
+  }
+  return out;
+}
+
+/**
  * Enrich fields from verified website content. Never fabricates values.
  * @param {string} domain
  * @param {string} originalName
@@ -602,9 +643,11 @@ function pageConfirmsCompany(site, companyName) {
 export async function enrichCompanyDetails(domain, originalName) {
   await delay(Math.floor(Math.random() * 300) + 300);
 
+  let base = null;
+
   const dictHit = lookupDictionary(originalName);
   if (dictHit && normalizeDomain(dictHit.entry.domain) === normalizeDomain(domain)) {
-    return {
+    base = {
       industry: dictHit.entry.industry,
       headcount: dictHit.entry.headcount,
       location: dictHit.entry.location,
@@ -612,52 +655,50 @@ export async function enrichCompanyDetails(domain, originalName) {
     };
   }
 
-  // Also allow dictionary match by domain alone for manually entered known sites
-  for (const entry of Object.values(companyDictionary)) {
-    if (normalizeDomain(entry.domain) === normalizeDomain(domain)) {
-      return {
-        industry: entry.industry,
-        headcount: entry.headcount,
-        location: entry.location,
-        notes: entry.notes
-      };
+  if (!base) {
+    for (const entry of Object.values(companyDictionary)) {
+      if (normalizeDomain(entry.domain) === normalizeDomain(domain)) {
+        base = {
+          industry: entry.industry,
+          headcount: entry.headcount,
+          location: entry.location,
+          notes: entry.notes
+        };
+        break;
+      }
     }
   }
 
-  const site = await fetchSiteText(domain);
-  if (!site || !pageConfirmsCompany(site, originalName)) {
-    return {
-      industry: "Unknown",
-      headcount: "Unknown",
-      location: "Unknown",
-      notes: site
-        ? "Website reachable but page content did not confidently confirm company details"
-        : "Could not scrape homepage/about content; left unknown fields blank rather than guessing"
-    };
+  if (!base) {
+    const site = await fetchSiteText(domain);
+    if (!site || !pageConfirmsCompany(site, originalName)) {
+      return applyBatchUniquenessGuard(domain, {
+        industry: "Unknown",
+        headcount: "Unknown",
+        location: "Unknown",
+        notes: "Unknown"
+      });
+    }
+
+    const corpus = `${site.title}. ${site.description}. ${site.bodyText}`;
+    const industry = inferIndustryFromText(corpus);
+    const location = inferLocationFromText(corpus);
+
+    let headcount = "Unknown";
+    const headcountMatch = corpus.match(
+      /\b(\d{1,3}(?:,\d{3})*\+?\s*[-–to]+\s*\d{1,3}(?:,\d{3})*\+?|\d{1,3}(?:,\d{3})*\+)\s*(?:employees|people|team members)\b/i
+    );
+    if (headcountMatch) {
+      headcount = headcountMatch[1].replace(/\s+/g, " ").trim();
+    }
+
+    const notes =
+      site.description && site.description.length > 20
+        ? site.description.slice(0, 160)
+        : "Unknown";
+
+    base = { industry, headcount, location, notes };
   }
 
-  const corpus = `${site.title}. ${site.description}. ${site.bodyText}`;
-  const industry = inferIndustryFromText(corpus);
-  const location = inferLocationFromText(corpus);
-
-  // Headcount is rarely trustworthy from homepage copy — only accept explicit ranges
-  let headcount = "Unknown";
-  const headcountMatch = corpus.match(
-    /\b(\d{1,3}(?:,\d{3})*\+?\s*[-–to]+\s*\d{1,3}(?:,\d{3})*\+?|\d{1,3}(?:,\d{3})*\+)\s*(?:employees|people|team members)\b/i
-  );
-  if (headcountMatch) {
-    headcount = headcountMatch[1].replace(/\s+/g, " ").trim();
-  }
-
-  const notesBits = [];
-  if (site.description) notesBits.push(site.description.slice(0, 160));
-  else if (site.title) notesBits.push(`Site title: ${site.title}`);
-  notesBits.push("Enriched from website content where confidence allowed.");
-
-  return {
-    industry,
-    headcount,
-    location,
-    notes: notesBits.join(" ")
-  };
+  return applyBatchUniquenessGuard(domain, base);
 }

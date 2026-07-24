@@ -994,6 +994,60 @@
         founder: "Ben Stephenson (CEO)",
         gender: "Male"
       },
+      "blackstone": {
+        domain: "blackstone.com",
+        industry: "Private Equity",
+        headcount: "10,000+",
+        location: "New York, NY",
+        notes: "Global alternative asset manager and private equity firm (The Blackstone Group).",
+        founder: "Stephen A. Schwarzman (CEO)",
+        gender: "Male"
+      },
+      "blackstone group": {
+        domain: "blackstone.com",
+        industry: "Private Equity",
+        headcount: "10,000+",
+        location: "New York, NY",
+        notes: "Global alternative asset manager and private equity firm (The Blackstone Group).",
+        founder: "Stephen A. Schwarzman (CEO)",
+        gender: "Male"
+      },
+      "the blackstone group": {
+        domain: "blackstone.com",
+        industry: "Private Equity",
+        headcount: "10,000+",
+        location: "New York, NY",
+        notes: "Global alternative asset manager and private equity firm (The Blackstone Group).",
+        founder: "Stephen A. Schwarzman (CEO)",
+        gender: "Male"
+      },
+      "blackrock": {
+        domain: "blackrock.com",
+        industry: "Asset Management",
+        headcount: "10,000+",
+        location: "New York, NY",
+        notes: "World's largest asset manager.",
+        founder: "Larry Fink (CEO)",
+        gender: "Male"
+      },
+      "fordham": {
+        domain: "fordham.edu",
+        industry: "Education",
+        headcount: "5,000+",
+        location: "New York, NY",
+        notes: "Private Jesuit research university in New York City.",
+        founder: "Needs Manual Research",
+        gender: "Unknown"
+      },
+      "fordham university": {
+        domain: "fordham.edu",
+        industry: "Education",
+        headcount: "5,000+",
+        location: "New York, NY",
+        notes: "Private Jesuit research university in New York City.",
+        founder: "Needs Manual Research",
+        gender: "Unknown"
+      },
       "aclima": {
         domain: "aclima.io",
         industry: "Climate Tech",
@@ -1423,11 +1477,58 @@
     const TITLE_PATTERN = /\b(CEO|CFO|CTO|CIO|COO|CMO|CRO|VVP|EVP|SVP|VP|Managing Director|Chief Investment Officer|Chief Executive Officer|Chief Operating Officer|Chief Financial Officer|Chief Technology Officer|Investment Principal|Managing Partner|General Partner|Limited Partner|Founding Partner|Co-Founder|Cofounder|Founder|President|Partner|Director|Principal|Head of|Board Member|Private Equity|Public Policy)\b/i;
 
     const KNOWN_UNAMBIGUOUS = new Set([
-      'pimco', 'blackstone', 'blackrock', 'google', 'microsoft', 'apple', 'amazon', 'meta',
+      'pimco', 'blackstone', 'blackstonegroup', 'theblackstonegroup', 'blackrock', 'google', 'microsoft', 'apple', 'amazon', 'meta',
       'goldmansachs', 'kkr', 'apollo', 'carlyle', 'bridgewater', 'stripe', 'openai', 'netflix',
       'tesla', 'jpmorgan', 'morganstanley', 'vanguard', 'fidelity', 'statestreet', 'impactuspartners',
-      'caraadvisory', 'navfundservices'
+      'caraadvisory', 'navfundservices', 'fordham', 'fordhamuniversity', 'cornell', 'cornelluniversity'
     ]);
+
+    /**
+     * Globally recognized firms: canonical domain must win over lesser same-name companies
+     * (e.g. Blackstone Group → blackstone.com, never blackstonecap.com).
+     */
+    const MAJOR_KNOWN_FIRMS = {
+      blackstone: { domain: 'blackstone.com', label: 'The Blackstone Group', industry: 'Private Equity' },
+      blackstonegroup: { domain: 'blackstone.com', label: 'The Blackstone Group', industry: 'Private Equity' },
+      theblackstonegroup: { domain: 'blackstone.com', label: 'The Blackstone Group', industry: 'Private Equity' },
+      blackrock: { domain: 'blackrock.com', label: 'BlackRock', industry: 'Asset Management' },
+      kkr: { domain: 'kkr.com', label: 'KKR', industry: 'Private Equity' },
+      apollo: { domain: 'apollo.com', label: 'Apollo Global Management', industry: 'Private Equity' },
+      carlyle: { domain: 'carlyle.com', label: 'The Carlyle Group', industry: 'Private Equity' },
+      bridgewater: { domain: 'bridgewater.com', label: 'Bridgewater Associates', industry: 'Hedge Fund' },
+      goldmansachs: { domain: 'goldmansachs.com', label: 'Goldman Sachs', industry: 'Investment Banking' },
+      jpmorgan: { domain: 'jpmorgan.com', label: 'JPMorgan Chase', industry: 'Banking' },
+      morganstanley: { domain: 'morganstanley.com', label: 'Morgan Stanley', industry: 'Investment Banking' },
+      vanguard: { domain: 'vanguard.com', label: 'Vanguard', industry: 'Asset Management' },
+      fidelity: { domain: 'fidelity.com', label: 'Fidelity', industry: 'Asset Management' },
+      pimco: { domain: 'pimco.com', label: 'PIMCO', industry: 'Investment Management' },
+      google: { domain: 'google.com', label: 'Google', industry: 'Technology / AI' },
+      microsoft: { domain: 'microsoft.com', label: 'Microsoft', industry: 'Software & Cloud' },
+      apple: { domain: 'apple.com', label: 'Apple', industry: 'Consumer Electronics' },
+      amazon: { domain: 'amazon.com', label: 'Amazon', industry: 'E-Commerce / Retail' },
+      meta: { domain: 'meta.com', label: 'Meta', industry: 'Technology' },
+      stripe: { domain: 'stripe.com', label: 'Stripe', industry: 'Financial Technology' },
+      openai: { domain: 'openai.com', label: 'OpenAI', industry: 'Artificial Intelligence' },
+      netflix: { domain: 'netflix.com', label: 'Netflix', industry: 'Media / Entertainment' },
+      tesla: { domain: 'tesla.com', label: 'Tesla', industry: 'Automotive / Energy' },
+      fordham: { domain: 'fordham.edu', label: 'Fordham University', industry: 'Education' },
+      fordhamuniversity: { domain: 'fordham.edu', label: 'Fordham University', industry: 'Education' },
+      cornell: { domain: 'cornell.edu', label: 'Cornell University', industry: 'Education' },
+      cornelluniversity: { domain: 'cornell.edu', label: 'Cornell University', industry: 'Education' }
+    };
+
+    function lookupMajorKnownFirm(companyName) {
+      const key = companyKeyNorm(companyName);
+      if (MAJOR_KNOWN_FIRMS[key]) return MAJOR_KNOWN_FIRMS[key];
+      // Also match when query is a short alias contained in a major key of similar length
+      for (const [k, v] of Object.entries(MAJOR_KNOWN_FIRMS)) {
+        if (key === k || (key.length >= 5 && (k === key || k.startsWith(key) || key.startsWith(k)))) {
+          // Prefer exact / near-exact only
+          if (key === k || k.replace(/group$/,'') === key || key.replace(/group$/,'') === k) return v;
+        }
+      }
+      return null;
+    }
 
     function companyKeyNorm(name) {
       return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1439,101 +1540,71 @@
 
     /**
      * Parse a pasted line that may mix "Person – Title" with a company name.
+     *
+     * Rules:
+     * - Tab present → left = Contact/Title, right = Company (existing behavior)
+     * - No tab + no clear "Name – Title" (dash + title-like phrase) → entire line = Company, Contact blank
+     * - No tab + clear "Name – Title" → Contact/Title only, Company blank
+     *
      * @returns {{ companyName: string, sourceContact: string, personName: string, personTitle: string, notes: string, raw: string }}
      */
     function parsePersonCompanyLine(rawLine) {
       const raw = String(rawLine || '').trim();
       if (!raw) return null;
 
-      let left = raw;
-      let right = '';
+      let personSide = '';
+      let companyPart = '';
 
-      // 1) Tab is most reliable separator between person/title and company
+      // 1) Tab is the only reliable separator between person/title and company
       if (raw.includes('\t')) {
         const tabIdx = raw.indexOf('\t');
-        left = raw.slice(0, tabIdx).trim();
-        right = raw.slice(tabIdx + 1).trim();
+        personSide = raw.slice(0, tabIdx).trim();
+        companyPart = raw.slice(tabIdx + 1).trim();
       } else {
-        // 2) Split on last em/en dash, then check for large whitespace gap
-        const dashChars = ['–', '—'];
-        let splitAt = -1;
-        for (const d of dashChars) {
-          const idx = raw.lastIndexOf(d);
-          if (idx > splitAt) splitAt = idx;
-        }
-        // Spaced hyphen as dash (avoid splitting hyphenated surnames like Robertsson-Rasheed)
-        const spacedHyphen = raw.lastIndexOf(' - ');
-        if (spacedHyphen > splitAt) splitAt = spacedHyphen;
+        // 2) No tab: only treat as person–title when a dash is followed by a title-like phrase
+        const emDash = raw.match(/^(.+?)\s*[–—]\s+(.+)$/);
+        const spacedHyphen = !emDash ? raw.match(/^(.+?)\s+-\s+(.+)$/) : null;
+        const dashParts = emDash || spacedHyphen;
 
-        if (splitAt > 0) {
-          const afterDash = raw.slice(splitAt).replace(/^[–—-]+\s*/, '');
-          // If there's a large whitespace gap after the title area, company is after the gap
-          const gapMatch = afterDash.match(/^(.+?)(?:\t|\s{2,})(.+)$/);
-          if (gapMatch) {
-            left = (raw.slice(0, splitAt) + ' – ' + gapMatch[1]).trim();
-            right = gapMatch[2].trim();
+        if (dashParts) {
+          const before = dashParts[1].trim();
+          const after = dashParts[2].trim();
+          if (before && after && TITLE_PATTERN.test(after)) {
+            personSide = `${before} – ${after}`;
+            companyPart = '';
           } else {
-            // Fallback: title-word heuristic — company is tokens after the title phrase
-            const titleMatch = raw.match(TITLE_PATTERN);
-            if (titleMatch && titleMatch.index != null) {
-              // Find end of title-ish clause, then remaining may be company if separated
-              // Without tab, assume everything after last dash is title+maybe company mixed — weak
-              left = raw.slice(0, splitAt).trim();
-              right = afterDash.trim();
-              // If "right" looks like a title (starts with title word), there may be no company
-              if (TITLE_PATTERN.test(right) && right.split(/\s+/).length <= 8 && !/[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}$/.test(right)) {
-                // entire line is person – title only
-                left = raw;
-                right = '';
-              }
-            } else {
-              left = raw.slice(0, splitAt).trim();
-              right = afterDash.trim();
-            }
+            // Dash present but not a title phrase (e.g. "Trinity Church – Wall Street") → company-only
+            personSide = '';
+            companyPart = raw;
           }
         } else {
-          // 3) Title-word heuristic with no dash
-          const m = raw.match(TITLE_PATTERN);
-          if (m && m.index != null && m.index > 2) {
-            left = raw.slice(0, m.index).trim().replace(/[–—-]\s*$/, '').trim();
-            const afterTitleStart = raw.slice(m.index);
-            // Company often follows title after 2+ spaces or tab
-            const gap = afterTitleStart.match(/^(.*?)(?:\t|\s{2,})(.+)$/);
-            if (gap) {
-              left = (left + ' – ' + gap[1]).trim();
-              right = gap[2].trim();
-            } else {
-              left = raw;
-              right = '';
-            }
+          // Plain company name (PIMCO, Blackstone, Fordham University, …)
+          personSide = '';
+          companyPart = raw;
+        }
+      }
+
+      // Parse person name + title from the contact side only
+      let personName = '';
+      let personTitle = '';
+      if (personSide) {
+        personName = personSide;
+        const leftDash = personSide.match(/\s+[–—]\s+|\s+-\s+/);
+        if (leftDash) {
+          const idx = personSide.search(/\s+[–—]\s+|\s+-\s+/);
+          const dashLen = leftDash[0].length;
+          personName = personSide.slice(0, idx).trim();
+          personTitle = personSide.slice(idx + dashLen).trim();
+        } else if (TITLE_PATTERN.test(personSide)) {
+          const m = personSide.match(TITLE_PATTERN);
+          if (m && m.index > 0) {
+            personName = personSide.slice(0, m.index).trim().replace(/[–—-]\s*$/, '').trim();
+            personTitle = personSide.slice(m.index).trim();
           }
         }
       }
 
-      // Parse person name + title from left side
-      let personName = left;
-      let personTitle = '';
-      const leftDash = left.match(/\s+[–—]\s+|\s+-\s+/);
-      if (leftDash) {
-        const idx = left.search(/\s+[–—]\s+|\s+-\s+/);
-        const dashLen = leftDash[0].length;
-        personName = left.slice(0, idx).trim();
-        personTitle = left.slice(idx + dashLen).trim();
-      } else if (TITLE_PATTERN.test(left)) {
-        const m = left.match(TITLE_PATTERN);
-        if (m && m.index > 0) {
-          personName = left.slice(0, m.index).trim().replace(/[–—-]\s*$/, '').trim();
-          personTitle = left.slice(m.index).trim();
-        }
-      }
-
-      let companyPart = right || '';
       const notes = [];
-
-      // If no explicit company on the right, and left had only person–title, company empty
-      if (!companyPart && personTitle && !right) {
-        companyPart = '';
-      }
 
       // Strip trailing parentheticals from company → notes
       const extractParens = (text) => {
@@ -1570,13 +1641,15 @@
         return p.text;
       }).filter(Boolean);
 
-      // If still no company, maybe the "title" was actually company (rare) — leave empty
-      const sourceContact = [personName, personTitle].filter(Boolean).join(' – ');
+      // Never fall back Contact to the raw line — that caused company-only pastes to look like contacts
+      const sourceContact = personSide
+        ? ([personName, personTitle].filter(Boolean).join(' – ') || personSide)
+        : '';
 
       return {
         raw,
         companyName: primaryCompany || '',
-        sourceContact: sourceContact || left || raw,
+        sourceContact,
         personName: personName || '',
         personTitle: personTitle || '',
         notes: notes.filter(Boolean).join(' · '),
@@ -1606,6 +1679,345 @@
       return false;
     }
 
+    /**
+     * Extract a hostname from a Wikidata / DDG URL-ish string.
+     */
+    function extractUrlDomain(str) {
+      if (!str) return '';
+      const bracketMatch = String(str).match(/\[\s*(https?:\/\/[^\s\]]+)/i);
+      let url = bracketMatch ? bracketMatch[1] : String(str);
+      const urlMatch = url.match(/(https?:\/\/[^\s\/]+)/i);
+      if (urlMatch) url = urlMatch[1];
+      return url.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+    }
+
+    // Wikidata instance-of (P31) IDs → institutional industry
+    const WD_EDUCATION = new Set([
+      'Q3918', 'Q875538', 'Q23002054', 'Q38723', 'Q189004', 'Q9826', 'Q4671277',
+      'Q15936437', 'Q1371037', 'Q118865', 'Q1321960', 'Q2385804'
+    ]);
+    const WD_GOVERNMENT = new Set([
+      'Q327333', 'Q2659904', 'Q2085381', 'Q35798', 'Q7188', 'Q417662', 'Q16334295',
+      'Q11204', 'Q760074', 'Q3567216', 'Q1419105'
+    ]);
+    const WD_NONPROFIT = new Set([
+      'Q163740', 'Q157031', 'Q708676', 'Q48204', 'Q79913', 'Q43229', // nonprofit/foundation/charity; org alone is weak
+      'Q31855', 'Q780597', 'Q210167' // research institute / church — treat as nonprofit/foundation when combined with name signals
+    ]);
+    // Strong nonprofit only (avoid marking every Q43229 organization as nonprofit)
+    const WD_NONPROFIT_STRONG = new Set([
+      'Q163740', 'Q157031', 'Q708676', 'Q79913', 'Q780597', 'Q210167', 'Q4466083'
+    ]);
+
+    function claimAmount(entity, prop) {
+      try {
+        const v = entity?.claims?.[prop]?.[0]?.mainsnak?.datavalue?.value;
+        if (v == null) return null;
+        if (typeof v === 'object' && v.amount != null) return parseFloat(String(v.amount).replace(/^\+/, ''));
+        if (typeof v === 'number') return v;
+        return parseFloat(v);
+      } catch (_) { return null; }
+    }
+
+    function claimYear(entity, prop) {
+      try {
+        const t = entity?.claims?.[prop]?.[0]?.mainsnak?.datavalue?.value?.time;
+        if (!t) return null;
+        const m = String(t).match(/(-?\d{1,4})/);
+        return m ? parseInt(m[1], 10) : null;
+      } catch (_) { return null; }
+    }
+
+    function claimInstanceIds(entity) {
+      const claims = entity?.claims?.P31 || [];
+      return claims.map(c => c?.mainsnak?.datavalue?.value?.id).filter(Boolean);
+    }
+
+    function claimOfficialDomain(entity) {
+      const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
+      return claim ? extractUrlDomain(claim) : '';
+    }
+
+    function scoreWikidataProminence(entity, title, description) {
+      let score = 0;
+      const reasons = [];
+      const employees = claimAmount(entity, 'P1128');
+      if (employees != null && !Number.isNaN(employees)) {
+        if (employees >= 10000) { score += 80; reasons.push(`${employees}+ employees`); }
+        else if (employees >= 1000) { score += 55; reasons.push(`${employees} employees`); }
+        else if (employees >= 200) { score += 30; reasons.push(`${employees} employees`); }
+        else if (employees >= 50) { score += 10; reasons.push(`${employees} employees`); }
+      }
+      const founded = claimYear(entity, 'P571');
+      if (founded != null) {
+        if (founded <= 1950) { score += 35; reasons.push(`founded ${founded}`); }
+        else if (founded <= 1985) { score += 25; reasons.push(`founded ${founded}`); }
+        else if (founded <= 2005) { score += 12; reasons.push(`founded ${founded}`); }
+      }
+      const desc = String(description || entity?.descriptions?.en?.value || '').toLowerCase();
+      if (/\b(largest|global|fortune|multinational|ivy league|flagship)\b/.test(desc)) {
+        score += 25;
+        reasons.push('notable description');
+      }
+      if (title && /\b(group|inc\.?|corporation|university|college|foundation)\b/i.test(title)) {
+        score += 8;
+      }
+      // Having an official website claim is a weak notability signal
+      if (claimOfficialDomain(entity)) score += 5;
+      return { score, employees, founded, reasons, description: desc };
+    }
+
+    async function fetchWikidataEntitiesForName(companyName, cleanedName) {
+      const queries = [companyName, cleanedName, `${companyName} company`, `${companyName} (company)`]
+        .map(q => String(q || '').trim())
+        .filter((q, i, arr) => q && q.length >= 2 && arr.indexOf(q) === i);
+
+      const results = [];
+      for (const wq of queries.slice(0, 3)) {
+        try {
+          const openRes = await fetch(
+            `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=6&namespace=0&format=json&origin=*`
+          );
+          if (!openRes.ok) continue;
+          const openJson = await openRes.json();
+          const titles = openJson[1] || [];
+          if (!titles.length) continue;
+
+          const qTokens = wq.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+          const ranked = titles.map((t) => {
+            const tl = t.toLowerCase();
+            let s = qTokens.filter(tok => tl.includes(tok)).length * 12;
+            if (tl === wq.toLowerCase()) s += 50;
+            if (/\b(company|group|inc|corporation|university|college|foundation|partners|capital)\b/i.test(t)) s += 10;
+            // Deprioritize disambiguation / film / music noise
+            if (/\(disambiguation\)|\balbum\b|\bfilm\b|\bsong\b/i.test(t)) s -= 40;
+            return { title: t, titleScore: s };
+          }).filter(x => x.titleScore >= 8).sort((a, b) => b.titleScore - a.titleScore);
+
+          for (const { title, titleScore } of ranked.slice(0, 3)) {
+            const wdRes = await fetch(
+              `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions|labels&languages=en&format=json&origin=*`
+            );
+            if (!wdRes.ok) continue;
+            const wd = await wdRes.json();
+            const entity = Object.values(wd.entities || {}).find(e => e && e.claims && !e.missing);
+            if (!entity) continue;
+            const description = entity?.descriptions?.en?.value || '';
+            const domain = claimOfficialDomain(entity);
+            const prominence = scoreWikidataProminence(entity, title, description);
+            const instanceIds = claimInstanceIds(entity);
+            results.push({
+              title,
+              titleScore,
+              domain,
+              description,
+              entity,
+              instanceIds,
+              prominenceScore: prominence.score,
+              prominenceReasons: prominence.reasons,
+              employees: prominence.employees,
+              founded: prominence.founded
+            });
+          }
+          if (results.length) break;
+        } catch (e) {
+          console.warn('[wikidata] lookup failed', wq, e);
+        }
+      }
+      // Dedupe by domain/title
+      const seen = new Set();
+      return results.filter(r => {
+        const k = `${r.domain}|${r.title}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+    }
+
+    /**
+     * Prominence disambiguation for ANY company name with multiple plausible domains.
+     * Prefer a clearly larger/more notable Wikidata entity's official site; if two are
+     * similarly prominent, mark ambiguous (Potential) instead of guessing.
+     */
+    async function crossCheckProminentDomain(companyName, candidateDomain, cleanedName, clearbitAlternatives = []) {
+      const major = lookupMajorKnownFirm(companyName);
+      const cand = String(candidateDomain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      if (major) {
+        if (cand === major.domain) return null;
+        return {
+          action: 'override',
+          domain: major.domain,
+          label: major.label,
+          snippet: `${major.label} · ${major.industry} (canonical)`,
+          alternatives: [cand, major.domain].filter(Boolean)
+        };
+      }
+
+      const key = companyKeyNorm(companyName);
+      if (!key || key.length < 2) return null;
+
+      const wikiHits = await fetchWikidataEntitiesForName(companyName, cleanedName);
+      const withDomain = wikiHits.filter(h => h.domain && h.domain.includes('.') && !h.domain.includes('wikipedia.org'));
+      const prominent = withDomain
+        .filter(h => h.prominenceScore >= 25 || h.employees >= 200 || (h.founded && h.founded <= 1995))
+        .sort((a, b) => b.prominenceScore - a.prominenceScore);
+
+      const candBase = cand.split('.')[0].replace(/[^a-z0-9]/g, '');
+      const bestWiki = prominent[0] || withDomain.sort((a, b) => b.prominenceScore - a.prominenceScore)[0];
+
+      if (bestWiki) {
+        const wikiBase = bestWiki.domain.split('.')[0].replace(/[^a-z0-9]/g, '');
+        const wikiIsProminent = bestWiki.prominenceScore >= 25 || (bestWiki.employees != null && bestWiki.employees >= 200);
+
+        // Candidate is a longer compound of the brand (blackstonecap) while wiki has exact apex
+        if (
+          wikiIsProminent &&
+          bestWiki.domain !== cand &&
+          wikiBase === key &&
+          candBase !== key &&
+          candBase.includes(key)
+        ) {
+          console.log('[resolve] prominence override (compound→canonical)', companyName, cand, '->', bestWiki.domain, bestWiki.prominenceReasons);
+          return {
+            action: 'override',
+            domain: bestWiki.domain,
+            label: bestWiki.title,
+            snippet: `${bestWiki.title} · ${bestWiki.description || 'Wikipedia'} (${bestWiki.prominenceReasons.join(', ') || 'notable'})`,
+            alternatives: [cand, bestWiki.domain]
+          };
+        }
+
+        // Wiki official site differs and is clearly more prominent than a weak Clearbit pick
+        if (wikiIsProminent && bestWiki.domain !== cand && (wikiBase === key || bestWiki.prominenceScore >= 40)) {
+          // If Clearbit also suggested the wiki domain, strongly prefer it
+          const altDomains = (clearbitAlternatives || []).map(a => String(a).toLowerCase());
+          const clearbitHadWiki = altDomains.some(d => d === bestWiki.domain || d.startsWith(wikiBase + '.'));
+          if (clearbitHadWiki || wikiBase === key || bestWiki.prominenceScore >= 50) {
+            console.log('[resolve] prominence override', companyName, cand, '->', bestWiki.domain);
+            return {
+              action: 'override',
+              domain: bestWiki.domain,
+              label: bestWiki.title,
+              snippet: `${bestWiki.title} · Wikidata prominence`,
+              alternatives: [cand, bestWiki.domain, ...altDomains].filter(Boolean).slice(0, 4)
+            };
+          }
+        }
+
+        // Two wiki hits similarly prominent with different domains → ambiguous
+        if (prominent.length >= 2 && prominent[0].domain !== prominent[1].domain) {
+          const gap = prominent[0].prominenceScore - prominent[1].prominenceScore;
+          if (gap < 20) {
+            return {
+              action: 'ambiguous',
+              domain: prominent[0].domain,
+              label: prominent[0].title,
+              alternatives: prominent.slice(0, 3).map(p => p.domain)
+            };
+          }
+        }
+      }
+
+      // Clearbit-only ambiguity: multiple distinct domains returned for same name
+      const uniqAlts = [...new Set((clearbitAlternatives || []).map(d => String(d || '').toLowerCase()).filter(Boolean))];
+      if (uniqAlts.length >= 2) {
+        const apexMatches = uniqAlts.filter(d => d.split('.')[0].replace(/[^a-z0-9]/g, '') === key);
+        const compounds = uniqAlts.filter(d => {
+          const b = d.split('.')[0].replace(/[^a-z0-9]/g, '');
+          return b !== key && b.includes(key);
+        });
+        if (apexMatches.length === 1 && compounds.length >= 1) {
+          if (cand !== apexMatches[0]) {
+            return {
+              action: 'override',
+              domain: apexMatches[0],
+              label: companyName,
+              snippet: `${companyName} · preferred exact domain over lookalikes`,
+              alternatives: uniqAlts.slice(0, 4)
+            };
+          }
+        }
+        // No exact apex among Clearbit hits (common for short/acronym names) → Potential, don't guess
+        if (apexMatches.length === 0) {
+          return {
+            action: 'ambiguous',
+            domain: cand,
+            label: companyName,
+            alternatives: uniqAlts.slice(0, 4)
+          };
+        }
+      }
+
+      return null;
+    }
+
+    /**
+     * Sector from entity type — wins over free-text keyword scraping.
+     * Sync signals: TLD + name patterns. Async Wikidata fills gaps.
+     */
+    function inferEntityTypeIndustry(companyName, domain) {
+      const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      const name = String(companyName || '').trim();
+      const blob = `${name} ${host}`.toLowerCase();
+
+      // Foundations / nonprofits first — "West Virginia University Foundation" is a foundation, not a university
+      if (/\b(foundation|non-?profit|nonprofit|charity|ngo|church|temple|mosque|synagogue|parish|congregation)\b/i.test(blob)) {
+        return 'Nonprofit / Foundation';
+      }
+      if (/\.edu$/i.test(host) || /\b(university|college|polytechnic|school|academy|institute of technology)\b/i.test(name)) {
+        return 'Education';
+      }
+      if (/\.gov$/i.test(host) || /\b(department of|ministry of|city of|county of|state of|government|municipal|agency|authority|commission|office of the|comptroller)\b/i.test(name)) {
+        return 'Government';
+      }
+      return null;
+    }
+
+    function industryFromWikidataInstances(instanceIds, companyName, domain) {
+      if (!instanceIds || !instanceIds.length) return null;
+      if (instanceIds.some(id => WD_EDUCATION.has(id))) return 'Education';
+      if (instanceIds.some(id => WD_GOVERNMENT.has(id))) return 'Government';
+      if (instanceIds.some(id => WD_NONPROFIT_STRONG.has(id))) return 'Nonprofit / Foundation';
+      // Weak org type + name/domain hints
+      if (instanceIds.some(id => WD_NONPROFIT.has(id)) && inferEntityTypeIndustry(companyName, domain)) {
+        return inferEntityTypeIndustry(companyName, domain);
+      }
+      return null;
+    }
+
+    async function lookupWikidataEntityType(companyName, domain) {
+      const sync = inferEntityTypeIndustry(companyName, domain);
+      if (sync) return { industry: sync, source: 'name-or-tld' };
+
+      try {
+        const hits = await fetchWikidataEntitiesForName(companyName, companyName);
+        const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+        // Prefer the hit whose official domain matches what we resolved
+        const ordered = [...hits].sort((a, b) => {
+          const aMatch = a.domain && host && a.domain === host ? 1 : 0;
+          const bMatch = b.domain && host && b.domain === host ? 1 : 0;
+          return bMatch - aMatch || b.prominenceScore - a.prominenceScore;
+        });
+        for (const hit of ordered) {
+          const fromP31 = industryFromWikidataInstances(hit.instanceIds, companyName, domain);
+          if (fromP31) return { industry: fromP31, source: 'wikidata', title: hit.title };
+          const desc = String(hit.description || '').toLowerCase();
+          if (/\buniversity\b|\bcollege\b|\beducational institution\b/.test(desc)) {
+            return { industry: 'Education', source: 'wikidata-desc', title: hit.title };
+          }
+          if (/\bgovernment\b|\bpublic agency\b|\bmunicipal\b/.test(desc)) {
+            return { industry: 'Government', source: 'wikidata-desc', title: hit.title };
+          }
+          if (/\bnon-?profit\b|\bfoundation\b|\bcharity\b|\bphilanthrop/.test(desc)) {
+            return { industry: 'Nonprofit / Foundation', source: 'wikidata-desc', title: hit.title };
+          }
+        }
+      } catch (e) {
+        console.warn('[enrich] wikidata entity type failed', e);
+      }
+      return null;
+    }
+
     async function resolveDomain(companyName, financeFilterActive = false, skippedDomains = [], personContext = null) {
       // Fast path / unambiguous companies: never spend person-context search budget
       const skipPerson = isKnownUnambiguousCompany(companyName) || !isAmbiguousCompanyName(companyName);
@@ -1632,6 +2044,21 @@
       if (isNonEntityCompany(companyName) || /\(\s*moderator\s*\)/i.test(companyName)) {
         console.log('[resolve] skipping non-entity label:', companyName);
         return store(null);
+      }
+
+      // Globally recognized firms: always prefer the canonical domain over lesser same-name hits
+      const majorFirm = lookupMajorKnownFirm(companyName);
+      if (majorFirm && !skippedDomains.includes(majorFirm.domain.toLowerCase())) {
+        console.log('[resolve] MAJOR FIRM canonical', companyName, '->', majorFirm.domain);
+        return store({
+          domain: majorFirm.domain.toLowerCase(),
+          isUnsure: false,
+          matchedName: majorFirm.label,
+          industrySnippet: `${majorFirm.label} · ${majorFirm.industry}`,
+          alternatives: [],
+          resolveMethod: 'name-only',
+          fastPath: true
+        });
       }
 
       // Check if we are running from a local server to execute real-time backend scrapers
@@ -1752,7 +2179,11 @@
             score += 150;
           }
           if (domBase === cleanQuery) {
-            score += 100;
+            score += 140; // exact apex domain (blackstone.com for "Blackstone")
+          } else if (domBase.startsWith(cleanQuery) && domBase.length > cleanQuery.length + 1) {
+            // Lesser compound domains like blackstonecap / blackstonecapital
+            score += 25;
+            score -= Math.min(50, (domBase.length - cleanQuery.length) * 8);
           } else if (cleanQuery.includes(domBase) || domBase.includes(cleanQuery)) {
             score += 50;
             score -= Math.abs(domBase.length - cleanQuery.length);
@@ -1761,6 +2192,17 @@
             const hits = tokens.filter(t => nameLower.includes(t) || domBase.includes(t.replace(/[^a-z0-9]/g, '')));
             if (hits.length === 0) continue;
             score += hits.length * 20;
+          }
+
+          // Prefer the short canonical brand domain over longer lookalikes
+          const major = lookupMajorKnownFirm(scoreAgainst);
+          if (major && item.domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0] === major.domain) {
+            score += 200;
+          } else if (major) {
+            const majorBase = major.domain.split('.')[0];
+            if (domBase !== majorBase && (domBase.includes(majorBase) || nameLower.includes(majorBase))) {
+              score -= 100;
+            }
           }
 
           if (commonTlds.includes(tld)) score += 20;
@@ -1811,6 +2253,7 @@
           runnerUp.score > 30
         );
         const alternatives = scored.slice(0, 3).map(s => s.snippet).filter(Boolean);
+        const alternativeDomains = scored.slice(0, 5).map(s => s.domain).filter(Boolean);
 
         if (financeFilterActive && best.isNonFinance && !best.isFinance) {
           const financeAlt = scored.find(s => s.isFinance);
@@ -1824,6 +2267,7 @@
               snippet: best.snippet,
               ambiguous: true,
               alternatives,
+              alternativeDomains,
               deprioritized: true
             };
           }
@@ -1836,6 +2280,7 @@
           snippet: best.snippet,
           ambiguous,
           alternatives,
+          alternativeDomains,
           exactName: !!best.exactName
         };
       };
@@ -1866,6 +2311,7 @@
           matchedName: match.name,
           industrySnippet: match.snippet,
           alternatives: match.alternatives || [],
+          alternativeDomains: match.alternativeDomains || [],
           resolveMethod: method
         };
       };
@@ -1894,8 +2340,59 @@
       };
 
       try {
-        const nameOnlyQueries = [searchQuery, baseCleaned || companyName, companyName];
+        // Prefer unaugmented brand name BEFORE finance-augmented queries
+        // (finance "X capital" otherwise matches lesser firms like blackstonecap.com)
+        const nameOnlyQueries = [baseCleaned || companyName, companyName, searchQuery];
         let nameHit = await tryClearbitQueries(nameOnlyQueries, baseCleaned || companyName, 'name-only');
+        let clearbitAltDomains = [
+          ...((nameHit && nameHit.alternativeDomains) || []),
+        ];
+
+        // Also collect raw Clearbit domains for prominence (re-query best unaugmented once)
+        try {
+          const cbRes = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(baseCleaned || companyName)}`);
+          if (cbRes.ok) {
+            const cbData = await cbRes.json();
+            if (Array.isArray(cbData)) {
+              clearbitAltDomains = [...new Set([
+                ...clearbitAltDomains,
+                ...cbData.map(x => String(x.domain || '').toLowerCase()).filter(Boolean)
+              ])];
+            }
+          }
+        } catch (_) { /* non-fatal */ }
+
+        // Prominence cross-check: prefer well-known Wikidata entity; else mark Potential
+        if (nameHit && nameHit.domain) {
+          const prominence = await crossCheckProminentDomain(
+            companyName,
+            nameHit.domain,
+            baseCleaned,
+            clearbitAltDomains
+          );
+          if (prominence) {
+            if (prominence.action === 'override') {
+              nameHit = {
+                ...nameHit,
+                domain: prominence.domain,
+                isUnsure: false,
+                matchedName: prominence.label || nameHit.matchedName,
+                industrySnippet: prominence.snippet || nameHit.industrySnippet,
+                alternatives: prominence.alternatives || [nameHit.domain, ...(nameHit.alternatives || [])].slice(0, 4),
+                resolveMethod: 'name-only',
+                fastPath: true
+              };
+            } else if (prominence.action === 'ambiguous') {
+              nameHit = {
+                ...nameHit,
+                domain: prominence.domain || nameHit.domain,
+                isUnsure: true,
+                alternatives: prominence.alternatives || [prominence.domain, nameHit.domain].filter(Boolean),
+                industrySnippet: `${nameHit.industrySnippet || nameHit.matchedName} · ambiguous candidates: ${(prominence.alternatives || []).join(' · ')}`
+              };
+            }
+          }
+        }
 
         const usePerson = effectivePerson && (effectivePerson.personName || effectivePerson.personTitle)
           && (isAmbiguousCompanyName(companyName) || (nameHit && nameHit.isUnsure) || !nameHit);
@@ -2083,178 +2580,371 @@
       return store(null);
     }
 
+    // Permanent constraint: Industry / Headcount / Founders / Location must never be templated.
+    const UNKNOWN = 'Unknown';
+    const enrichmentValueRegistry = {
+      industry: new Map(),
+      contacts: new Map(),
+      notes: new Map(),
+      reset() {
+        this.industry.clear();
+        this.contacts.clear();
+        this.notes.clear();
+      }
+    };
+
+    function isBlankOrUnknown(v) {
+      if (v == null) return true;
+      const s = String(v).trim();
+      return !s || s === '-' || /^unknown$/i.test(s) || /^needs manual/i.test(s) || /^needs verification/i.test(s);
+    }
+
+    function normalizeEnrichValue(v) {
+      return String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    }
+
+    /**
+     * Hard rule: if the same founder/industry/notes text is about to be written for two
+     * different domains in this batch, blank it to Unknown (shared boilerplate = bug signal).
+     */
+    function applyBatchUniquenessGuard(domain, fields) {
+      const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      const out = { ...fields };
+      const guardedKeys = ['industry', 'contacts', 'notes'];
+      for (const key of guardedKeys) {
+        const raw = out[key];
+        if (isBlankOrUnknown(raw)) {
+          out[key] = UNKNOWN;
+          continue;
+        }
+        const norm = normalizeEnrichValue(raw);
+        // Ignore ultra-generic short tokens
+        if (norm.length < 4) {
+          out[key] = UNKNOWN;
+          continue;
+        }
+        const owner = enrichmentValueRegistry[key].get(norm);
+        if (owner && owner !== host) {
+          console.warn(`[enrich] BLOCK duplicate ${key} "${raw}" already used by ${owner}; forcing Unknown for ${host}`);
+          out[key] = UNKNOWN;
+        } else {
+          enrichmentValueRegistry[key].set(norm, host);
+        }
+      }
+      // Headcount / location: never invent; blank → Unknown (no cross-company text collision check needed as often)
+      if (isBlankOrUnknown(out.headcount)) out.headcount = UNKNOWN;
+      if (isBlankOrUnknown(out.location)) out.location = UNKNOWN;
+      if (isBlankOrUnknown(out.gender)) out.gender = UNKNOWN;
+      return out;
+    }
+
+    async function fetchPageHtml(absoluteUrl, timeoutMs = 2800) {
+      const proxyBuilders = [
+        (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+        (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+        (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+        (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
+      ];
+      for (let i = 0; i < proxyBuilders.length; i++) {
+        try {
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), timeoutMs);
+          const res = await fetch(proxyBuilders[i](absoluteUrl), { signal: controller.signal });
+          clearTimeout(t);
+          if (!res.ok) continue;
+          let html = await res.text();
+          if (html.trim().startsWith('{') && html.includes('"contents"')) {
+            try { html = JSON.parse(html).contents || ''; } catch (_) {}
+          }
+          if (html && html.length >= 40) return html;
+        } catch (_) { /* try next proxy */ }
+      }
+      return null;
+    }
+
+    function extractMeta(html, prop) {
+      const patterns = [
+        new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)["']`, 'i'),
+        new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`, 'i')
+      ];
+      for (const p of patterns) {
+        const m = html.match(p);
+        if (m?.[1]) return m[1].trim();
+      }
+      return '';
+    }
+
+    function stripHtmlToText(html) {
+      return String(html || '')
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    /**
+     * Extract enrichment fields ONLY from scraped page HTML. No templates.
+     */
+    function extractEnrichmentFromHtml(html, companyName) {
+      if (!html) {
+        return { industry: UNKNOWN, headcount: UNKNOWN, location: UNKNOWN, contacts: UNKNOWN, gender: UNKNOWN, notes: UNKNOWN, source: 'none' };
+      }
+
+      const title = (html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] || '').trim();
+      const description = extractMeta(html, 'description') || extractMeta(html, 'og:description') || '';
+      const siteName = extractMeta(html, 'og:site_name') || '';
+      const footerMatch = html.match(/<footer[\s\S]{0,8000}<\/footer>/i);
+      const footerText = footerMatch ? stripHtmlToText(footerMatch[0]).slice(0, 1500) : '';
+      const aboutChunk = (() => {
+        const m = html.match(/id=["']about["'][\s\S]{0,6000}|class=["'][^"']*about[^"']*["'][\s\S]{0,6000}/i);
+        return m ? stripHtmlToText(m[0]).slice(0, 2000) : '';
+      })();
+      const bodyText = stripHtmlToText(html).slice(0, 8000);
+      const corpus = `${title}. ${description}. ${siteName}. ${aboutChunk}. ${footerText}. ${bodyText}`;
+
+      // Industry — entity type first (never let a program keyword override a university)
+      let industry = UNKNOWN;
+      const entityIndustry = inferEntityTypeIndustry(companyName, null);
+      if (entityIndustry) {
+        industry = entityIndustry;
+      } else {
+        const industryRules = [
+          [/higher education|research university|ivy league|\buniversity\b|\bcollege\b/i, 'Education'],
+          [/\bnonprofit\b|\bnon-profit\b|\bfoundation\b|\bcharity\b/i, 'Nonprofit / Foundation'],
+          [/\bgovernment\b|\bmunicipal\b|\bfederal\b|\bpublic agency\b/i, 'Government'],
+          [/venture capital|growth equity|private equity|seed (?:and|&) early-stage/i, 'Venture Capital'],
+          [/fund administration|fund administrator/i, 'Fund Administration'],
+          [/outsourced chief investment|OCIO/i, 'OCIO / Investment Management'],
+          [/asset management|investment management|investment firm/i, 'Investment Management'],
+          [/fintech|payments? infrastructure|financial technology/i, 'Financial Technology'],
+          [/artificial intelligence|machine learning|language model/i, 'Artificial Intelligence'],
+          [/software as a service|\bSaaS\b|productivity software/i, 'Software / SaaS'],
+          [/e-?commerce|online retail/i, 'E-Commerce / Retail'],
+          [/healthcare|biotech|therapeutics|clinical/i, 'Healthcare / Biotech'],
+          [/legal services|law firm/i, 'Legal Services']
+        ];
+        for (const [re, label] of industryRules) {
+          if (re.test(corpus)) { industry = label; break; }
+        }
+      }
+
+      // Location — explicit city/region patterns from page/footer
+      let location = UNKNOWN;
+      const locPatterns = [
+        /\b(?:based in|headquartered in|headquarters(?:\s+in)?|located in)\s+([A-Z][a-zA-Z .'-]+(?:,\s*[A-Z]{2})?)/,
+        /\b([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)?),\s*([A-Z]{2})\b(?:\s+\d{5})?/,
+        /\b(New York|San Francisco|London|Paris|Berlin|Toronto|Austin|Seattle|Boston|Chicago|Los Angeles|Nashville|Mountain View|Cupertino|Redmond|Menlo Park),\s*([A-Z]{2}|UK|CA|NY|TX|WA|MA|IL|TN)?/i
+      ];
+      for (const re of locPatterns) {
+        const m = corpus.match(re);
+        if (m) {
+          if (m[2]) location = `${m[1].replace(/^based in\s+/i, '').trim()}, ${m[2]}`.replace(/,\s*,/g, ',').trim();
+          else location = m[1].replace(/^(?:based in|headquartered in|headquarters(?:\s+in)?|located in)\s+/i, '').trim();
+          if (location.length > 3) break;
+          location = UNKNOWN;
+        }
+      }
+
+      // Headcount — only explicit employee counts on page
+      let headcount = UNKNOWN;
+      const hc = corpus.match(/\b(\d{1,3}(?:,\d{3})*\+?\s*[-–to]+\s*\d{1,3}(?:,\d{3})*\+?|\d{1,3}(?:,\d{3})*\+)\s*(?:employees|people|team members|professionals)\b/i);
+      if (hc) headcount = hc[1].replace(/\s+/g, ' ').trim();
+
+      // Founders / leadership — only explicit attributions on page
+      // Note: name captures are intentionally case-sensitive so /i does not turn
+      // "Founder and CEO" into a fake name like "and CEO".
+      let contacts = UNKNOWN;
+      const founderPatterns = [
+        /(?:[Ff]ounded by|[Cc]o-founded by|[Ff]ounder[:\s]+|[Cc]o-[Ff]ounder[:\s]+)([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})/,
+        /([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s*,?\s*(?:Founder|Co-Founder|CEO|Chief Executive Officer|Managing Partner|Managing Director)\b/
+      ];
+      const badName = /^(The|Our|This|With|And|Or|For|From|About|Meet|Team|Company|Board)\b|^(and|or)\b/i;
+      for (const re of founderPatterns) {
+        const m = corpus.match(re);
+        if (m?.[1]) {
+          const name = m[1].trim();
+          if (
+            name.split(/\s+/).length >= 2 &&
+            name.length < 60 &&
+            !badName.test(name) &&
+            !/\b(?:CEO|CTO|CFO|Founder)\b/i.test(name)
+          ) {
+            contacts = name;
+            break;
+          }
+        }
+      }
+
+      // Notes — prefer meta description if present and non-generic
+      let notes = UNKNOWN;
+      if (description && description.length > 20 && description.length < 280) {
+        notes = description;
+      } else if (aboutChunk && aboutChunk.length > 40) {
+        notes = aboutChunk.slice(0, 180).trim();
+      }
+
+      // Page must at least mention the company (weak confirmation) for any non-unknown field
+      const nameTokens = String(companyName || '').toLowerCase().split(/\s+/).filter(t => t.length > 2);
+      const pageLower = corpus.toLowerCase();
+      const mentionsCompany = nameTokens.length === 0 || nameTokens.some(t => pageLower.includes(t.replace(/[^a-z0-9]/g, '')));
+      if (!mentionsCompany) {
+        return { industry: UNKNOWN, headcount: UNKNOWN, location: UNKNOWN, contacts: UNKNOWN, gender: UNKNOWN, notes: UNKNOWN, source: 'scrape-unconfirmed' };
+      }
+
+      return { industry, headcount, location, contacts, gender: UNKNOWN, notes, source: 'scrape' };
+    }
+
+    function lookupDictionaryByDomain(domain) {
+      const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      for (const entry of Object.values(companyDictionary)) {
+        if (String(entry.domain || '').toLowerCase() === host) return entry;
+      }
+      return null;
+    }
+
     async function enrichCompanyDetails(domain, originalName, apiData = null) {
-      const enrichKey = `${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
+      const enrichKey = `v2|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
       if (enrichCache.has(enrichKey)) {
         console.log('[enrich] CACHE HIT', domain);
-        return { ...enrichCache.get(enrichKey), fromCache: true };
+        // Still re-run uniqueness guard against current batch
+        return applyBatchUniquenessGuard(domain, { ...enrichCache.get(enrichKey), fromCache: true });
       }
 
-      // Skip artificial latency — dictionary/heuristic returns are already instant
-      const cleaned = cleanName(originalName);
+      const blank = {
+        industry: UNKNOWN,
+        headcount: UNKNOWN,
+        location: UNKNOWN,
+        contacts: UNKNOWN,
+        gender: UNKNOWN,
+        notes: UNKNOWN,
+        enrichSource: 'none'
+      };
 
+      // 1) Prefer live scrape of homepage + about
+      const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      let scraped = blank;
+      try {
+        const homeHtml = await fetchPageHtml(`https://${host}/`, 3000);
+        scraped = extractEnrichmentFromHtml(homeHtml, originalName);
+        const needsMore = [scraped.industry, scraped.headcount, scraped.location, scraped.contacts].filter(v => isBlankOrUnknown(v)).length >= 3;
+        if (needsMore) {
+          const aboutHtml = await fetchPageHtml(`https://${host}/about`, 2800)
+            || await fetchPageHtml(`https://${host}/about-us`, 2800)
+            || await fetchPageHtml(`https://${host}/company`, 2800);
+          if (aboutHtml) {
+            const aboutFields = extractEnrichmentFromHtml(aboutHtml, originalName);
+            scraped = {
+              industry: !isBlankOrUnknown(scraped.industry) ? scraped.industry : aboutFields.industry,
+              headcount: !isBlankOrUnknown(scraped.headcount) ? scraped.headcount : aboutFields.headcount,
+              location: !isBlankOrUnknown(scraped.location) ? scraped.location : aboutFields.location,
+              contacts: !isBlankOrUnknown(scraped.contacts) ? scraped.contacts : aboutFields.contacts,
+              gender: UNKNOWN,
+              notes: !isBlankOrUnknown(scraped.notes) ? scraped.notes : aboutFields.notes,
+              enrichSource: 'scrape'
+            };
+          }
+        } else {
+          scraped = { ...scraped, enrichSource: 'scrape' };
+        }
+      } catch (e) {
+        console.warn('[enrich] scrape failed', domain, e);
+      }
+
+      // Entity-type industry ALWAYS wins over scraped keyword noise.
+      // Check TLD/name first, then Wikidata classification — only scrape Industry for businesses.
+      const entityType = await lookupWikidataEntityType(originalName, host);
+      if (entityType?.industry) {
+        scraped = {
+          ...scraped,
+          industry: entityType.industry,
+          enrichSource: scraped.enrichSource === 'none'
+            ? `entity-type:${entityType.source}`
+            : `${scraped.enrichSource}+entity-type:${entityType.source}`
+        };
+      }
+
+      // 2) Real lookup only: curated dictionary entry that matches this exact domain
+      //    (never invent founders/industry from name heuristics or name pools)
+      const dictEntry = lookupDictionaryByDomain(host);
+      if (dictEntry) {
+        const merge = (scrapedVal, dictVal) => {
+          if (!isBlankOrUnknown(scrapedVal)) return scrapedVal;
+          if (isBlankOrUnknown(dictVal) || /^needs manual/i.test(String(dictVal)) || /^needs verification/i.test(String(dictVal))) {
+            return UNKNOWN;
+          }
+          return dictVal;
+        };
+        // Founders: prefer curated domain lookup over weak homepage regex hits
+        // (scraped names that equal the company name, or title fragments, are discarded)
+        const scrapeContactOk = (() => {
+          if (isBlankOrUnknown(scraped.contacts)) return false;
+          const c = String(scraped.contacts).trim().toLowerCase();
+          const n = String(originalName || '').trim().toLowerCase();
+          if (c === n || n.includes(c) || c.includes(n)) return false;
+          return true;
+        })();
+        const dictFounder = isBlankOrUnknown(dictEntry.founder) || /^needs manual/i.test(String(dictEntry.founder))
+          ? UNKNOWN
+          : dictEntry.founder;
+        scraped = {
+          industry: merge(scraped.industry, dictEntry.industry),
+          headcount: merge(scraped.headcount, dictEntry.headcount),
+          location: merge(scraped.location, dictEntry.location),
+          contacts: !isBlankOrUnknown(dictFounder) ? dictFounder : (scrapeContactOk ? scraped.contacts : UNKNOWN),
+          gender: merge(scraped.gender, dictEntry.gender),
+          notes: merge(scraped.notes, dictEntry.notes),
+          enrichSource: scraped.enrichSource === 'scrape' ? 'scrape+dictionary' : 'dictionary'
+        };
+      } else if (!isBlankOrUnknown(scraped.contacts)) {
+        // No dictionary: still reject contacts that are just the company name
+        const c = String(scraped.contacts).trim().toLowerCase();
+        const n = String(originalName || '').trim().toLowerCase();
+        if (c === n || n.includes(c) || c.includes(n)) scraped.contacts = UNKNOWN;
+      }
+
+      // 3) Optional API payload — only accept explicit fields, never invent defaults
       if (apiData) {
-        const result = {
-          industry: apiData.industry || "Technology",
-          headcount: apiData.headcount || "11 - 50",
-          location: apiData.location || "San Francisco, CA",
-          notes: apiData.notes || "Verified via real-time search lookup.",
-          contacts: apiData.founder || "Needs Manual Research",
-          gender: apiData.gender || "Needs Verification"
+        const mergeApi = (scrapedVal, apiVal) => {
+          if (!isBlankOrUnknown(scrapedVal)) return scrapedVal;
+          if (isBlankOrUnknown(apiVal)) return UNKNOWN;
+          return apiVal;
         };
-        enrichCache.set(enrichKey, result);
-        return result;
-      }
-
-      const getContactAndGender = (compName) => {
-        const dict = {
-          "google": { name: "Sundar Pichai (CEO)", gender: "Male" },
-          "apple": { name: "Tim Cook (CEO)", gender: "Male" },
-          "microsoft": { name: "Satya Nadella (CEO)", gender: "Male" },
-          "notion": { name: "Ivan Zhao (Founder)", gender: "Male" },
-          "stripe": { name: "Patrick Collison (CEO)", gender: "Male" },
-          "openai": { name: "Sam Altman (CEO)", gender: "Male" },
-          "linkedin": { name: "Ryan Roslansky (CEO)", gender: "Male" },
-          "cornell": { name: "Martha E. Pollack (President)", gender: "Female" },
-          "cornell university": { name: "Martha E. Pollack (President)", gender: "Female" },
-          "impactus partners": { name: "Jean-Pierre Laurent (Managing Partner)", gender: "Male" },
-          "gilder partners": { name: "David Gilder (Partner)", gender: "Male" },
-          "gilder partners for growth": { name: "David Gilder (Partner)", gender: "Male" },
-          "plum alley": { name: "Deborah Jackson (CEO)", gender: "Female" },
-          "plum alley ventures": { name: "Deborah Jackson (CEO)", gender: "Female" },
-          "amazon": { name: "Andy Jassy (CEO)", gender: "Male" },
-          "meta": { name: "Mark Zuckerberg (CEO)", gender: "Male" },
-          "netflix": { name: "Ted Sarandos (CEO)", gender: "Male" },
-          "tesla": { name: "Elon Musk (CEO)", gender: "Male" },
-          "impala": { name: "Ben Stephenson (CEO)", gender: "Male" }
+        scraped = {
+          industry: mergeApi(scraped.industry, apiData.industry),
+          headcount: mergeApi(scraped.headcount, apiData.headcount),
+          location: mergeApi(scraped.location, apiData.location),
+          contacts: mergeApi(scraped.contacts, apiData.founder),
+          gender: mergeApi(scraped.gender, apiData.gender),
+          notes: mergeApi(scraped.notes, apiData.notes),
+          enrichSource: scraped.enrichSource || 'api'
         };
-        const cl = compName.trim().toLowerCase();
-        if (dict[cl]) return dict[cl];
-        for (const k in dict) {
-          if (cl.includes(k) || k.includes(cl)) return dict[k];
-        }
-        // Generative fallbacks matching name gender
-        const contactPool = [
-          { name: "Sarah Chen (Founder & CEO)", gender: "Female" },
-          { name: "Alex Vance (Founder & CEO)", gender: "Male" },
-          { name: "David Mercer (Co-Founder & CTO)", gender: "Male" },
-          { name: "Elena Gomez (Co-Founder & CEO)", gender: "Female" },
-          { name: "Marcus Patel (Managing Partner)", gender: "Male" },
-          { name: "Diana Foster (Founder & CEO)", gender: "Female" },
-          { name: "Ryan Brooks (Managing Director)", gender: "Male" },
-          { name: "Naomi Kim (Founder & CEO)", gender: "Female" }
-        ];
-        const code = compName.length || 0;
-        return contactPool[code % contactPool.length];
-      };
-
-      if (companyDictionary[cleaned]) {
-        const entry = companyDictionary[cleaned];
-        const contactInfo = getContactAndGender(cleaned);
-        const result = {
-          industry: entry.industry,
-          headcount: entry.headcount,
-          location: entry.location,
-          notes: entry.notes,
-          contacts: entry.founder || contactInfo.name,
-          gender: entry.gender || contactInfo.gender
-        };
-        enrichCache.set(enrichKey, result);
-        return result;
       }
 
-      for (const key in companyDictionary) {
-        if (cleaned.includes(key) || key.includes(cleaned)) {
-          const entry = companyDictionary[key];
-          const contactInfo = getContactAndGender(key);
-          const result = {
-            industry: entry.industry,
-            headcount: entry.headcount,
-            location: entry.location,
-            notes: entry.notes,
-            contacts: entry.founder || contactInfo.name,
-            gender: entry.gender || contactInfo.gender
-          };
-          enrichCache.set(enrichKey, result);
-          return result;
-        }
-      }
-
-      // Generative fallbacks
-      let industry = "SaaS / Software";
-      let headcount = "11 - 50";
-      let location = "San Francisco, CA";
-      let notes = "Website resolved. Details enriched from search logs.";
-
-      const textToScan = `${cleaned} ${domain}`;
-
-      if (textToScan.includes("capital") || textToScan.includes("venture") || textToScan.includes("vc") || textToScan.includes("partners") || textToScan.includes("fund")) {
-        industry = "Venture Capital";
-        headcount = "1 - 10";
-        location = "New York, NY";
-        notes = "Investment firm specializing in seed & early-stage financing.";
-      } else if (textToScan.includes("coffee") || textToScan.includes("cafe") || textToScan.includes("restaurant") || textToScan.includes("bakery") || textToScan.includes("bites")) {
-        industry = "Food & Beverages";
-        headcount = "11 - 50";
-        location = "Austin, TX";
-        notes = "Local gourmet food and beverage hospitality service.";
-      } else if (textToScan.includes("university") || textToScan.includes("college") || textToScan.includes("school") || textToScan.includes("academy") || textToScan.includes("edu")) {
-        industry = "Education";
-        headcount = "1,000 - 5,000";
-        location = "Boston, MA";
-        notes = "Academic institution offering courses and research facilities.";
-      } else if (textToScan.includes("law") || textToScan.includes("legal") || textToScan.includes("attorney") || textToScan.includes("chambers")) {
-        industry = "Legal Services";
-        headcount = "11 - 50";
-        location = "Chicago, IL";
-        notes = "Professional legal consulting and representation services.";
-      } else if (textToScan.includes("agency") || textToScan.includes("design") || textToScan.includes("studio") || textToScan.includes("creative")) {
-        industry = "Marketing & Creative";
-        headcount = "11 - 50";
-        location = "Los Angeles, CA";
-        notes = "Specializes in digital brand campaigns and product styling.";
-      } else if (textToScan.includes("consulting") || textToScan.includes("advisors") || textToScan.includes("group")) {
-        industry = "Management Consulting";
-        headcount = "51 - 200";
-        location = "London, UK";
-        notes = "Strategic business solutions and operations advising.";
-      } else if (textToScan.includes("health") || textToScan.includes("bio") || textToScan.includes("pharma") || textToScan.includes("clinic") || textToScan.includes("medical")) {
-        industry = "Healthcare / Biotech";
-        headcount = "251 - 500";
-        location = "San Diego, CA";
-        notes = "Innovating solutions in clinical health and therapeutics.";
-      } else if (textToScan.includes("shop") || textToScan.includes("store") || textToScan.includes("boutique") || textToScan.includes("apparel")) {
-        industry = "E-Commerce / Retail";
-        headcount = "1 - 10";
-        location = "Miami, FL";
-        notes = "Direct-to-consumer lifestyle merchandise store.";
-      } else if (textToScan.includes("ai") || textToScan.includes("labs") || textToScan.includes("intelligence") || textToScan.includes("tech")) {
-        industry = "Technology / AI";
-        headcount = "11 - 50";
-        location = "Seattle, WA";
-        notes = "Tech studio developing core software tools and AI models.";
-      } else {
-        const num = originalName.length;
-        const industries = ["Software", "Real Estate", "Financial Services", "Energy & Utility", "Manufacturing"];
-        const locations = ["Dallas, TX", "Denver, CO", "Atlanta, GA", "Toronto, ON", "Seattle, WA"];
-        const headcounts = ["1 - 10", "11 - 50", "51 - 200", "201 - 500", "5,000+"];
-        
-        industry = industries[num % industries.length];
-        location = locations[num % locations.length];
-        headcount = headcounts[num % headcounts.length];
-      }
-
-      const contactInfo = getContactAndGender(originalName);
+      // Guarantee no leftover blanks look "filled"
       const result = {
-        industry,
-        headcount,
-        location,
-        notes,
-        contacts: contactInfo.name,
-        gender: contactInfo.gender
+        industry: isBlankOrUnknown(scraped.industry) ? UNKNOWN : scraped.industry,
+        headcount: isBlankOrUnknown(scraped.headcount) ? UNKNOWN : scraped.headcount,
+        location: isBlankOrUnknown(scraped.location) ? UNKNOWN : scraped.location,
+        contacts: isBlankOrUnknown(scraped.contacts) ? UNKNOWN : scraped.contacts,
+        gender: isBlankOrUnknown(scraped.gender) ? UNKNOWN : scraped.gender,
+        notes: isBlankOrUnknown(scraped.notes) ? UNKNOWN : scraped.notes,
+        enrichSource: scraped.enrichSource || 'none'
       };
-      enrichCache.set(enrichKey, result);
-      return result;
+
+      const guarded = applyBatchUniquenessGuard(host, result);
+      enrichCache.set(enrichKey, guarded);
+      console.log('[enrich]', originalName, '->', guarded.enrichSource, {
+        industry: guarded.industry,
+        headcount: guarded.headcount,
+        location: guarded.location,
+        contacts: guarded.contacts
+      });
+      return guarded;
     }
 
     // --- CUSTOM SVG ICON COMPONENTS ---
@@ -2813,7 +3503,9 @@
           const take = queue.slice(0, free);
           if (!batchStartedAtRef.current) {
             batchStartedAtRef.current = performance.now();
-            console.log(`[batch] starting with concurrency=${ENRICH_CONCURRENCY}`);
+            enrichmentValueRegistry.reset();
+            enrichCache.clear();
+            console.log(`[batch] starting with concurrency=${ENRICH_CONCURRENCY}; enrichment uniqueness registry cleared`);
           }
           setQueue(q => q.slice(take.length));
           setActiveIds(ids => [...ids, ...take]);
@@ -3746,11 +4438,12 @@
                                     ) : col.key === conKey ? (
                                       (() => {
                                         const founderVal = row[col.key] || '';
-                                        const hasFounder = founderVal && founderVal !== '-' && founderVal !== 'Needs Manual Research' && founderVal !== 'Needs Verification';
+                                        const isUnknown = !founderVal || founderVal === '-' || /^unknown$/i.test(founderVal) || /^needs manual/i.test(founderVal) || /^needs verification/i.test(founderVal);
+                                        const hasFounder = !isUnknown;
                                         const searchQuery = hasFounder 
                                           ? `${row[compKey] || ''} ${founderVal}`
                                           : `${row[compKey] || ''} founder`;
-                                        const displayVal = hasFounder ? founderVal : (founderVal || 'Needs Manual Research');
+                                        const displayVal = hasFounder ? founderVal : 'Unknown';
                                         return (
                                           <a 
                                             href={`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`} 
@@ -3766,7 +4459,12 @@
                                         );
                                       })()
                                     ) : (
-                                      row[col.key] || '-'
+                                      (() => {
+                                        const val = row[col.key];
+                                        const isEnrichField = col.key === indKey || col.key === hcKey || col.key === locKey;
+                                        if (val && val !== '-') return val;
+                                        return isEnrichField ? 'Unknown' : '-';
+                                      })()
                                     )
                                   )}
                                 </td>
