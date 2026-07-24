@@ -377,7 +377,7 @@
     .col-status { width: 118px; min-width: 100px; }
     .col-companyName { width: 140px; min-width: 110px; }
     .col-sourceContact { width: 150px; min-width: 110px; }
-    .col-website { width: 130px; min-width: 100px; }
+    .col-website { width: 220px; min-width: 160px; }
     .col-industry { width: 100px; min-width: 80px; }
     .col-headcount { width: 80px; min-width: 70px; }
     .col-location { width: 100px; min-width: 85px; }
@@ -409,6 +409,107 @@
       line-height: 1.25;
       white-space: normal;
       margin-top: 0.15rem;
+    }
+    .candidate-picker {
+      margin-top: 0.35rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      max-width: 260px;
+    }
+    .candidate-picker-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: #92400E;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .candidate-option {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--border-color);
+      background: #fff;
+      border-radius: 6px;
+      padding: 0.35rem 0.45rem;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      font-family: inherit;
+    }
+    .candidate-option:hover {
+      border-color: var(--accent-color);
+      background: var(--accent-light);
+    }
+    .candidate-option-name {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+    .candidate-option-domain {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--accent-color);
+      line-height: 1.2;
+    }
+    .candidate-option-snippet {
+      display: block;
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+      line-height: 1.25;
+      margin-top: 0.1rem;
+    }
+    .candidate-manual-btn {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      background: transparent;
+      border: 1px dashed var(--border-color);
+      border-radius: 6px;
+      padding: 0.3rem 0.45rem;
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+    }
+    .candidate-manual-btn:hover {
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+    }
+    .candidate-manual-row {
+      display: flex;
+      gap: 0.25rem;
+      align-items: center;
+    }
+    .candidate-manual-row input {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      padding: 0.28rem 0.4rem;
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+    }
+    .candidate-change-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      margin-top: 0.25rem;
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 0.15rem 0;
+      font-family: inherit;
+    }
+    .candidate-change-btn:hover {
+      color: var(--accent-color);
+    }
+    .candidate-locked-domain {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
     }
     .url-plain {
       font-family: var(--font-mono);
@@ -1534,6 +1635,52 @@
       return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
+    /**
+     * Normalize mixed alternative formats (domain strings, snippets, objects)
+     * into selectable { domain, name, snippet } options for the UI picker.
+     */
+    function normalizeCandidates(...lists) {
+      const out = [];
+      const seen = new Set();
+      for (const list of lists) {
+        for (const item of (list || [])) {
+          let domain = '';
+          let name = '';
+          let snippet = '';
+          if (typeof item === 'string') {
+            const s = item.trim();
+            if (!s) continue;
+            if (/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(s)) {
+              domain = s.toLowerCase();
+              name = domain;
+            } else {
+              const hostMatch = s.match(/\b([a-z0-9][a-z0-9.-]*\.[a-z]{2,})\b/i);
+              snippet = s;
+              if (hostMatch) domain = hostMatch[1].toLowerCase();
+              else continue;
+              name = s.split('·')[0].trim() || domain;
+            }
+          } else if (item && typeof item === 'object') {
+            domain = String(item.domain || '')
+              .toLowerCase()
+              .replace(/^(https?:\/\/)?(www\.)?/, '')
+              .split('/')[0]
+              .trim();
+            name = item.name || item.label || item.matchedName || '';
+            snippet = item.snippet || item.description || item.industrySnippet || item.industry || '';
+          }
+          if (!domain || !domain.includes('.') || domain.includes(' ') || seen.has(domain)) continue;
+          seen.add(domain);
+          out.push({
+            domain,
+            name: name || domain,
+            snippet: snippet && snippet !== name && snippet !== domain ? snippet : ''
+          });
+        }
+      }
+      return out;
+    }
+
     function isKnownUnambiguousCompany(name) {
       return KNOWN_UNAMBIGUOUS.has(companyKeyNorm(name));
     }
@@ -2030,7 +2177,42 @@
         return cached ? { ...cached, fromCache: true } : null;
       }
 
+      // Accumulates every Clearbit/search suggestion so the picker can show them
+      // even when no single candidate passes strict verification.
+      let gatheredCandidates = [];
+
       const store = (result) => {
+        if (!result) {
+          if (gatheredCandidates.length > 0) {
+            result = {
+              domain: gatheredCandidates[0].domain,
+              isUnsure: true,
+              matchedName: gatheredCandidates[0].name,
+              industrySnippet: gatheredCandidates[0].snippet || 'Possible match (unconfirmed)',
+              candidates: gatheredCandidates,
+              alternativeDomains: gatheredCandidates.map(c => c.domain),
+              alternatives: gatheredCandidates.map(c => c.snippet || c.name || c.domain),
+              resolveMethod: 'name-only'
+            };
+            console.log('[resolve] no confident hit — returning', gatheredCandidates.length, 'picker candidates for', companyName);
+          }
+        } else {
+          const merged = normalizeCandidates(
+            result.candidates,
+            gatheredCandidates,
+            result.alternativeDomains,
+            result.domain
+              ? [{ domain: result.domain, name: result.matchedName || result.name || result.domain, snippet: result.industrySnippet || result.snippet || '' }]
+              : []
+          );
+          if (merged.length) {
+            result = {
+              ...result,
+              candidates: merged,
+              alternativeDomains: merged.map(c => c.domain)
+            };
+          }
+        }
         resolveCache.set(cacheKey, result);
         return result;
       };
@@ -2067,14 +2249,19 @@
         try {
           const skipParam = (skippedDomains || []).join(',');
           const response = await fetch(`/api/enrich?name=${encodeURIComponent(companyName)}&skip=${encodeURIComponent(skipParam)}`);
-          if (response.ok) {
+          const ct = response.headers.get('content-type') || '';
+          if (response.ok && ct.includes('application/json')) {
             const data = await response.json();
             if (data && !data.error && data.domain) {
-              return { 
-                domain: data.domain, 
-                isUnsure: data.isUnsure,
-                apiData: data
-              };
+              return store({
+                domain: data.domain,
+                isUnsure: !!data.isUnsure,
+                apiData: data,
+                matchedName: data.name || companyName,
+                industrySnippet: data.industry || data.notes || '',
+                candidates: normalizeCandidates(data.candidates, [{ domain: data.domain, name: data.name, snippet: data.industry }]),
+                resolveMethod: 'name-only'
+              });
             }
           }
         } catch (e) {
@@ -2254,6 +2441,11 @@
         );
         const alternatives = scored.slice(0, 3).map(s => s.snippet).filter(Boolean);
         const alternativeDomains = scored.slice(0, 5).map(s => s.domain).filter(Boolean);
+        const candidates = scored.slice(0, 5).map(s => ({
+          domain: s.domain,
+          name: s.name || s.domain,
+          snippet: s.snippet || ''
+        }));
 
         if (financeFilterActive && best.isNonFinance && !best.isFinance) {
           const financeAlt = scored.find(s => s.isFinance);
@@ -2268,6 +2460,7 @@
               ambiguous: true,
               alternatives,
               alternativeDomains,
+              candidates,
               deprioritized: true
             };
           }
@@ -2281,6 +2474,7 @@
           ambiguous,
           alternatives,
           alternativeDomains,
+          candidates,
           exactName: !!best.exactName
         };
       };
@@ -2305,13 +2499,19 @@
       const toResolveResult = (match, method = 'name-only') => {
         if (!match || !match.domain) return null;
         const isUnsure = !!(match.ambiguous || match.deprioritized) && !match.exactName && match.score < 120;
+        const candidates = normalizeCandidates(
+          match.candidates,
+          (match.alternativeDomains || []).map(d => ({ domain: d })),
+          [{ domain: match.domain, name: match.name, snippet: match.snippet }]
+        );
         return {
           domain: match.domain,
           isUnsure,
           matchedName: match.name,
           industrySnippet: match.snippet,
           alternatives: match.alternatives || [],
-          alternativeDomains: match.alternativeDomains || [],
+          alternativeDomains: match.alternativeDomains || candidates.map(c => c.domain),
+          candidates,
           resolveMethod: method
         };
       };
@@ -2324,6 +2524,15 @@
             const response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(q)}`);
             const data = await response.json();
             if (data && data.length > 0) {
+              // Always keep every suggestion for the picker (even if scoring rejects them)
+              gatheredCandidates = normalizeCandidates(
+                gatheredCandidates,
+                data.map(item => ({
+                  domain: item.domain,
+                  name: item.name || item.domain,
+                  snippet: inferSnippet(item)
+                }))
+              );
               const match = findBestDomainMatch(data, scoreAgainst || baseCleaned || companyName);
               const resolved = toResolveResult(match, method);
               if (resolved && (!resolved.isUnsure || match.exactName || match.score >= 100)) {
@@ -2341,23 +2550,55 @@
 
       try {
         // Prefer unaugmented brand name BEFORE finance-augmented queries
-        // (finance "X capital" otherwise matches lesser firms like blackstonecap.com)
-        const nameOnlyQueries = [baseCleaned || companyName, companyName, searchQuery];
+        const firstToken = String(baseCleaned || companyName).trim().split(/\s+/)[0];
+        const STOP_TOKENS = new Set(['office', 'west', 'new', 'the', 'city', 'of', 'and', 'for', 'group', 'fund', 'private', 'public', 'global', 'international', 'united', 'american', 'national']);
+        const strippedLegal = String(companyName)
+          .replace(/\b(llc|inc|ltd|limited|corp|corporation|co)\b/gi, '')
+          .replace(/&/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        const strippedOrgSuffix = String(companyName)
+          .replace(/\b(foundation|endowment|trust)\b/gi, '')
+          .replace(/^office of\s+/i, '')
+          .replace(/&/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        const nameOnlyQueries = [
+          strippedLegal,
+          strippedOrgSuffix,
+          baseCleaned || companyName,
+          companyName.replace(/&/g, ' ').replace(/\s+/g, ' ').trim(),
+          companyName,
+          searchQuery,
+          (firstToken && firstToken.length >= 4 && !STOP_TOKENS.has(firstToken.toLowerCase())) ? firstToken : null
+        ].filter((q, i, arr) => q && String(q).trim().length >= 2 && arr.indexOf(q) === i);
+
         let nameHit = await tryClearbitQueries(nameOnlyQueries, baseCleaned || companyName, 'name-only');
         let clearbitAltDomains = [
           ...((nameHit && nameHit.alternativeDomains) || []),
+          ...gatheredCandidates.map(c => c.domain)
         ];
 
         // Also collect raw Clearbit domains for prominence (re-query best unaugmented once)
         try {
-          const cbRes = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(baseCleaned || companyName)}`);
-          if (cbRes.ok) {
-            const cbData = await cbRes.json();
-            if (Array.isArray(cbData)) {
-              clearbitAltDomains = [...new Set([
-                ...clearbitAltDomains,
-                ...cbData.map(x => String(x.domain || '').toLowerCase()).filter(Boolean)
-              ])];
+          for (const q of [strippedLegal, strippedOrgSuffix, baseCleaned || companyName].filter(Boolean)) {
+            const cbRes = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(q)}`);
+            if (cbRes.ok) {
+              const cbData = await cbRes.json();
+              if (Array.isArray(cbData)) {
+                gatheredCandidates = normalizeCandidates(
+                  gatheredCandidates,
+                  cbData.map(item => ({
+                    domain: item.domain,
+                    name: item.name || item.domain,
+                    snippet: inferSnippet(item)
+                  }))
+                );
+                clearbitAltDomains = [...new Set([
+                  ...clearbitAltDomains,
+                  ...cbData.map(x => String(x.domain || '').toLowerCase()).filter(Boolean)
+                ])];
+              }
             }
           }
         } catch (_) { /* non-fatal */ }
@@ -2379,6 +2620,18 @@
                 matchedName: prominence.label || nameHit.matchedName,
                 industrySnippet: prominence.snippet || nameHit.industrySnippet,
                 alternatives: prominence.alternatives || [nameHit.domain, ...(nameHit.alternatives || [])].slice(0, 4),
+                alternativeDomains: normalizeCandidates(
+                  prominence.alternatives,
+                  clearbitAltDomains,
+                  [{ domain: prominence.domain, name: prominence.label, snippet: prominence.snippet }]
+                ).map(c => c.domain),
+                candidates: normalizeCandidates(
+                  prominence.alternatives,
+                  clearbitAltDomains,
+                  nameHit.candidates,
+                  [{ domain: prominence.domain, name: prominence.label, snippet: prominence.snippet }],
+                  [{ domain: nameHit.domain, name: nameHit.matchedName, snippet: nameHit.industrySnippet }]
+                ),
                 resolveMethod: 'name-only',
                 fastPath: true
               };
@@ -2388,6 +2641,17 @@
                 domain: prominence.domain || nameHit.domain,
                 isUnsure: true,
                 alternatives: prominence.alternatives || [prominence.domain, nameHit.domain].filter(Boolean),
+                alternativeDomains: normalizeCandidates(
+                  prominence.alternatives,
+                  clearbitAltDomains,
+                  nameHit.candidates
+                ).map(c => c.domain),
+                candidates: normalizeCandidates(
+                  prominence.alternatives,
+                  clearbitAltDomains,
+                  nameHit.candidates,
+                  [{ domain: prominence.domain || nameHit.domain, name: prominence.label || nameHit.matchedName, snippet: prominence.snippet || nameHit.industrySnippet }]
+                ),
                 industrySnippet: `${nameHit.industrySnippet || nameHit.matchedName} · ambiguous candidates: ${(prominence.alternatives || []).join(' · ')}`
               };
             }
@@ -2562,12 +2826,17 @@
 
           if (domain && domain.includes('.') && !domain.includes('wikipedia.org')) {
             console.log('[resolve] Wikipedia/Wikidata official site', companyName, '->', domain, '(via', wq, ')');
+            gatheredCandidates = normalizeCandidates(
+              gatheredCandidates,
+              [{ domain, name: wikiTitle, snippet: description || wikiTitle }]
+            );
             return store({
               domain,
-              isUnsure: false,
+              isUnsure: gatheredCandidates.length > 1,
               matchedName: wikiTitle,
               industrySnippet: `${wikiTitle}${description ? ' · ' + description : ''}`,
               alternatives: titles.slice(0, 3),
+              candidates: gatheredCandidates,
               resolveMethod: 'name-only'
             });
           }
@@ -3100,7 +3369,7 @@
         status: 118,
         companyName: 140,
         sourceContact: 150,
-        website: 130,
+        website: 220,
         industry: 100,
         headcount: 80,
         location: 100,
@@ -3110,7 +3379,7 @@
       const [colWidths, setColWidths] = useState({ ...DEFAULT_COL_WIDTHS });
       // Load persisted widths on mount
       useEffect(() => {
-        const saved = localStorage.getItem('colWidths_v2');
+        const saved = localStorage.getItem('colWidths_v3');
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
@@ -3121,11 +3390,12 @@
         } else {
           // Drop legacy wide widths from earlier versions
           localStorage.removeItem('colWidths');
+          localStorage.removeItem('colWidths_v2');
         }
       }, []);
       // Save widths whenever they change
       useEffect(() => {
-        localStorage.setItem('colWidths_v2', JSON.stringify(colWidths));
+        localStorage.setItem('colWidths_v3', JSON.stringify(colWidths));
       }, [colWidths]);
       // Resizing handlers
       const startResize = (e, key) => {
@@ -3603,8 +3873,10 @@
               let apiData = null;
               let industrySnippet = '';
               let alternatives = [];
-              let resolveMethod = 'name-only';
+              let candidates = rowToProcess.candidates || [];
+              let resolveMethod = rowToProcess.resolveMethod || 'name-only';
               let fastPath = false;
+              const userConfirmed = !!rowToProcess.userConfirmedDomain;
               const skippedDomains = rowToProcess.skippedDomains || [];
 
               if (!isDomainPrepopulated) {
@@ -3626,14 +3898,20 @@
 
                 if (resolvedObj && resolvedObj.domain) {
                   domain = resolvedObj.domain;
-                  isUnsure = !!resolvedObj.isUnsure;
+                  isUnsure = !!resolvedObj.isUnsure && !userConfirmed;
                   apiData = resolvedObj.apiData || null;
                   industrySnippet = resolvedObj.industrySnippet || resolvedObj.matchedName || '';
                   alternatives = resolvedObj.alternatives || [];
+                  candidates = normalizeCandidates(
+                    resolvedObj.candidates,
+                    resolvedObj.alternativeDomains,
+                    alternatives,
+                    [{ domain, name: resolvedObj.matchedName, snippet: industrySnippet }]
+                  );
                   resolveMethod = resolvedObj.resolveMethod || 'name-only';
                   fastPath = !!resolvedObj.fastPath || isKnownUnambiguousCompany(companyName);
 
-                  updateRow(rowId, { status: 'verifying', [webKey]: domain, resolveMethod });
+                  updateRow(rowId, { status: 'verifying', [webKey]: domain, resolveMethod, candidates });
                   const verification = await verifyDomainLive(domain, companyName, { fastPath });
                   if (!verification.ok) {
                     finishUnverified({
@@ -3643,8 +3921,13 @@
                       [locKey]: '-',
                       [conKey]: '-',
                       [genKey]: '-',
-                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', verification.reason, alternatives.length ? `Candidates: ${alternatives.join(' · ')}` : ''].filter(Boolean).join(' · '),
+                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', verification.reason, candidates.length ? 'Possible matches below (unconfirmed)' : ''].filter(Boolean).join(' · '),
                       matchSnippet: industrySnippet,
+                      candidates,
+                      savedCandidates: candidates,
+                      selectionLocked: false,
+                      pickerOpen: true,
+                      candidatesUnconfirmed: true,
                       resolveMethod
                     });
                     return;
@@ -3659,17 +3942,30 @@
                       [locKey]: '-',
                       [conKey]: '-',
                       [genKey]: '-',
-                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', alternatives.length ? `Ambiguous matches: ${alternatives.join(' · ')}` : 'Possible match needs manual confirmation'].filter(Boolean).join(' · '),
+                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', candidates.length ? 'Select the correct website below' : 'Possible match needs manual confirmation'].filter(Boolean).join(' · '),
                       matchSnippet: industrySnippet,
                       linkVerified: false,
-                      resolveMethod
+                      candidates,
+                      savedCandidates: candidates,
+                      selectionLocked: false,
+                      pickerOpen: true,
+                      candidatesUnconfirmed: false,
+                      resolveMethod,
+                      userConfirmedDomain: false
                     });
                     release(rowId);
                     return;
                   }
 
-                  updateRow(rowId, { [webKey]: domain, status: 'enriching', matchSnippet: industrySnippet, linkVerified: true, resolveMethod });
+                  updateRow(rowId, { [webKey]: domain, status: 'enriching', matchSnippet: industrySnippet, linkVerified: true, resolveMethod, userConfirmedDomain: false });
                 } else {
+                  // No confident domain — still attach any loose candidates for the picker
+                  const looseCandidates = normalizeCandidates(
+                    resolvedObj?.candidates,
+                    resolvedObj?.alternativeDomains,
+                    alternatives,
+                    candidates
+                  );
                   finishUnverified({
                     [webKey]: '',
                     [indKey]: '-',
@@ -3677,45 +3973,77 @@
                     [locKey]: '-',
                     [conKey]: '-',
                     [genKey]: '-',
-                    [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', 'Could not resolve a verified domain'].filter(Boolean).join(' · '),
+                    [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', 'Could not resolve a verified domain', looseCandidates.length ? 'Possible matches below (unconfirmed)' : 'No candidates found — enter a domain manually'].filter(Boolean).join(' · '),
+                    candidates: looseCandidates,
+                    savedCandidates: looseCandidates,
+                    selectionLocked: false,
+                    pickerOpen: true,
+                    candidatesUnconfirmed: true,
                     resolveMethod: resolveMethod || 'none'
                   });
                   return;
                 }
               } else {
                 updateRow(rowId, { status: 'verifying' });
-                const verification = await verifyDomainLive(domain, companyName, { fastPath: isKnownUnambiguousCompany(companyName) });
+                // User-confirmed domains still go through real verification (no fastPath shortcut)
+                const verification = await verifyDomainLive(domain, companyName, {
+                  fastPath: isKnownUnambiguousCompany(companyName) && !userConfirmed
+                });
                 if (!verification.ok) {
+                  const keepCandidates = normalizeCandidates(
+                    rowToProcess.savedCandidates,
+                    rowToProcess.candidates,
+                    [{ domain, name: companyName, snippet: 'Previously selected — could not verify' }]
+                  );
                   finishUnverified({
-                    [webKey]: '',
-                    [noteKey]: verification.reason || 'Link verification failed for manual domain override',
-                    resolveMethod: 'manual'
+                    [webKey]: domain,
+                    [noteKey]: verification.reason || 'Could not verify that domain — pick another or enter manually',
+                    candidates: keepCandidates,
+                    savedCandidates: keepCandidates,
+                    selectionLocked: false,
+                    pickerOpen: true,
+                    candidatesUnconfirmed: true,
+                    userConfirmedDomain: false,
+                    resolveMethod: userConfirmed ? 'user-confirmed-failed' : 'manual'
                   });
                   return;
                 }
-                updateRow(rowId, { status: 'enriching', linkVerified: true, resolveMethod: 'manual' });
+                updateRow(rowId, { status: 'enriching', linkVerified: true, resolveMethod: userConfirmed ? 'user-confirmed' : 'manual' });
               }
 
               const details = await enrichCompanyDetails(domain, companyName, apiData);
               const priorNotes = rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Queueing...' && rowToProcess[noteKey] !== '-'
+                && !/Select the correct website|Pick a candidate|Select or enter a domain|Ambiguous matches|Candidates:|Possible matches|Enriching confirmed|Could not verify/i.test(rowToProcess[noteKey])
                 ? rowToProcess[noteKey]
                 : '';
               const noteWithSnippet = industrySnippet && details.notes && !details.notes.includes(industrySnippet)
                 ? `${details.notes} [${industrySnippet}]`
                 : details.notes;
               const mergedNotes = [priorNotes, noteWithSnippet].filter(Boolean).join(' · ');
+              const keepForLater = normalizeCandidates(
+                rowToProcess.savedCandidates,
+                rowToProcess.candidates,
+                candidates
+              );
 
               updateRow(rowId, {
-                [indKey]: rowToProcess[indKey] === '-' || !rowToProcess[indKey] ? details.industry : rowToProcess[indKey],
-                [hcKey]: rowToProcess[hcKey] === '-' || !rowToProcess[hcKey] ? details.headcount : rowToProcess[hcKey],
-                [locKey]: rowToProcess[locKey] === '-' || !rowToProcess[locKey] ? details.location : rowToProcess[locKey],
-                [conKey]: rowToProcess[conKey] === '-' || !rowToProcess[conKey] ? details.contacts : rowToProcess[conKey],
-                [genKey]: rowToProcess[genKey] === '-' || !rowToProcess[genKey] ? details.gender : rowToProcess[genKey],
-                [noteKey]: mergedNotes,
+                [indKey]: details.industry,
+                [hcKey]: details.headcount,
+                [locKey]: details.location,
+                [conKey]: details.contacts,
+                [genKey]: details.gender,
+                [noteKey]: mergedNotes || details.notes || '-',
                 status: 'found',
                 matchSnippet: industrySnippet,
                 linkVerified: true,
-                resolveMethod
+                resolveMethod: userConfirmed ? 'user-confirmed' : resolveMethod,
+                candidates: keepForLater,
+                savedCandidates: keepForLater,
+                selectionLocked: true,
+                pickerOpen: false,
+                candidatesUnconfirmed: false,
+                userConfirmedDomain: false,
+                showManualDomain: false
               });
               release(rowId);
             } catch (err) {
@@ -3889,6 +4217,70 @@
           return row;
         }));
         setQueue(prev => [...prev, rowId]);
+      };
+
+      /**
+       * User picked a candidate (or typed a domain) for Potential/Unverified —
+       * skip re-search and verify+enrich that specific domain (does not force Found).
+       */
+      const handleConfirmCandidate = (rowId, rawDomain) => {
+        if (!rawDomain || queue.includes(rowId) || activeIds.includes(rowId)) return;
+        const clean = String(rawDomain)
+          .trim()
+          .toLowerCase()
+          .replace(/^(https?:\/\/)?(www\.)?/, '')
+          .split('/')[0]
+          .replace(/[^a-z0-9.-]/g, '');
+        if (!clean || !clean.includes('.')) return;
+
+        const webKey = getWebsiteColumnKey();
+        const noteKey = getNotesColumnKey();
+        const indKey = getIndustryColumnKey();
+        const hcKey = getHeadcountColumnKey();
+        const locKey = getLocationColumnKey();
+        const conKey = getContactsColumnKey();
+        const genKey = getGenderColumnKey();
+
+        setRows(prev => prev.map(row => {
+          if (row.id !== rowId) return row;
+          const preserved = normalizeCandidates(row.savedCandidates, row.candidates);
+          return {
+            ...row,
+            status: 'pending',
+            [webKey]: clean,
+            [indKey]: '-',
+            [hcKey]: '-',
+            [locKey]: '-',
+            [conKey]: '-',
+            [genKey]: '-',
+            [noteKey]: 'Verifying selected domain...',
+            linkVerified: undefined,
+            userConfirmedDomain: true,
+            selectionLocked: false,
+            pickerOpen: false,
+            showManualDomain: false,
+            manualDomainDraft: '',
+            resolveMethod: 'user-confirmed',
+            candidates: preserved,
+            savedCandidates: preserved
+          };
+        }));
+        setQueue(prev => [...prev, rowId]);
+      };
+
+      const handleChangeSelection = (rowId) => {
+        setRows(prev => prev.map(row => {
+          if (row.id !== rowId) return row;
+          const list = normalizeCandidates(row.savedCandidates, row.candidates);
+          return {
+            ...row,
+            pickerOpen: true,
+            selectionLocked: false,
+            showManualDomain: false,
+            candidates: list,
+            savedCandidates: list
+          };
+        }));
       };
 
       const handleCellDoubleClick = (rowId, colName, currentValue) => {
@@ -4383,41 +4775,120 @@
                                         )}
                                       </div>
                                     ) : col.key === webKey ? (
-                                      row[col.key] && row[col.key] !== '-' ? (
-                                        row.status === 'found' && row.linkVerified !== false ? (
-                                          <a 
-                                            href={row[col.key].startsWith('http') ? row[col.key] : `https://${row[col.key]}`} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="url-link"
-                                            onClick={(e) => e.stopPropagation()}
-                                            title="Verified website"
-                                          >
-                                            <span>{row[col.key]}</span>
-                                            <ExternalLinkIcon size={10} />
-                                          </a>
-                                        ) : (
-                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', maxWidth: '100%' }}>
-                                            <span className="url-plain" title="Not verified — not shown as a clickable link">
+                                      (() => {
+                                        const list = normalizeCandidates(row.candidates, row.savedCandidates);
+                                        const showPicker = (row.status === 'potential' || row.status === 'unverified' || row.pickerOpen) && !row.selectionLocked;
+                                        const isFoundLocked = row.status === 'found' && row.linkVerified !== false && row.selectionLocked && !row.pickerOpen;
+                                        const isFoundLink = row.status === 'found' && row.linkVerified !== false && row[col.key] && row[col.key] !== '-';
+
+                                        if (showPicker) {
+                                          return (
+                                            <div className="candidate-picker" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                                              {row[col.key] && row[col.key] !== '-' && (
+                                                <span className="url-plain" title="Current selection / best guess">
+                                                  {row[col.key]}
+                                                </span>
+                                              )}
+                                              <span className="candidate-picker-label">
+                                                {list.length
+                                                  ? (row.candidatesUnconfirmed || row.status === 'unverified'
+                                                    ? 'Possible matches (unconfirmed)'
+                                                    : 'Select correct website')
+                                                  : 'Enter website'}
+                                              </span>
+                                              {list.slice(0, 6).map((c) => (
+                                                <button
+                                                  key={c.domain}
+                                                  type="button"
+                                                  className="candidate-option"
+                                                  title={`Verify and use ${c.domain}`}
+                                                  onClick={() => handleConfirmCandidate(row.id, c.domain)}
+                                                >
+                                                  <span className="candidate-option-name">{c.name || c.domain}</span>
+                                                  <span className="candidate-option-domain">{c.domain}</span>
+                                                  {c.snippet ? (
+                                                    <span className="candidate-option-snippet">{c.snippet}</span>
+                                                  ) : null}
+                                                </button>
+                                              ))}
+                                              {row.showManualDomain ? (
+                                                <div className="candidate-manual-row">
+                                                  <input
+                                                    type="text"
+                                                    placeholder="example.com"
+                                                    value={row.manualDomainDraft || ''}
+                                                    onChange={(e) => updateRow(row.id, { manualDomainDraft: e.target.value })}
+                                                    onKeyDown={(e) => {
+                                                      if (e.key === 'Enter') handleConfirmCandidate(row.id, row.manualDomainDraft);
+                                                    }}
+                                                  />
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleConfirmCandidate(row.id, row.manualDomainDraft)}
+                                                  >
+                                                    Use
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <button
+                                                  type="button"
+                                                  className="candidate-manual-btn"
+                                                  onClick={() => updateRow(row.id, { showManualDomain: true })}
+                                                >
+                                                  None of these / Enter manually
+                                                </button>
+                                              )}
+                                              {row.status === 'found' && (
+                                                <button
+                                                  type="button"
+                                                  className="candidate-change-btn"
+                                                  onClick={() => updateRow(row.id, { pickerOpen: false, selectionLocked: true, showManualDomain: false })}
+                                                >
+                                                  Cancel
+                                                </button>
+                                              )}
+                                            </div>
+                                          );
+                                        }
+
+                                        if (isFoundLink) {
+                                          return (
+                                            <div className="candidate-locked-domain" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                                              <a
+                                                href={row[col.key].startsWith('http') ? row[col.key] : `https://${row[col.key]}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="url-link"
+                                                title="Verified website"
+                                              >
+                                                <span>{row[col.key]}</span>
+                                                <ExternalLinkIcon size={10} />
+                                              </a>
+                                              <button
+                                                  type="button"
+                                                  className="candidate-change-btn"
+                                                  title="Change selection"
+                                                  onClick={() => handleChangeSelection(row.id)}
+                                                >
+                                                  <RefreshIcon size={10} />
+                                                  <span>Change selection</span>
+                                                </button>
+                                            </div>
+                                          );
+                                        }
+
+                                        if (row[col.key] && row[col.key] !== '-') {
+                                          return (
+                                            <span className="url-plain" title="Not verified">
                                               {row[col.key]}
                                             </span>
-                                            <span style={{ fontSize: '0.68rem', color: '#D97706', fontStyle: 'italic' }}>
-                                              {row.status === 'potential' ? 'Unverified candidate' : 'Unverified'}
-                                            </span>
-                                            {row.matchSnippet && (
-                                              <span className="match-snippet" title={row.matchSnippet}>{row.matchSnippet}</span>
-                                            )}
-                                          </div>
-                                        )
-                                      ) : (
-                                        <span style={{ color: 'var(--text-secondary)' }}>-</span>
-                                      )
+                                          );
+                                        }
+                                        return <span style={{ color: 'var(--text-secondary)' }}>-</span>;
+                                      })()
                                     ) : col.key === indKey ? (
                                       <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '100%' }}>
                                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row[col.key] || '-'}</span>
-                                        {row.matchSnippet && row.status === 'potential' && (
-                                          <span className="match-snippet" title={row.matchSnippet}>{row.matchSnippet}</span>
-                                        )}
                                       </div>
                                     ) : col.key === locKey ? (
                                       row[col.key] && row[col.key] !== '-' ? (
