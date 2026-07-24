@@ -8,10 +8,18 @@
  *
  * Live Site URL for Supabase Auth (Authentication → URL Configuration):
  *   Site URL:      https://plum-alley-clay-mimic.vercel.app
- *   Redirect URLs: https://plum-alley-clay-mimic.vercel.app
+ *   Redirect URLs (add ALL of these):
+ *                  https://plum-alley-clay-mimic.vercel.app
+ *                  https://plum-alley-clay-mimic.vercel.app/**
  *                  http://localhost:5173
- *                  http://127.0.0.1:5173
+ *                  http://localhost:5173/**
+ *                  http://localhost:3000
+ *                  http://localhost:3000/**
  *
+ * Magic-link emails use emailRedirectTo = window.location.origin from the app.
+ * If that origin is NOT in Redirect URLs, Supabase falls back to Site URL
+ * (which used to be localhost:3000 — that is why old links opened localhost).
+ * Always request a NEW link after changing these settings.
  * LOCAL: paste once in the in-app setup form (localStorage), or put values below.
  */
 window.PLUM_SUPABASE = window.PLUM_SUPABASE || {

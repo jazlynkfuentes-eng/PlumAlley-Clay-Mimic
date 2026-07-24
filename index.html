@@ -3694,9 +3694,16 @@
       const [busy, setBusy] = useState(false);
 
       const authRedirectTo = () => {
-        // Prefer a clean origin path so magic-link redirects match Supabase Redirect URLs.
-        const path = window.location.pathname || '/';
-        return `${window.location.origin}${path === '/' ? '/' : path}`;
+        // Always use the origin of the page that requested the login.
+        // Never hardcode localhost — that would break production magic links.
+        // Use origin only (no path) so it matches Supabase Redirect URLs exactly.
+        const origin = (window.location && window.location.origin) ? window.location.origin : '';
+        if (!origin || origin === 'null') {
+          console.error('[plum] authRedirectTo: missing window.location.origin');
+          return '';
+        }
+        console.log('[plum] authRedirectTo →', origin);
+        return origin;
       };
 
       const saveConfig = async () => {
@@ -3788,7 +3795,12 @@
           }
 
           const redirectTo = authRedirectTo();
-          console.log('[plum] signInWithOtp', { redirectTo, email: trimmed });
+          if (!redirectTo) {
+            setMsgType('err');
+            setMsg('Could not determine redirect URL from this page. Open the app via its real URL (Vercel or localhost) and try again.');
+            return;
+          }
+          console.log('[plum] signInWithOtp', { emailRedirectTo: redirectTo, email: trimmed, pageHref: window.location.href });
           const { error } = await sb.auth.signInWithOtp({
             email: trimmed,
             options: {
@@ -3806,7 +3818,7 @@
             } else if (m.includes('smtp') || m.includes('error sending') || m.includes('unable to send')) {
               hint = `${error.message} Supabase’s built-in mailer failed — set custom SMTP (Resend) under Project Settings → Auth → SMTP, or use Continue with Google.`;
             } else if (m.includes('redirect')) {
-              hint = `${error.message} Add exactly ${window.location.origin} to Supabase → Authentication → URL Configuration → Redirect URLs, and set Site URL to your live origin.`;
+              hint = `${error.message} Add exactly ${redirectTo} and ${redirectTo}/** to Supabase → Authentication → URL Configuration → Redirect URLs. Set Site URL to your live Vercel origin (not localhost).`;
             }
             setMsgType('err');
             setMsg(hint);
@@ -3816,8 +3828,10 @@
           setAwaitingCode(true);
           setMsgType('ok');
           setMsg(
-            `Sent to ${trimmed}. Click the link in the email, or type the 6-digit code below. ` +
-            `If nothing arrives in ~1 min: check Spam/Promotions, and in Supabase confirm Email is enabled + Redirect URL includes ${window.location.origin}.`
+            `Sent to ${trimmed}. The login link will return you to: ${redirectTo}. ` +
+            `If it opens localhost instead, discard that email — either ${redirectTo} is missing from Supabase Redirect URLs ` +
+            `(add ${redirectTo} and ${redirectTo}/**; Site URL = Vercel, not localhost) or you clicked an old link. ` +
+            `Request a new link from the live site, or paste the 6-digit code below.`
           );
         } catch (err) {
           console.error('[plum] signInWithOtp threw', err);
