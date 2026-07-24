@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "installCommand": "echo Skipping install — static Babel app",
-  "buildCommand": "echo Skipping Vite build — serving index.html",
+  "installCommand": "echo Skipping npm install — static Babel app",
+  "buildCommand": "node scripts/write-supabase-config.mjs",
   "outputDirectory": "."
 }

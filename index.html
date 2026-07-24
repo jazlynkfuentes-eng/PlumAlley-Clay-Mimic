@@ -3576,23 +3576,97 @@
 
     function getSupabaseConfig() {
       const fromWindow = window.PLUM_SUPABASE || {};
-      const url = (localStorage.getItem(SUPABASE_LS_KEY) || fromWindow.url || '').trim();
-      const anonKey = (localStorage.getItem(SUPABASE_ANON_KEY) || fromWindow.anonKey || '').trim();
-      return { url, anonKey, configured: !!(url && anonKey) };
+      const bakedUrl = (fromWindow.url || '').trim();
+      const bakedKey = (fromWindow.anonKey || '').trim();
+      const lsUrl = (localStorage.getItem(SUPABASE_LS_KEY) || '').trim();
+      const lsKey = (localStorage.getItem(SUPABASE_ANON_KEY) || '').trim();
+      // Prefer baked-in deploy config (Vercel env → write-supabase-config.mjs).
+      // Fall back to localStorage from the in-app setup form (local / first-time).
+      const url = bakedUrl || lsUrl;
+      const anonKey = bakedKey || lsKey;
+      const source = bakedUrl && bakedKey ? 'baked' : (lsUrl && lsKey ? 'localStorage' : 'missing');
+      return { url, anonKey, configured: !!(url && anonKey), source, hasBaked: !!(bakedUrl && bakedKey) };
+    }
+
+    function logSupabaseConfigOnce() {
+      if (window.__PLUM_SUPABASE_LOGGED) return;
+      window.__PLUM_SUPABASE_LOGGED = true;
+      const cfg = getSupabaseConfig();
+      let host = '(empty)';
+      try {
+        if (cfg.url) host = new URL(cfg.url).host;
+      } catch (_) {
+        host = '(invalid url)';
+      }
+      console.log('[plum] supabase config', {
+        host,
+        urlPresent: !!cfg.url,
+        anonKeyPresent: !!cfg.anonKey,
+        source: cfg.source,
+        origin: window.location.origin
+      });
+    }
+
+    async function probeSupabaseReachable(url, anonKey) {
+      const base = String(url || '').replace(/\/$/, '');
+      if (!base) return { ok: false, reason: 'empty-url' };
+      try {
+        const res = await fetch(`${base}/auth/v1/health`, {
+          method: 'GET',
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${anonKey}`
+          }
+        });
+        return { ok: res.ok, status: res.status, url: `${base}/auth/v1/health` };
+      } catch (err) {
+        return {
+          ok: false,
+          status: 0,
+          url: `${base}/auth/v1/health`,
+          reason: err.message || 'Failed to fetch',
+          networkError: true
+        };
+      }
+    }
+
+    function explainFetchFailure(probe, cfg) {
+      const host = (() => {
+        try { return new URL(cfg.url).host; } catch (_) { return cfg.url || '(none)'; }
+      })();
+      if (!cfg.url || !cfg.anonKey) {
+        return 'Supabase URL/anon key are missing in this deploy. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel → Settings → Environment Variables (Production), Redeploy, or use Reconfigure Supabase below.';
+      }
+      if (probe?.networkError || /failed to fetch/i.test(probe?.reason || '')) {
+        return (
+          `Failed to reach Supabase at ${host} (${probe.url || 'auth/v1/health'}). ` +
+          `Usually: (1) project is PAUSED on free tier — open supabase.com dashboard and Restore, ` +
+          `(2) wrong Project URL, or (3) network/ad-block. Redirect URLs alone do not cause Failed to fetch.`
+        );
+      }
+      if (probe && probe.status && !probe.ok) {
+        return `Supabase responded HTTP ${probe.status} from ${probe.url}. Check the project is active and the anon key matches this URL.`;
+      }
+      return null;
     }
 
     let _supabaseClient = null;
+    let _supabaseClientKey = '';
     function getSupabase() {
+      logSupabaseConfigOnce();
       const { url, anonKey, configured } = getSupabaseConfig();
       if (!configured || !window.supabase || !window.supabase.createClient) return null;
-      if (!_supabaseClient) {
+      const clientKey = `${url}::${anonKey.slice(0, 12)}`;
+      if (!_supabaseClient || _supabaseClientKey !== clientKey) {
         _supabaseClient = window.supabase.createClient(url, anonKey, {
           auth: {
             persistSession: true,
             autoRefreshToken: true,
-            detectSessionInUrl: true
+            detectSessionInUrl: true,
+            flowType: 'pkce'
           }
         });
+        _supabaseClientKey = clientKey;
       }
       return _supabaseClient;
     }
@@ -3625,17 +3699,36 @@
         return `${window.location.origin}${path === '/' ? '/' : path}`;
       };
 
-      const saveConfig = () => {
+      const saveConfig = async () => {
         if (!url.trim() || !anonKey.trim()) {
           setMsgType('err');
           setMsg('Paste both Project URL and anon key from Supabase → Settings → API.');
           return;
         }
-        localStorage.setItem(SUPABASE_LS_KEY, url.trim());
+        let normalizedUrl = url.trim().replace(/\/$/, '');
+        if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(normalizedUrl)) {
+          setMsgType('err');
+          setMsg('Project URL should look like https://xxxx.supabase.co (https, no path, no trailing slash).');
+          return;
+        }
+        setBusy(true);
+        setMsg('');
+        const probe = await probeSupabaseReachable(normalizedUrl, anonKey.trim());
+        console.log('[plum] supabase probe', probe);
+        if (!probe.ok) {
+          setBusy(false);
+          setMsgType('err');
+          setMsg(explainFetchFailure(probe, { url: normalizedUrl, anonKey: anonKey.trim() }) || 'Could not reach Supabase.');
+          return;
+        }
+        localStorage.setItem(SUPABASE_LS_KEY, normalizedUrl);
         localStorage.setItem(SUPABASE_ANON_KEY, anonKey.trim());
         _supabaseClient = null;
-        window.PLUM_SUPABASE = { url: url.trim(), anonKey: anonKey.trim() };
+        _supabaseClientKey = '';
+        window.PLUM_SUPABASE = { url: normalizedUrl, anonKey: anonKey.trim() };
+        setUrl(normalizedUrl);
         setSetupMode(false);
+        setBusy(false);
         setMsgType('ok');
         setMsg('Supabase connected. Enter your email to get a login link (or use Google).');
         onReady?.();
@@ -3667,11 +3760,13 @@
 
       const sendMagicLink = async (e) => {
         e.preventDefault();
+        const cfg = getSupabaseConfig();
+        logSupabaseConfigOnce();
         const sb = getSupabase();
         if (!sb) {
           setSetupMode(true);
           setMsgType('err');
-          setMsg('Configure Supabase first.');
+          setMsg(explainFetchFailure(null, cfg) || 'Configure Supabase first.');
           return;
         }
         const trimmed = email.trim().toLowerCase();
@@ -3684,20 +3779,34 @@
         setMsg('');
         setOtpCode('');
         try {
+          const probe = await probeSupabaseReachable(cfg.url, cfg.anonKey);
+          console.log('[plum] supabase probe before OTP', probe);
+          if (!probe.ok) {
+            setMsgType('err');
+            setMsg(explainFetchFailure(probe, cfg) || 'Could not reach Supabase.');
+            return;
+          }
+
+          const redirectTo = authRedirectTo();
+          console.log('[plum] signInWithOtp', { redirectTo, email: trimmed });
           const { error } = await sb.auth.signInWithOtp({
             email: trimmed,
             options: {
-              emailRedirectTo: authRedirectTo(),
+              emailRedirectTo: redirectTo,
               shouldCreateUser: true
             }
           });
           if (error) {
             const m = (error.message || '').toLowerCase();
             let hint = error.message || 'Could not send login link.';
-            if (m.includes('rate') || m.includes('security purposes') || m.includes('after')) {
+            if (/failed to fetch|networkerror|load failed/i.test(hint)) {
+              hint = explainFetchFailure({ networkError: true, reason: hint, url: `${cfg.url}/auth/v1/otp` }, cfg);
+            } else if (m.includes('rate') || m.includes('security purposes') || m.includes('after')) {
               hint = `${error.message} Free-tier email is limited (~2–4/hour). Wait a bit, check spam, or use Google / set up custom SMTP (see tip below).`;
             } else if (m.includes('smtp') || m.includes('error sending') || m.includes('unable to send')) {
               hint = `${error.message} Supabase’s built-in mailer failed — set custom SMTP (Resend) under Project Settings → Auth → SMTP, or use Continue with Google.`;
+            } else if (m.includes('redirect')) {
+              hint = `${error.message} Add exactly ${window.location.origin} to Supabase → Authentication → URL Configuration → Redirect URLs, and set Site URL to your live origin.`;
             }
             setMsgType('err');
             setMsg(hint);
@@ -3711,8 +3820,14 @@
             `If nothing arrives in ~1 min: check Spam/Promotions, and in Supabase confirm Email is enabled + Redirect URL includes ${window.location.origin}.`
           );
         } catch (err) {
+          console.error('[plum] signInWithOtp threw', err);
+          const cfg2 = getSupabaseConfig();
           setMsgType('err');
-          setMsg(err.message || 'Network error sending login email.');
+          setMsg(
+            explainFetchFailure({ networkError: true, reason: err.message, url: `${cfg2.url}/auth/v1/otp` }, cfg2) ||
+            err.message ||
+            'Network error sending login email.'
+          );
         } finally {
           setBusy(false);
         }
@@ -3785,13 +3900,14 @@
                   placeholder="eyJhbGciOi..."
                   autoComplete="off"
                 />
-                <button type="button" className="btn btn-primary" onClick={saveConfig}>
-                  Save & continue
+                <button type="button" className="btn btn-primary" onClick={saveConfig} disabled={busy}>
+                  {busy ? 'Testing connection…' : 'Save & continue'}
                 </button>
                 <p className="login-help">
                   Run <code>supabase/schema.sql</code>. Enable Email under Authentication → Providers.
-                  Add <code>{typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'}</code> to Redirect URLs.
-                  For reliable email delivery, add custom SMTP (Resend) — see tip after login form.
+                  Add <code>{typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'}</code> to Redirect URLs
+                  and set <strong>Site URL</strong> to that same origin.
+                  On Vercel, set <code>VITE_SUPABASE_URL</code> + <code>VITE_SUPABASE_ANON_KEY</code> (Production) and Redeploy so every visitor gets config automatically.
                 </p>
               </div>
             ) : (
