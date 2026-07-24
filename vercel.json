@@ -1,0 +1,6 @@
+{
+  "framework": null,
+  "installCommand": "echo Skipping install — static Babel app",
+  "buildCommand": "echo Skipping Vite build — serving index.html",
+  "outputDirectory": "."
+}
