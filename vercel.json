@@ -1,6 +1,6 @@
 {
   "framework": null,
   "installCommand": "echo Skipping npm install — static Babel app",
-  "buildCommand": "node scripts/write-supabase-config.mjs",
+  "buildCommand": "node scripts/write-site-config.mjs",
   "outputDirectory": "."
 }

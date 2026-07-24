@@ -23,9 +23,8 @@
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-  <!-- Supabase Auth + Projects -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./supabase-config.js"></script>
+  <!-- Simple site access code (no Supabase) -->
+  <script src="./site-config.js"></script>
 
   <style>
     /* Design System Variables */
@@ -3530,104 +3529,24 @@
     }
 
 
-    // --- SUPABASE AUTH + SHARED PROJECTS ---
-    const SUPABASE_LS_KEY = 'plum_supabase_url';
-    const SUPABASE_ANON_KEY = 'plum_supabase_anon_key';
+    // --- SITE ACCESS CODE + LOCAL PROJECTS ---
+    const ACCESS_SESSION_KEY = 'plum_site_unlocked';
+    const PROJECTS_STORAGE_KEY = 'plum_local_projects_v1';
 
-    function getSupabaseConfig() {
-      const fromWindow = window.PLUM_SUPABASE || {};
-      const bakedUrl = (fromWindow.url || '').trim();
-      const bakedKey = (fromWindow.anonKey || '').trim();
-      const lsUrl = (localStorage.getItem(SUPABASE_LS_KEY) || '').trim();
-      const lsKey = (localStorage.getItem(SUPABASE_ANON_KEY) || '').trim();
-      // Prefer baked-in deploy config (Vercel env → write-supabase-config.mjs).
-      // Fall back to localStorage from the in-app setup form (local / first-time).
-      const url = bakedUrl || lsUrl;
-      const anonKey = bakedKey || lsKey;
-      const source = bakedUrl && bakedKey ? 'baked' : (lsUrl && lsKey ? 'localStorage' : 'missing');
-      return { url, anonKey, configured: !!(url && anonKey), source, hasBaked: !!(bakedUrl && bakedKey) };
+    function getAccessCode() {
+      return String((window.PLUM_ACCESS && window.PLUM_ACCESS.code) || '').trim();
     }
 
-    function logSupabaseConfigOnce() {
-      if (window.__PLUM_SUPABASE_LOGGED) return;
-      window.__PLUM_SUPABASE_LOGGED = true;
-      const cfg = getSupabaseConfig();
-      let host = '(empty)';
-      try {
-        if (cfg.url) host = new URL(cfg.url).host;
-      } catch (_) {
-        host = '(invalid url)';
-      }
-      console.log('[plum] supabase config', {
-        host,
-        urlPresent: !!cfg.url,
-        anonKeyPresent: !!cfg.anonKey,
-        source: cfg.source,
-        origin: window.location.origin
-      });
+    function isSiteUnlocked() {
+      return localStorage.getItem(ACCESS_SESSION_KEY) === '1';
     }
 
-    async function probeSupabaseReachable(url, anonKey) {
-      const base = String(url || '').replace(/\/$/, '');
-      if (!base) return { ok: false, reason: 'empty-url' };
-      try {
-        const res = await fetch(`${base}/auth/v1/health`, {
-          method: 'GET',
-          headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${anonKey}`
-          }
-        });
-        return { ok: res.ok, status: res.status, url: `${base}/auth/v1/health` };
-      } catch (err) {
-        return {
-          ok: false,
-          status: 0,
-          url: `${base}/auth/v1/health`,
-          reason: err.message || 'Failed to fetch',
-          networkError: true
-        };
-      }
+    function unlockSite() {
+      localStorage.setItem(ACCESS_SESSION_KEY, '1');
     }
 
-    function explainFetchFailure(probe, cfg) {
-      const host = (() => {
-        try { return new URL(cfg.url).host; } catch (_) { return cfg.url || '(none)'; }
-      })();
-      if (!cfg.url || !cfg.anonKey) {
-        return 'Supabase URL/anon key are missing in this deploy. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel → Settings → Environment Variables (Production), Redeploy, or use Reconfigure Supabase below.';
-      }
-      if (probe?.networkError || /failed to fetch/i.test(probe?.reason || '')) {
-        return (
-          `Failed to reach Supabase at ${host} (${probe.url || 'auth/v1/health'}). ` +
-          `Usually: (1) project is PAUSED on free tier — open supabase.com dashboard and Restore, ` +
-          `(2) wrong Project URL, or (3) network/ad-block. Redirect URLs alone do not cause Failed to fetch.`
-        );
-      }
-      if (probe && probe.status && !probe.ok) {
-        return `Supabase responded HTTP ${probe.status} from ${probe.url}. Check the project is active and the anon key matches this URL.`;
-      }
-      return null;
-    }
-
-    let _supabaseClient = null;
-    let _supabaseClientKey = '';
-    function getSupabase() {
-      logSupabaseConfigOnce();
-      const { url, anonKey, configured } = getSupabaseConfig();
-      if (!configured || !window.supabase || !window.supabase.createClient) return null;
-      const clientKey = `${url}::${anonKey.slice(0, 12)}`;
-      if (!_supabaseClient || _supabaseClientKey !== clientKey) {
-        _supabaseClient = window.supabase.createClient(url, anonKey, {
-          auth: {
-            persistSession: true,
-            autoRefreshToken: true,
-            detectSessionInUrl: false
-          }
-        });
-        _supabaseClientKey = clientKey;
-      }
-      return _supabaseClient;
+    function lockSite() {
+      localStorage.removeItem(ACCESS_SESSION_KEY);
     }
 
     function formatSavedAt(iso) {
@@ -3640,256 +3559,65 @@
       }
     }
 
-    function LoginScreen({ onReady }) {
-      const cfg = getSupabaseConfig();
-      const [setupMode, setSetupMode] = useState(!cfg.configured);
-      const [url, setUrl] = useState(cfg.url);
-      const [anonKey, setAnonKey] = useState(cfg.anonKey);
-      const [email, setEmail] = useState('');
-      const [otpCode, setOtpCode] = useState('');
-      const [awaitingCode, setAwaitingCode] = useState(false);
+    function readLocalProjects() {
+      try {
+        const raw = localStorage.getItem(PROJECTS_STORAGE_KEY);
+        const list = raw ? JSON.parse(raw) : [];
+        return Array.isArray(list) ? list : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function writeLocalProjects(list) {
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(list || []));
+    }
+
+    function newProjectId() {
+      return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+    }
+
+    function AccessGate({ onUnlock }) {
+      const [code, setCode] = useState('');
       const [msg, setMsg] = useState('');
-      const [msgType, setMsgType] = useState('');
-      const [busy, setBusy] = useState(false);
+      const expected = getAccessCode();
 
-      const saveConfig = async () => {
-        if (!url.trim() || !anonKey.trim()) {
-          setMsgType('err');
-          setMsg('Paste both Project URL and anon key from Supabase → Settings → API.');
-          return;
-        }
-        let normalizedUrl = url.trim().replace(/\/$/, '');
-        if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(normalizedUrl)) {
-          setMsgType('err');
-          setMsg('Project URL should look like https://xxxx.supabase.co (https, no path, no trailing slash).');
-          return;
-        }
-        setBusy(true);
-        setMsg('');
-        const probe = await probeSupabaseReachable(normalizedUrl, anonKey.trim());
-        console.log('[plum] supabase probe', probe);
-        if (!probe.ok) {
-          setBusy(false);
-          setMsgType('err');
-          setMsg(explainFetchFailure(probe, { url: normalizedUrl, anonKey: anonKey.trim() }) || 'Could not reach Supabase.');
-          return;
-        }
-        localStorage.setItem(SUPABASE_LS_KEY, normalizedUrl);
-        localStorage.setItem(SUPABASE_ANON_KEY, anonKey.trim());
-        _supabaseClient = null;
-        _supabaseClientKey = '';
-        window.PLUM_SUPABASE = { url: normalizedUrl, anonKey: anonKey.trim() };
-        setUrl(normalizedUrl);
-        setSetupMode(false);
-        setBusy(false);
-        setMsgType('ok');
-        setMsg('Supabase connected. Enter your email to receive a 6-digit login code.');
-        onReady?.();
-      };
-
-      const sendLoginCode = async (e) => {
+      const submit = (e) => {
         e.preventDefault();
-        const currentCfg = getSupabaseConfig();
-        logSupabaseConfigOnce();
-        const sb = getSupabase();
-        if (!sb) {
-          setSetupMode(true);
-          setMsgType('err');
-          setMsg(explainFetchFailure(null, currentCfg) || 'Configure Supabase first.');
+        if (!expected) {
+          setMsg('No access code configured. Set window.PLUM_ACCESS.code in site-config.js (or PLUM_ACCESS_CODE on Vercel).');
           return;
         }
-        const trimmed = email.trim().toLowerCase();
-        if (!trimmed || !trimmed.includes('@')) {
-          setMsgType('err');
-          setMsg('Enter a valid email address.');
+        if (code.trim() !== expected) {
+          setMsg('Incorrect code. Try again.');
           return;
         }
-        setBusy(true);
+        unlockSite();
         setMsg('');
-        setOtpCode('');
-        try {
-          const probe = await probeSupabaseReachable(currentCfg.url, currentCfg.anonKey);
-          console.log('[plum] supabase probe before OTP', probe);
-          if (!probe.ok) {
-            setMsgType('err');
-            setMsg(explainFetchFailure(probe, currentCfg) || 'Could not reach Supabase.');
-            return;
-          }
-
-          // OTP-only: no emailRedirectTo / magic-link redirect.
-          console.log('[plum] signInWithOtp (email OTP code only)', { email: trimmed });
-          const { error } = await sb.auth.signInWithOtp({
-            email: trimmed,
-            options: {
-              shouldCreateUser: true
-            }
-          });
-          if (error) {
-            const m = (error.message || '').toLowerCase();
-            let hint = error.message || 'Could not send login code.';
-            if (/failed to fetch|networkerror|load failed/i.test(hint)) {
-              hint = explainFetchFailure({ networkError: true, reason: hint, url: `${currentCfg.url}/auth/v1/otp` }, currentCfg);
-            } else if (m.includes('rate') || m.includes('security purposes') || m.includes('after')) {
-              hint = `${error.message} Free-tier email is limited (~2–4/hour). Wait a bit, check spam, or set custom SMTP (Resend).`;
-            } else if (m.includes('smtp') || m.includes('error sending') || m.includes('unable to send')) {
-              hint = `${error.message} Email send failed — set custom SMTP (Resend) under Project Settings → Auth → SMTP.`;
-            }
-            setMsgType('err');
-            setMsg(hint);
-            return;
-          }
-          setEmail(trimmed);
-          setAwaitingCode(true);
-          setMsgType('ok');
-          setMsg(`Code sent to ${trimmed}. Enter the 6-digit code from the email (nothing to click).`);
-        } catch (err) {
-          console.error('[plum] signInWithOtp threw', err);
-          const cfg2 = getSupabaseConfig();
-          setMsgType('err');
-          setMsg(
-            explainFetchFailure({ networkError: true, reason: err.message, url: `${cfg2.url}/auth/v1/otp` }, cfg2) ||
-            err.message ||
-            'Network error sending login code.'
-          );
-        } finally {
-          setBusy(false);
-        }
-      };
-
-      const verifyLoginCode = async (e) => {
-        e.preventDefault();
-        const sb = getSupabase();
-        if (!sb) return;
-        const token = otpCode.replace(/\s/g, '');
-        if (!/^\d{6}$/.test(token)) {
-          setMsgType('err');
-          setMsg('Enter the 6-digit code from your email.');
-          return;
-        }
-        setBusy(true);
-        setMsg('');
-        try {
-          const { data, error } = await sb.auth.verifyOtp({
-            email: email.trim().toLowerCase(),
-            token,
-            type: 'email'
-          });
-          if (error) {
-            setMsgType('err');
-            setMsg(error.message || 'Invalid or expired code. Click Send code again.');
-            return;
-          }
-          if (!data?.session) {
-            setMsgType('err');
-            setMsg('Code accepted but no session was created. Try sending a new code.');
-            return;
-          }
-          setMsgType('ok');
-          setMsg('Signed in.');
-          // onAuthStateChange in App will pick up the session.
-        } catch (err) {
-          setMsgType('err');
-          setMsg(err.message || 'Could not verify code.');
-        } finally {
-          setBusy(false);
-        }
+        onUnlock?.();
       };
 
       return (
         <div className="login-screen">
           <div className="login-card">
             <h1>Plum Alley Enrichment</h1>
-            <p>
-              {setupMode
-                ? 'Connect your free Supabase project once, then sign in with an email code.'
-                : 'Enter your work email. We’ll send a 6-digit code — no password, no link to click.'}
-            </p>
-
-            {setupMode ? (
-              <div>
-                <label>Supabase Project URL</label>
-                <input
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://xxxx.supabase.co"
-                  autoComplete="off"
-                />
-                <label>Anon / public key</label>
-                <input
-                  value={anonKey}
-                  onChange={(e) => setAnonKey(e.target.value)}
-                  placeholder="eyJhbGciOi..."
-                  autoComplete="off"
-                />
-                <button type="button" className="btn btn-primary" onClick={saveConfig} disabled={busy}>
-                  {busy ? 'Testing connection…' : 'Save & continue'}
-                </button>
-                <p className="login-help">
-                  Run <code>supabase/schema.sql</code>. Enable Email under Authentication → Providers.
-                  Set the Magic Link email template to show only <code>{'{{ .Token }}'}</code> (OTP code, no login URL).
-                  On Vercel, set <code>VITE_SUPABASE_URL</code> + <code>VITE_SUPABASE_ANON_KEY</code> (Production) and Redeploy.
-                </p>
-              </div>
-            ) : (
-              <div>
-                <form onSubmit={sendLoginCode}>
-                  <label>Email</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (awaitingCode) setAwaitingCode(false);
-                    }}
-                    placeholder="you@company.com"
-                    autoFocus={!awaitingCode}
-                    required
-                    autoComplete="email"
-                    disabled={busy && awaitingCode}
-                  />
-                  <button type="submit" className="btn btn-primary" disabled={busy}>
-                    {busy && !awaitingCode ? 'Sending…' : (awaitingCode ? 'Resend code' : 'Send code')}
-                  </button>
-                </form>
-
-                {awaitingCode ? (
-                  <form onSubmit={verifyLoginCode} style={{ marginTop: '0.85rem' }}>
-                    <label>6-digit code</label>
-                    <input
-                      className="login-code-input"
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value.replace(/[^\d]/g, '').slice(0, 6))}
-                      placeholder="••••••"
-                      maxLength={6}
-                      autoFocus
-                      required
-                    />
-                    <button type="submit" className="btn btn-primary" disabled={busy || otpCode.length !== 6}>
-                      {busy ? 'Logging in…' : 'Log in'}
-                    </button>
-                  </form>
-                ) : null}
-
-                <p className="login-help">
-                  <strong>No email?</strong> Check spam. Supabase’s free mailer is limited — use custom SMTP (Resend) under
-                  Project Settings → Authentication → SMTP. Email template must include <code>{'{{ .Token }}'}</code> only
-                  (remove the clickable confirmation link so nothing redirects).
-                </p>
-
-                <button
-                  type="button"
-                  className="btn"
-                  style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}
-                  onClick={() => setSetupMode(true)}
-                >
-                  Reconfigure Supabase
-                </button>
-              </div>
-            )}
-            {msg ? <div className={`login-msg ${msgType}`}>{msg}</div> : null}
+            <p>Enter the team access code to continue. No account or email required.</p>
+            <form onSubmit={submit}>
+              <label>Access code</label>
+              <input
+                type="password"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="••••••••"
+                autoFocus
+                autoComplete="current-password"
+                required
+              />
+              <button type="submit" className="btn btn-primary">
+                Enter
+              </button>
+            </form>
+            {msg ? <div className="login-msg err">{msg}</div> : null}
           </div>
         </div>
       );
@@ -3897,9 +3625,7 @@
 
     // --- MAIN REACT APPLICATION ---
     function App() {
-      const [authReady, setAuthReady] = useState(false);
-      const [session, setSession] = useState(null);
-      const [configTick, setConfigTick] = useState(0);
+      const [unlocked, setUnlocked] = useState(() => isSiteUnlocked());
 
       const [rows, setRows] = useState([]);
       const [inputText, setInputText] = useState('');
@@ -3917,7 +3643,7 @@
       // Parse preview before enrichment
       const [parsePreview, setParsePreview] = useState(null); // [{ id, raw, companyName, sourceContact, personName, personTitle, notes }]
 
-      // Shared projects (Supabase)
+      // Local projects (browser localStorage)
       const [projects, setProjects] = useState([]);
       const [projectsOpen, setProjectsOpen] = useState(false);
       const [projectsBusy, setProjectsBusy] = useState(false);
@@ -4015,28 +3741,26 @@
         }
       }, [editingHeader]);
 
-      // Auth session
+      // Access + local projects
       useEffect(() => {
-        const sb = getSupabase();
-        if (!sb) {
-          setAuthReady(true);
-          setSession(null);
-          return;
+        if (unlocked) {
+          const list = readLocalProjects()
+            .slice()
+            .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+          setProjects(list.map(p => ({
+            id: p.id,
+            name: p.name,
+            created_at: p.created_at,
+            updated_at: p.updated_at
+          })));
+        } else {
+          setProjects([]);
+          setCurrentProjectId(null);
+          setCurrentProjectName('');
+          setLastSavedAt(null);
+          setSavedSnapshot('');
         }
-        let unsub = () => {};
-        (async () => {
-          const { data } = await sb.auth.getSession();
-          setSession(data.session || null);
-          setAuthReady(true);
-          const { data: listener } = sb.auth.onAuthStateChange((_event, next) => {
-            setSession(next);
-          });
-          unsub = () => listener?.subscription?.unsubscribe?.();
-        })();
-        return () => unsub();
-      }, [configTick]);
-
-      const userEmail = session?.user?.email || '';
+      }, [unlocked]);
 
       const buildProjectPayload = () => ({
         rows,
@@ -4055,32 +3779,18 @@
         !savedSnapshot || currentSnapshot !== savedSnapshot
       );
 
-      const refreshProjects = async () => {
-        const sb = getSupabase();
-        if (!sb || !session) return;
-        const { data, error } = await sb
-          .from('projects')
-          .select('id, owner_email, name, created_at, updated_at')
-          .order('updated_at', { ascending: false });
-        if (error) {
-          console.warn('[projects] list failed', error);
-          setProjectMsg(error.message);
-          return;
-        }
-        setProjects(data || []);
+      const refreshProjects = () => {
+        const list = readLocalProjects()
+          .slice()
+          .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+        setProjects(list.map(p => ({
+          id: p.id,
+          name: p.name,
+          created_at: p.created_at,
+          updated_at: p.updated_at
+        })));
         setProjectMsg('');
       };
-
-      useEffect(() => {
-        if (session) refreshProjects();
-        else {
-          setProjects([]);
-          setCurrentProjectId(null);
-          setCurrentProjectName('');
-          setLastSavedAt(null);
-          setSavedSnapshot('');
-        }
-      }, [session]);
 
       useEffect(() => {
         const onBeforeUnload = (e) => {
@@ -4118,16 +3828,13 @@
         setProjectsOpen(false);
       };
 
-      const handleLogout = async () => {
-        if (isDirty && !window.confirm('You have unsaved changes. Log out anyway?')) return;
-        const sb = getSupabase();
-        await sb?.auth.signOut();
-        setSession(null);
+      const handleLogout = () => {
+        if (isDirty && !window.confirm('You have unsaved changes. Lock the site anyway?')) return;
+        lockSite();
+        setUnlocked(false);
       };
 
-      const handleSaveProject = async ({ saveAs = false } = {}) => {
-        const sb = getSupabase();
-        if (!sb || !userEmail) return;
+      const handleSaveProject = ({ saveAs = false } = {}) => {
         let name = currentProjectName;
         if (saveAs || !currentProjectId) {
           name = window.prompt('Project name', name || 'Untitled enrichment') || '';
@@ -4136,37 +3843,40 @@
         }
         setProjectsBusy(true);
         const payload = buildProjectPayload();
+        const now = new Date().toISOString();
         try {
+          const list = readLocalProjects();
           if (!saveAs && currentProjectId) {
-            const { data, error } = await sb
-              .from('projects')
-              .update({ name, data: payload, updated_at: new Date().toISOString() })
-              .eq('id', currentProjectId)
-              .select('id, name, updated_at')
-              .single();
-            if (error) throw error;
-            setCurrentProjectName(data.name);
-            setLastSavedAt(data.updated_at);
+            const idx = list.findIndex(p => p.id === currentProjectId);
+            if (idx < 0) throw new Error('Project not found');
+            list[idx] = {
+              ...list[idx],
+              name,
+              data: payload,
+              updated_at: now
+            };
+            writeLocalProjects(list);
+            setCurrentProjectName(name);
+            setLastSavedAt(now);
             setSavedSnapshot(snapshotOf(payload));
             setProjectMsg('Saved');
           } else {
-            const { data, error } = await sb
-              .from('projects')
-              .insert({
-                owner_email: userEmail,
-                name,
-                data: payload
-              })
-              .select('id, name, updated_at')
-              .single();
-            if (error) throw error;
-            setCurrentProjectId(data.id);
-            setCurrentProjectName(data.name);
-            setLastSavedAt(data.updated_at);
+            const id = newProjectId();
+            list.push({
+              id,
+              name,
+              data: payload,
+              created_at: now,
+              updated_at: now
+            });
+            writeLocalProjects(list);
+            setCurrentProjectId(id);
+            setCurrentProjectName(name);
+            setLastSavedAt(now);
             setSavedSnapshot(snapshotOf(payload));
             setProjectMsg('Saved as new project');
           }
-          await refreshProjects();
+          refreshProjects();
         } catch (err) {
           console.error('[projects] save failed', err);
           setProjectMsg(err.message || 'Save failed');
@@ -4176,20 +3886,14 @@
         }
       };
 
-      const handleLoadProject = async (projectId) => {
+      const handleLoadProject = (projectId) => {
         if (isDirty && !window.confirm('You have unsaved changes. Load this project anyway?')) return;
-        const sb = getSupabase();
-        if (!sb) return;
         setProjectsBusy(true);
         try {
-          const { data, error } = await sb
-            .from('projects')
-            .select('id, name, data, updated_at, owner_email')
-            .eq('id', projectId)
-            .single();
-          if (error) throw error;
-          applyProjectData(data.data, data);
-          setProjectMsg(`Loaded “${data.name}”`);
+          const project = readLocalProjects().find(p => p.id === projectId);
+          if (!project) throw new Error('Project not found');
+          applyProjectData(project.data, project);
+          setProjectMsg('Loaded "' + project.name + '"');
         } catch (err) {
           console.error('[projects] load failed', err);
           window.alert(err.message || 'Load failed');
@@ -4198,25 +3902,23 @@
         }
       };
 
-      const handleRenameProject = async () => {
+      const handleRenameProject = () => {
         if (!currentProjectId) return;
         const next = window.prompt('Rename project', currentProjectName || '');
         if (next == null) return;
         const name = next.trim();
         if (!name) return;
-        const sb = getSupabase();
         setProjectsBusy(true);
         try {
-          const { data, error } = await sb
-            .from('projects')
-            .update({ name, updated_at: new Date().toISOString() })
-            .eq('id', currentProjectId)
-            .select('id, name, updated_at')
-            .single();
-          if (error) throw error;
-          setCurrentProjectName(data.name);
-          setLastSavedAt(data.updated_at);
-          await refreshProjects();
+          const list = readLocalProjects();
+          const idx = list.findIndex(p => p.id === currentProjectId);
+          if (idx < 0) throw new Error('Project not found');
+          const now = new Date().toISOString();
+          list[idx] = { ...list[idx], name, updated_at: now };
+          writeLocalProjects(list);
+          setCurrentProjectName(name);
+          setLastSavedAt(now);
+          refreshProjects();
           setProjectMsg('Renamed');
         } catch (err) {
           window.alert(err.message || 'Rename failed');
@@ -4225,19 +3927,18 @@
         }
       };
 
-      const handleDeleteProject = async () => {
+      const handleDeleteProject = () => {
         if (!currentProjectId) return;
-        if (!window.confirm(`Delete project “${currentProjectName}”? This cannot be undone.`)) return;
-        const sb = getSupabase();
+        if (!window.confirm('Delete project "' + (currentProjectName || '') + '"? This cannot be undone.')) return;
         setProjectsBusy(true);
         try {
-          const { error } = await sb.from('projects').delete().eq('id', currentProjectId);
-          if (error) throw error;
+          const list = readLocalProjects().filter(p => p.id !== currentProjectId);
+          writeLocalProjects(list);
           setCurrentProjectId(null);
           setCurrentProjectName('');
           setLastSavedAt(null);
           setSavedSnapshot('');
-          await refreshProjects();
+          refreshProjects();
           setProjectMsg('Deleted');
         } catch (err) {
           window.alert(err.message || 'Delete failed');
@@ -5254,18 +4955,10 @@
       const totalCompleted = stats.total - stats.pending - stats.searching;
       const progressPercent = stats.total > 0 ? Math.round((totalCompleted / stats.total) * 100) : 0;
 
-      if (!authReady) {
+      if (!unlocked) {
         return (
           <div className="app-container">
-            <div className="login-screen"><div className="login-card"><p>Loading…</p></div></div>
-          </div>
-        );
-      }
-
-      if (!getSupabaseConfig().configured || !session) {
-        return (
-          <div className="app-container">
-            <LoginScreen onReady={() => setConfigTick(t => t + 1)} />
+            <AccessGate onUnlock={() => setUnlocked(true)} />
           </div>
         );
       }
@@ -5282,9 +4975,9 @@
               <span className="brand-tagline">Paste company names. Get websites and data.</span>
             </div>
             <div className="actions-section" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <div className="user-chip" title={userEmail}>
-                <span>{userEmail}</span>
-                <button type="button" onClick={handleLogout}>Log out</button>
+              <div className="user-chip" title="Site unlocked">
+                <span>Unlocked</span>
+                <button type="button" onClick={handleLogout}>Lock</button>
               </div>
               <span className={`save-status ${isDirty ? 'dirty' : ''}`}>
                 {currentProjectName ? (
@@ -5307,7 +5000,7 @@
                 {projectsOpen && (
                   <div className="projects-menu">
                     <div className="projects-menu-header">
-                      Shared team projects {projectsBusy ? '· …' : ''}
+                      Saved on this browser {projectsBusy ? '· …' : ''}
                     </div>
                     <div className="projects-menu-actions">
                       <button type="button" disabled={projectsBusy || !hasContent} onClick={() => handleSaveProject({ saveAs: false })}>
@@ -5334,11 +5027,11 @@
                           type="button"
                           className={p.id === currentProjectId ? 'active' : ''}
                           onClick={() => handleLoadProject(p.id)}
-                          title={`Owner: ${p.owner_email}`}
+                          title={p.name}
                         >
                           <span className="pname">{p.name}</span>
                           <span className="pmeta">
-                            {p.owner_email} · {formatSavedAt(p.updated_at)}
+                            {formatSavedAt(p.updated_at)}
                           </span>
                         </button>
                       ))}
