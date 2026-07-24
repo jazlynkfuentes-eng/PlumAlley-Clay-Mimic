@@ -8,30 +8,28 @@
  *      http://localhost:5173
  *      http://127.0.0.1:5173
  *      (and your deployed origin when you have one)
- *    Also add the Supabase callback if prompted:
- *      https://<PROJECT_REF>.supabase.co/auth/v1/callback
  *
- * 4. Preferred login — Google (Gmail accounts):
- *    Authentication → Providers → Google → Enable
- *    Create OAuth credentials in Google Cloud Console:
- *      https://console.cloud.google.com/apis/credentials
- *      Application type: Web application
- *      Authorized redirect URI (copy from Supabase Google provider panel):
- *        https://<PROJECT_REF>.supabase.co/auth/v1/callback
- *    Paste Client ID + Client Secret into Supabase Google provider → Save
+ * 4. Email magic link (make delivery actually work):
+ *    a. Authentication → Providers → Email → Enable
+ *    b. Built-in Supabase email is unreliable (spam / ~2–4 emails per hour).
+ *       Project Settings → Authentication → SMTP Settings → enable custom SMTP.
+ *       Easiest free option — Resend (https://resend.com):
+ *         Host: smtp.resend.com
+ *         Port: 465
+ *         User: resend
+ *         Pass: your Resend API key
+ *         Sender email: an address/domain verified in Resend
+ *    c. Authentication → Email Templates → Magic Link — include the code:
+ *         <p>Click: <a href="{{ .ConfirmationURL }}">Log in</a></p>
+ *         <p>Or enter this code: <strong>{{ .Token }}</strong></p>
+ *       Then you can paste the 6-digit code in the app if the link fails.
  *
- * 5. Optional — GitHub:
- *    Authentication → Providers → GitHub → Enable
- *    GitHub → Settings → Developer settings → OAuth Apps → New
- *    Authorization callback URL:
- *      https://<PROJECT_REF>.supabase.co/auth/v1/callback
- *    Paste Client ID + Client Secret into Supabase
+ * 5. Optional — Google / GitHub OAuth:
+ *    Authentication → Providers → Google or GitHub → Enable
+ *    Callback URL: https://<PROJECT_REF>.supabase.co/auth/v1/callback
  *
- * 6. Project Settings → API → copy Project URL + anon public key into the
- *    fields below (or paste once in the in-app setup form / localStorage).
- *
- * Magic-link email still works as a fallback, but Google/GitHub is more reliable
- * on the free tier (Supabase’s built-in mail often lands in spam or is rate-limited).
+ * 6. Project Settings → API → copy Project URL + anon key into the fields
+ *    below (or paste once in the in-app setup form / localStorage).
  */
 window.PLUM_SUPABASE = window.PLUM_SUPABASE || {
   url: '',
