@@ -1,7 +1,6 @@
 node_modules
 .git
 .vercel
-scripts
 src
 package-lock.json
 dist
