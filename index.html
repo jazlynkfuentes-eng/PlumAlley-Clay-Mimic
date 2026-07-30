@@ -871,6 +871,57 @@
       border: 1px solid var(--pending-border);
     }
 
+    .accuracy-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.35rem 0.6rem;
+      background: var(--surface-color);
+      white-space: nowrap;
+    }
+
+    .accuracy-chip strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .accuracy-feedback {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.15rem;
+      margin-left: 0.15rem;
+    }
+
+    .accuracy-feedback button {
+      border: none;
+      background: transparent;
+      padding: 0.1rem;
+      cursor: pointer;
+      color: var(--text-secondary);
+      display: inline-flex;
+      border-radius: 4px;
+      line-height: 0;
+    }
+
+    .accuracy-feedback button:hover {
+      background: rgba(0,0,0,0.05);
+      color: var(--text-primary);
+    }
+
+    .accuracy-feedback button.active-up {
+      color: #15803d;
+      background: #dcfce7;
+    }
+
+    .accuracy-feedback button.active-down {
+      color: #b91c1c;
+      background: #fee2e2;
+    }
+
     /* Spinner and micro-animations */
     .spinner {
       width: 12px;
@@ -1829,18 +1880,404 @@
       return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
+    // --- Multi-source resolution + confidence scoring ---
+    const RESOLVE_CONFIDENCE_THRESHOLD = 70;
+    const RESOLVE_AMBIGUITY_GAP = 12;
+
+    function extractUrlDomain(str) {
+      if (!str) return '';
+      const raw = String(str).trim();
+      const bracketMatch = raw.match(/\[\s*(https?:\/\/[^\s\]]+)/i);
+      let url = bracketMatch ? bracketMatch[1] : raw;
+      const urlMatch = url.match(/(https?:\/\/[^\s\/\]]+)/i);
+      if (urlMatch) {
+        url = urlMatch[1];
+      } else {
+        const bareHost = raw.match(/\[?\s*((?:www\.)?[a-z0-9][a-z0-9.-]*\.[a-z]{2,})\b/i);
+        if (bareHost) url = bareHost[1];
+      }
+      return url
+        .toLowerCase()
+        .replace(/^(https?:\/\/)?(www\.)?/, '')
+        .replace(/^\[/, '')
+        .replace(/\]$/, '')
+        .split('/')[0]
+        .split('?')[0]
+        .trim();
+    }
+
+    async function dnsResolvesQuick(domain) {
+      const cleanDom = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].trim();
+      if (!cleanDom || !cleanDom.includes('.')) return false;
+      try {
+        const dnsRes = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(cleanDom)}&type=A`);
+        if (!dnsRes.ok) return false;
+        const dnsJson = await dnsRes.json();
+        return dnsJson.Status === 0 && Array.isArray(dnsJson.Answer) && dnsJson.Answer.length > 0;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    async function pageMentionsCompanyQuick(domain, companyName) {
+      const cleanDom = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].trim();
+      const cleanComp = String(companyName || '').toLowerCase().trim();
+      if (!cleanDom || !cleanComp) return false;
+      const stripLegal = (s) => s
+        .toLowerCase()
+        .replace(/[,.]?\s*\b(inc|llc|l\.l\.c|co|corp|corporation|ltd|limited|gmbh|plc|llp|lp|sa|nv|bv|pvt|foundation|university|office|department|ministry|associates|partners|group|management|capital)\b\.?/gi, ' ')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const needle = stripLegal(cleanComp);
+      const nameKey = needle.replace(/\s+/g, '');
+      const tokens = needle.split(' ').filter(t => t.length > 2);
+      const targetUrl = `https://${cleanDom}`;
+      const proxies = [
+        (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+        (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`
+      ];
+      for (const build of proxies) {
+        try {
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), 2200);
+          const res = await fetch(build(targetUrl), { signal: controller.signal });
+          clearTimeout(t);
+          if (!res.ok) continue;
+          let html = await res.text();
+          if (html.trim().startsWith('{') && html.includes('"contents"')) {
+            try { html = JSON.parse(html).contents || ''; } catch (_) {}
+          }
+          if (!html || html.length < 40) continue;
+          const title = (html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] || '').toLowerCase();
+          const meta = (
+            html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+            html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+            ''
+          ).toLowerCase();
+          const corpus = `${title} ${meta} ${html.slice(0, 8000).toLowerCase()}`;
+          if (needle && corpus.includes(needle)) return true;
+          if (nameKey.length >= 4 && corpus.includes(nameKey)) return true;
+          if (tokens.length && tokens.filter(tok => corpus.includes(tok)).length >= Math.ceil(tokens.length * 0.6)) return true;
+          return false;
+        } catch (_) { /* try next proxy */ }
+      }
+      return null; // scrape failed — unknown, not a hard no
+    }
+
+    function scoreNameDomainSimilarity(companyName, candidate) {
+      const rawLower = String(companyName || '').toLowerCase().trim();
+      const cleanQuery = rawLower.replace(/[^a-z0-9]/g, '');
+      const nameLower = String(candidate.name || '').toLowerCase();
+      const nameClean = nameLower.replace(/[^a-z0-9]/g, '');
+      const parts = String(candidate.domain || '').toLowerCase().split('.');
+      const domBase = (parts[0] || '').replace(/[^a-z0-9]/g, '');
+      let score = 0;
+      let exactName = false;
+      if (nameLower === rawLower || nameClean === cleanQuery) {
+        score += 40;
+        exactName = true;
+      } else if (nameClean.includes(cleanQuery) || cleanQuery.includes(nameClean)) {
+        score += 22;
+      } else {
+        const tokens = rawLower.split(/\s+/).filter(t => t.length > 2);
+        const hits = tokens.filter(t => nameLower.includes(t) || domBase.includes(t.replace(/[^a-z0-9]/g, '')));
+        score += Math.min(18, hits.length * 6);
+      }
+      if (domBase === cleanQuery) score += 35;
+      else if (cleanQuery.length >= 4 && (domBase.startsWith(cleanQuery) || cleanQuery.startsWith(domBase))) score += 18;
+      else if (cleanQuery.length >= 4 && (domBase.includes(cleanQuery) || cleanQuery.includes(domBase))) score += 10;
+      const tld = parts[parts.length - 1] || '';
+      if (['com', 'org', 'edu', 'gov', 'net', 'io', 'co', 'us', 'uk', 'ai'].includes(tld)) score += 4;
+      else score -= 8;
+      return { score: Math.max(0, Math.min(45, score)), exactName };
+    }
+
+    async function gatherClearbitCandidates(queries) {
+      const out = [];
+      const seenQ = new Set();
+      for (const q of (queries || [])) {
+        const key = String(q || '').trim().toLowerCase();
+        if (!key || key.length < 2 || seenQ.has(key)) continue;
+        seenQ.add(key);
+        try {
+          const res = await fetch(
+            `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(q)}`
+          );
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (!Array.isArray(data)) continue;
+          for (const item of data) {
+            if (!item?.domain) continue;
+            out.push({
+              domain: item.domain,
+              name: item.name || item.domain,
+              snippet: item.industry || item.description || '',
+              sources: ['clearbit']
+            });
+          }
+        } catch (_) { /* best-effort */ }
+      }
+      return normalizeCandidates(out);
+    }
+
+    async function gatherDuckDuckGoCandidates(companyName, cleaned) {
+      const out = [];
+      const queries = [
+        cleaned,
+        companyName,
+        `${companyName} official website`,
+        /\b(office of|university|foundation|comptroller|ministry|department of|city of|county of|state of|government|authority|law|llp|llc)\b/i.test(String(companyName || ''))
+          ? `${cleaned || companyName} official site`
+          : null
+      ].filter((q, i, arr) => q && String(q).trim().length >= 2 && arr.indexOf(q) === i);
+
+      for (const q of queries.slice(0, 3)) {
+        try {
+          const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1`);
+          if (!response.ok) continue;
+          const json = await response.json();
+          let official = null;
+          if (json.Infobox && Array.isArray(json.Infobox.content)) {
+            official = json.Infobox.content.find(i => i.data_type === 'official_website' || i.label === 'Official Website' || i.label === 'Website');
+          }
+          if (official?.value) {
+            const domain = extractUrlDomain(official.value);
+            if (domain && domain.includes('.') && !domain.includes('wikipedia.org')) {
+              out.push({
+                domain,
+                name: json.Heading || companyName,
+                snippet: (json.AbstractText || '').slice(0, 100) || 'DuckDuckGo official website',
+                sources: ['duckduckgo']
+              });
+            }
+          }
+          if (json.AbstractURL) {
+            const absDom = extractUrlDomain(json.AbstractURL);
+            if (absDom && absDom.includes('.') && !/wikipedia\.org|wikidata\.org/i.test(absDom)) {
+              out.push({
+                domain: absDom,
+                name: json.Heading || companyName,
+                snippet: (json.AbstractText || '').slice(0, 100) || 'DuckDuckGo abstract',
+                sources: ['duckduckgo']
+              });
+            }
+          }
+          const related = [...(json.Results || []), ...(json.RelatedTopics || [])].slice(0, 6);
+          for (const r of related) {
+            const url = r.FirstURL || r.URL || '';
+            const domain = extractUrlDomain(url);
+            if (!domain || !domain.includes('.') || /wikipedia\.org|wikidata\.org|duckduckgo\.com/i.test(domain)) continue;
+            out.push({
+              domain,
+              name: (r.Text || r.Result || domain).replace(/<[^>]+>/g, '').slice(0, 80),
+              snippet: 'DuckDuckGo related',
+              sources: ['duckduckgo']
+            });
+          }
+        } catch (_) { /* best-effort */ }
+      }
+      return normalizeCandidates(out);
+    }
+
+    async function gatherWikipediaWikidataCandidates(companyName, cleaned) {
+      const out = [];
+      const orgVariants = [];
+      const pushQ = (q) => {
+        const t = String(q || '').trim();
+        if (t && t.length >= 3 && !orgVariants.some(x => x.toLowerCase() === t.toLowerCase())) orgVariants.push(t);
+      };
+      pushQ(companyName);
+      pushQ(cleaned);
+      pushQ(String(companyName || '').replace(/^office of\s+/i, '').trim());
+      pushQ(String(companyName || '').replace(/\b(foundation|endowment|trust)\b/gi, '').replace(/\s+/g, ' ').trim());
+      pushQ(`${companyName} (company)`);
+      pushQ(`${companyName} (law firm)`);
+
+      for (const wq of orgVariants.slice(0, 4)) {
+        try {
+          const openRes = await fetch(
+            `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=5&namespace=0&format=json&origin=*`
+          );
+          if (!openRes.ok) continue;
+          const openJson = await openRes.json();
+          const titles = openJson[1] || [];
+          if (!titles.length) continue;
+
+          const qTokens = wq.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+          const rankedTitles = titles
+            .map((t, idx) => {
+              const tl = t.toLowerCase();
+              let s = qTokens.filter(tok => tl.includes(tok)).length * 10;
+              if (tl === wq.toLowerCase()) s += 50;
+              return { title: t, s, idx };
+            })
+            .filter(x => x.s >= 10 || qTokens.length <= 1)
+            .sort((a, b) => b.s - a.s)
+            .slice(0, 3);
+
+          for (const { title } of rankedTitles) {
+            const wdRes = await fetch(
+              `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions|labels&languages=en&format=json&origin=*`
+            );
+            if (!wdRes.ok) continue;
+            const wd = await wdRes.json();
+            const entity = Object.values(wd.entities || {}).find(e => e && !e.missing);
+            if (!entity) continue;
+            const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
+            const domain = claim ? extractUrlDomain(claim) : '';
+            const description = entity?.descriptions?.en?.value || '';
+            const prominence = typeof scoreWikidataProminence === 'function'
+              ? scoreWikidataProminence(entity, title, description)
+              : (description ? 20 : 10);
+            if (domain && domain.includes('.') && !domain.includes('wikipedia.org')) {
+              out.push({
+                domain,
+                name: title,
+                snippet: description || `${title} · Wikipedia/Wikidata`,
+                sources: ['wikipedia', 'wikidata'],
+                wikiProminence: prominence
+              });
+            } else if (prominence >= 30) {
+              // Notable entity without official site still helps notability scoring later
+              out.push({
+                domain: '',
+                name: title,
+                snippet: description,
+                sources: ['wikidata'],
+                wikiProminence: prominence
+              });
+            }
+          }
+        } catch (_) { /* best-effort */ }
+      }
+      return normalizeCandidates(out.filter(c => c.domain));
+    }
+
+    /**
+     * Rank a pooled candidate list with multi-signal confidence scoring.
+     * Signals: domain/name similarity, Wikidata notability, DNS, page content mention.
+     */
+    async function rankCandidatesWithSignals(companyName, pool, options = {}) {
+      const skipped = new Set((options.skippedDomains || []).map(d => String(d).toLowerCase()));
+      const base = normalizeCandidates(pool).filter(c => c.domain && !skipped.has(c.domain));
+      if (!base.length) {
+        return { best: null, ambiguous: true, candidates: [], ranked: [] };
+      }
+
+      // Pass 1 — cheap signals
+      let ranked = base.map(c => {
+        const sim = scoreNameDomainSimilarity(companyName, c);
+        const sources = c.sources || [];
+        let wikiPts = 0;
+        if (c.wikiProminence) wikiPts = Math.min(25, Math.round(c.wikiProminence / 4));
+        else if (sources.includes('wikidata') || sources.includes('wikipedia')) wikiPts = 12;
+        let sourcePts = 0;
+        if (sources.includes('clearbit') && sim.exactName) sourcePts += 8;
+        if (sources.includes('duckduckgo')) sourcePts += 5;
+        if (sources.includes('wikipedia') || sources.includes('wikidata')) sourcePts += 6;
+        if (sources.length >= 2) sourcePts += 6;
+        const total = sim.score + wikiPts + sourcePts;
+        return {
+          ...c,
+          exactName: sim.exactName,
+          signals: {
+            nameSimilarity: sim.score,
+            wikiNotability: wikiPts,
+            multiSource: sourcePts,
+            dns: 0,
+            content: 0
+          },
+          totalScore: total
+        };
+      });
+      ranked.sort((a, b) => b.totalScore - a.totalScore);
+
+      // Pass 2 — DNS on top candidates
+      const dnsTargets = ranked.slice(0, 5);
+      const dnsResults = await Promise.all(dnsTargets.map(async (c) => ({
+        domain: c.domain,
+        ok: await dnsResolvesQuick(c.domain)
+      })));
+      const dnsMap = new Map(dnsResults.map(r => [r.domain, r.ok]));
+      ranked = ranked.map(c => {
+        if (!dnsMap.has(c.domain)) return c;
+        const ok = dnsMap.get(c.domain);
+        let dnsPts = ok ? 15 : -20;
+        // Exact brand / apex match that also resolves is a strong confidence lift
+        if (ok && (c.exactName || (c.signals?.nameSimilarity || 0) >= 35)) dnsPts += 8;
+        return {
+          ...c,
+          signals: { ...c.signals, dns: dnsPts },
+          totalScore: c.totalScore + dnsPts,
+          dnsOk: ok
+        };
+      });
+      ranked.sort((a, b) => b.totalScore - a.totalScore);
+
+      // Pass 3 — optional page-content mention on top 2 live domains
+      if (options.checkContent !== false) {
+        const contentTargets = ranked.filter(c => c.dnsOk !== false).slice(0, 2);
+        const contentResults = await Promise.all(contentTargets.map(async (c) => {
+          const mention = await pageMentionsCompanyQuick(c.domain, companyName);
+          return { domain: c.domain, mention };
+        }));
+        const contentMap = new Map(contentResults.map(r => [r.domain, r.mention]));
+        ranked = ranked.map(c => {
+          if (!contentMap.has(c.domain)) return c;
+          const mention = contentMap.get(c.domain);
+          let contentPts = 0;
+          if (mention === true) contentPts = 20;
+          else if (mention === false) contentPts = -10;
+          // null = scrape failed → no change
+          return {
+            ...c,
+            signals: { ...c.signals, content: contentPts },
+            totalScore: c.totalScore + contentPts,
+            contentMention: mention
+          };
+        });
+        ranked.sort((a, b) => b.totalScore - a.totalScore);
+      }
+
+      // Drop hard DNS failures from "best" contention when alternatives exist
+      const live = ranked.filter(c => c.dnsOk !== false);
+      const contenders = live.length ? live : ranked;
+      const best = contenders[0] || null;
+      const runnerUp = contenders.find(c => c.domain !== best?.domain) || null;
+      const ambiguous = !!(
+        best &&
+        runnerUp &&
+        !best.exactName &&
+        Math.abs(best.totalScore - runnerUp.totalScore) < RESOLVE_AMBIGUITY_GAP &&
+        runnerUp.totalScore >= RESOLVE_CONFIDENCE_THRESHOLD - 15
+      );
+      const candidates = ranked.slice(0, 8).map(c => ({
+        domain: c.domain,
+        name: c.name || c.domain,
+        snippet: c.snippet || (c.sources || []).join(' · '),
+        sources: c.sources || [],
+        wikiProminence: c.wikiProminence || 0,
+        confidenceScore: c.totalScore
+      }));
+
+      return { best, ambiguous, candidates, ranked: contenders };
+    }
+
     /**
      * Normalize mixed alternative formats (domain strings, snippets, objects)
      * into selectable { domain, name, snippet } options for the UI picker.
      */
     function normalizeCandidates(...lists) {
       const out = [];
-      const seen = new Set();
+      const byDomain = new Map();
       for (const list of lists) {
         for (const item of (list || [])) {
           let domain = '';
           let name = '';
           let snippet = '';
+          let sources = [];
+          let wikiProminence = 0;
           if (typeof item === 'string') {
             const s = item.trim();
             if (!s) continue;
@@ -1862,14 +2299,30 @@
               .trim();
             name = item.name || item.label || item.matchedName || '';
             snippet = item.snippet || item.description || item.industrySnippet || item.industry || '';
+            sources = Array.isArray(item.sources)
+              ? item.sources.slice()
+              : (item.source ? [String(item.source)] : []);
+            wikiProminence = Number(item.wikiProminence) || 0;
           }
-          if (!domain || !domain.includes('.') || domain.includes(' ') || seen.has(domain)) continue;
-          seen.add(domain);
-          out.push({
+          if (!domain || !domain.includes('.') || domain.includes(' ')) continue;
+          if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(domain)) continue;
+          const prev = byDomain.get(domain);
+          if (prev) {
+            if (!prev.name || prev.name === prev.domain) prev.name = name || prev.name;
+            if (!prev.snippet && snippet) prev.snippet = snippet;
+            prev.sources = [...new Set([...(prev.sources || []), ...sources])];
+            prev.wikiProminence = Math.max(prev.wikiProminence || 0, wikiProminence);
+            continue;
+          }
+          const entry = {
             domain,
             name: name || domain,
-            snippet: snippet && snippet !== name && snippet !== domain ? snippet : ''
-          });
+            snippet: snippet && snippet !== name && snippet !== domain ? snippet : '',
+            sources: [...new Set(sources)],
+            wikiProminence
+          };
+          byDomain.set(domain, entry);
+          out.push(entry);
         }
       }
       return out;
@@ -1877,7 +2330,7 @@
 
     /**
      * Always try to surface multiple website options for the picker.
-     * Pads a thin candidate list with Clearbit suggestions for the company name.
+     * Pads a thin candidate list from Clearbit + DuckDuckGo + Wikipedia/Wikidata.
      */
     async function ensureWebsiteOptions(companyName, existing = [], primaryDomain = '', primaryMeta = {}) {
       let list = normalizeCandidates(
@@ -1886,43 +2339,30 @@
           ? [{
               domain: primaryDomain,
               name: primaryMeta.name || companyName || primaryDomain,
-              snippet: primaryMeta.snippet || ''
+              snippet: primaryMeta.snippet || '',
+              sources: primaryMeta.sources || ['primary']
             }]
           : []
       );
-      if (list.length >= 4) return list.slice(0, 8);
+      if (list.length >= 5) return list.slice(0, 8);
 
-      const queries = [];
       const cleaned = String(companyName || '')
         .replace(/\b(llc|inc|ltd|limited|corp|corporation|co|gmbh|plc)\b/gi, '')
         .replace(/&/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+      const queries = [];
       if (companyName) queries.push(String(companyName).trim());
       if (cleaned && cleaned.toLowerCase() !== String(companyName || '').trim().toLowerCase()) queries.push(cleaned);
       const first = cleaned.split(/\s+/)[0];
       if (first && first.length >= 4) queries.push(first);
 
-      for (const q of queries) {
-        if (list.length >= 6) break;
-        if (!q || q.length < 2) continue;
-        try {
-          const res = await fetch(
-            `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(q)}`
-          );
-          const data = await res.json();
-          if (Array.isArray(data) && data.length) {
-            list = normalizeCandidates(
-              list,
-              data.map(item => ({
-                domain: item.domain,
-                name: item.name || item.domain,
-                snippet: item.industry || item.description || ''
-              }))
-            );
-          }
-        } catch (_) { /* best-effort */ }
-      }
+      const [cb, ddg, wiki] = await Promise.all([
+        gatherClearbitCandidates(queries.slice(0, 3)),
+        gatherDuckDuckGoCandidates(companyName, cleaned),
+        gatherWikipediaWikidataCandidates(companyName, cleaned)
+      ]);
+      list = normalizeCandidates(list, cb, ddg, wiki);
       return list.slice(0, 8);
     }
 
@@ -2474,43 +2914,40 @@
       }
 
       // Globally recognized firms: prefer the canonical domain, but still gather
-      // Clearbit alternatives so the UI can always show website options.
+      // multi-source alternatives so the UI can always show website options.
       const majorFirm = lookupMajorKnownFirm(companyName);
       if (majorFirm && !skippedDomains.includes(majorFirm.domain.toLowerCase())) {
         console.log('[resolve] MAJOR FIRM canonical', companyName, '->', majorFirm.domain);
+        const cleanedMajor = String(companyName || '')
+          .replace(/\b(llc|inc|ltd|limited|corp|corporation|co|gmbh|plc)\b/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        const [cbMaj, ddgMaj, wikiMaj] = await Promise.all([
+          gatherClearbitCandidates([companyName, cleanedMajor]),
+          gatherDuckDuckGoCandidates(companyName, cleanedMajor),
+          gatherWikipediaWikidataCandidates(companyName, cleanedMajor)
+        ]);
         gatheredCandidates = normalizeCandidates(
           [{
             domain: majorFirm.domain.toLowerCase(),
             name: majorFirm.label,
-            snippet: `${majorFirm.label} · ${majorFirm.industry}`
+            snippet: `${majorFirm.label} · ${majorFirm.industry}`,
+            sources: ['major-firm']
           }],
-          gatheredCandidates
+          cbMaj,
+          ddgMaj,
+          wikiMaj
         );
-        try {
-          const cbRes = await fetch(
-            `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(companyName)}`
-          );
-          const cbData = await cbRes.json();
-          if (Array.isArray(cbData) && cbData.length) {
-            gatheredCandidates = normalizeCandidates(
-              gatheredCandidates,
-              cbData.map(item => ({
-                domain: item.domain,
-                name: item.name || item.domain,
-                snippet: item.industry || item.description || ''
-              }))
-            );
-          }
-        } catch (_) { /* options are best-effort */ }
         return store({
           domain: majorFirm.domain.toLowerCase(),
           isUnsure: true,
+          confidenceScore: 100,
           matchedName: majorFirm.label,
           industrySnippet: `${majorFirm.label} · ${majorFirm.industry}`,
           alternatives: gatheredCandidates.map(c => c.snippet || c.name || c.domain),
           alternativeDomains: gatheredCandidates.map(c => c.domain),
           candidates: gatheredCandidates,
-          resolveMethod: 'name-only',
+          resolveMethod: 'multi-source',
           fastPath: true
         });
       }
@@ -2563,14 +3000,30 @@
         const d = companyDictionary[rawKey].domain.toLowerCase();
         if (!skippedDomains.includes(d)) {
           console.log('[resolve] FAST PATH dictionary', companyName, '->', d);
-          return store({ domain: d, isUnsure: false, industrySnippet: companyDictionary[rawKey].industry, resolveMethod: 'name-only', fastPath: true });
+          return store({
+            domain: d,
+            isUnsure: false,
+            confidenceScore: 95,
+            industrySnippet: companyDictionary[rawKey].industry,
+            candidates: [{ domain: d, name: companyName, snippet: companyDictionary[rawKey].industry, sources: ['dictionary'] }],
+            resolveMethod: 'dictionary',
+            fastPath: true
+          });
         }
       }
       if (companyDictionary[localClean]) {
         const d = companyDictionary[localClean].domain.toLowerCase();
         if (!skippedDomains.includes(d)) {
           console.log('[resolve] FAST PATH dictionary', companyName, '->', d);
-          return store({ domain: d, isUnsure: false, industrySnippet: companyDictionary[localClean].industry, resolveMethod: 'name-only', fastPath: true });
+          return store({
+            domain: d,
+            isUnsure: false,
+            confidenceScore: 95,
+            industrySnippet: companyDictionary[localClean].industry,
+            candidates: [{ domain: d, name: companyName, snippet: companyDictionary[localClean].industry, sources: ['dictionary'] }],
+            resolveMethod: 'dictionary',
+            fastPath: true
+          });
         }
       }
       for (const key in companyDictionary) {
@@ -2580,545 +3033,151 @@
           // Avoid ultra-short accidental partials
           if (Math.min(localClean.length, keyNorm.length) < 4 && localClean !== keyNorm) continue;
           console.log('[resolve] FAST PATH dictionary fuzzy', companyName, '->', d);
-          return store({ domain: d, isUnsure: false, industrySnippet: companyDictionary[key].industry, resolveMethod: 'name-only', fastPath: true });
-        }
-      }
-
-      // Finance Search Filter: augment SEARCH query only — never mutate the scoring key
-      let searchQuery = cleaned;
-      if (financeFilterActive) {
-        const financeTerms = ["capital", "partners", "ventures", "investment", "holdings", "wealth", "finance", "fund", "equity", "management", "pe", "vc", "advisory", "advisors", "associates", "group", "fintech", "bank"];
-        const hasFinanceTerm = financeTerms.some(term => cleaned.toLowerCase().includes(term));
-        if (!hasFinanceTerm) {
-          searchQuery = `${cleaned} capital`;
-        }
-      }
-
-      const FINANCE_KW = ["capital", "partner", "venture", "investment", "fund", "holding", "wealth", "finance", "equity", "fintech", "bank", "asset", "credit", "lend", "hedge", "private equity", "pe ", " vc", "advisory", "advisors", "securities", "broker"];
-      const NON_FINANCE_KW = ["museum", "foundation", "association", "school", "university", "college", "charity", "arts", "cultural", "publishing", "publisher", "reading", "reader", "bookstore", "book", "magazine", "newspaper", "media", "blog", "podcast", "restaurant", "cafe", "coffee", "retail", "apparel", "fashion", "gaming", "game", "studio", "film", "music", "hotel", "travel", "clinic", "hospital", "church", "nonprofit", "ngo"];
-
-      const inferSnippet = (item) => {
-        const name = (item.name || '').trim();
-        const domain = (item.domain || '').toLowerCase();
-        const blob = `${name} ${domain}`.toLowerCase();
-        if (FINANCE_KW.some(k => blob.includes(k.trim()))) return name ? `${name} · finance` : 'finance-related';
-        if (NON_FINANCE_KW.some(k => blob.includes(k))) {
-          const hit = NON_FINANCE_KW.find(k => blob.includes(k));
-          return name ? `${name} · ${hit}` : hit;
-        }
-        return name || domain;
-      };
-
-      // Best match scorer — returns rich match object for disambiguation
-      // scoreAgainst: brand name used for domain/name similarity (NOT finance-augmented)
-      const findBestDomainMatch = (suggestions, scoreAgainst) => {
-        if (!suggestions || suggestions.length === 0) return null;
-        const cleanQuery = scoreAgainst.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const rawLower = scoreAgainst.toLowerCase().trim();
-        if (!cleanQuery) {
-          const first = suggestions[0];
-          return { domain: first.domain, name: first.name || '', score: 0, snippet: inferSnippet(first), ambiguous: true, alternatives: [] };
-        }
-
-        const commonTlds = ['com', 'co', 'io', 'net', 'org', 'edu', 'gov', 'ai', 'me', 'us', 'ca', 'uk'];
-        const scored = [];
-
-        for (const item of suggestions) {
-          if (!item.domain) continue;
-          if (skippedDomains.includes(item.domain.toLowerCase())) continue;
-          const parts = item.domain.toLowerCase().split('.');
-          const domBase = parts[0].replace(/[^a-z0-9]/g, '');
-          const tld = parts[parts.length - 1];
-          const nameLower = (item.name || '').toLowerCase();
-          const blob = `${nameLower} ${domBase}`;
-          
-          let score = 0;
-          // Exact Clearbit brand name match is the strongest signal
-          if (nameLower === rawLower || nameLower.replace(/[^a-z0-9]/g, '') === cleanQuery) {
-            score += 150;
-          }
-          if (domBase === cleanQuery) {
-            score += 140; // exact apex domain (blackstone.com for "Blackstone")
-          } else if (domBase.startsWith(cleanQuery) && domBase.length > cleanQuery.length + 1) {
-            // Lesser compound domains like blackstonecap / blackstonecapital
-            score += 25;
-            score -= Math.min(50, (domBase.length - cleanQuery.length) * 8);
-          } else if (cleanQuery.includes(domBase) || domBase.includes(cleanQuery)) {
-            score += 50;
-            score -= Math.abs(domBase.length - cleanQuery.length);
-          } else {
-            const tokens = scoreAgainst.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-            const hits = tokens.filter(t => nameLower.includes(t) || domBase.includes(t.replace(/[^a-z0-9]/g, '')));
-            if (hits.length === 0) continue;
-            score += hits.length * 20;
-          }
-
-          // Prefer the short canonical brand domain over longer lookalikes
-          const major = lookupMajorKnownFirm(scoreAgainst);
-          if (major && item.domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0] === major.domain) {
-            score += 200;
-          } else if (major) {
-            const majorBase = major.domain.split('.')[0];
-            if (domBase !== majorBase && (domBase.includes(majorBase) || nameLower.includes(majorBase))) {
-              score -= 100;
-            }
-          }
-
-          if (commonTlds.includes(tld)) score += 20;
-          else score -= 60;
-          
-          if (financeFilterActive) {
-            const hasFinanceKeywords = FINANCE_KW.some(k => blob.includes(k.trim()));
-            const hasNonFinanceKeywords = NON_FINANCE_KW.some(k => blob.includes(k));
-            
-            if (hasFinanceKeywords) score += 120;
-            if (hasNonFinanceKeywords) score -= 180;
-          }
-
-          scored.push({
-            domain: item.domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0],
-            name: item.name || '',
-            score,
-            snippet: inferSnippet(item),
-            isFinance: FINANCE_KW.some(k => blob.includes(k.trim())),
-            isNonFinance: NON_FINANCE_KW.some(k => blob.includes(k)),
-            exactName: nameLower === rawLower || nameLower.replace(/[^a-z0-9]/g, '') === cleanQuery
+          return store({
+            domain: d,
+            isUnsure: false,
+            confidenceScore: 90,
+            industrySnippet: companyDictionary[key].industry,
+            candidates: [{ domain: d, name: companyName, snippet: companyDictionary[key].industry, sources: ['dictionary'] }],
+            resolveMethod: 'dictionary',
+            fastPath: true
           });
         }
-
-        if (scored.length === 0) return null;
-        scored.sort((a, b) => b.score - a.score);
-
-        let best = scored[0];
-        if (financeFilterActive && scored.length > 1) {
-          const financeCandidate = scored.find(s => s.isFinance && !s.isNonFinance);
-          const top = scored[0];
-          if (financeCandidate && top.isNonFinance && financeCandidate.score >= top.score - 40) {
-            best = financeCandidate;
-          } else if (financeCandidate && !top.isFinance && financeCandidate.score >= top.score - 25) {
-            best = financeCandidate;
-          }
-        }
-
-        // Prefer exact brand-name Clearbit hit even if finance scoring shuffled order
-        const exact = scored.find(s => s.exactName);
-        if (exact && exact.score >= best.score - 30) best = exact;
-
-        const runnerUp = scored.find(s => s.domain !== best.domain);
-        const ambiguous = !!(
-          runnerUp &&
-          !best.exactName &&
-          Math.abs(best.score - runnerUp.score) < 25 &&
-          runnerUp.score > 30
-        );
-        const alternatives = scored.slice(0, 3).map(s => s.snippet).filter(Boolean);
-        const alternativeDomains = scored.slice(0, 5).map(s => s.domain).filter(Boolean);
-        const candidates = scored.slice(0, 5).map(s => ({
-          domain: s.domain,
-          name: s.name || s.domain,
-          snippet: s.snippet || ''
-        }));
-
-        if (financeFilterActive && best.isNonFinance && !best.isFinance) {
-          const financeAlt = scored.find(s => s.isFinance);
-          if (financeAlt) {
-            best = financeAlt;
-          } else if (best.score < 80 && !best.exactName) {
-            return {
-              domain: best.domain,
-              name: best.name,
-              score: best.score,
-              snippet: best.snippet,
-              ambiguous: true,
-              alternatives,
-              alternativeDomains,
-              candidates,
-              deprioritized: true
-            };
-          }
-        }
-
-        return {
-          domain: best.domain,
-          name: best.name,
-          score: best.score,
-          snippet: best.snippet,
-          ambiguous,
-          alternatives,
-          alternativeDomains,
-          candidates,
-          exactName: !!best.exactName
-        };
-      };
-
-      // Helper to clean DuckDuckGo Infobox value links (e.g. "[https://zoom.us Official site]" -> "zoom.us")
-      const extractUrlDomain = (str) => {
-        if (!str) return '';
-        // Match brackets first: [https://example.com Link text]
-        const bracketMatch = str.match(/\[\s*(https?:\/\/[^\s\]]+)/i);
-        let url = bracketMatch ? bracketMatch[1] : str;
-        
-        // Find general URL structure
-        const urlMatch = url.match(/(https?:\/\/[^\s\/]+)/i);
-        if (urlMatch) {
-          url = urlMatch[1];
-        }
-        
-        return url.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-      };
-
-      // Waterfall Tier 1: Clearbit suggest API (+ optional person-context disambiguation)
-      const toResolveResult = (match, method = 'name-only') => {
-        if (!match || !match.domain) return null;
-        const isUnsure = !!(match.ambiguous || match.deprioritized) && !match.exactName && match.score < 120;
-        const candidates = normalizeCandidates(
-          match.candidates,
-          (match.alternativeDomains || []).map(d => ({ domain: d })),
-          [{ domain: match.domain, name: match.name, snippet: match.snippet }]
-        );
-        return {
-          domain: match.domain,
-          isUnsure,
-          matchedName: match.name,
-          industrySnippet: match.snippet,
-          alternatives: match.alternatives || [],
-          alternativeDomains: match.alternativeDomains || candidates.map(c => c.domain),
-          candidates,
-          resolveMethod: method
-        };
-      };
-
-      const tryClearbitQueries = async (queries, scoreAgainst, method) => {
-        let weak = null;
-        for (const q of queries) {
-          if (!q || !String(q).trim()) continue;
-          try {
-            const response = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(q)}`);
-            const data = await response.json();
-            if (data && data.length > 0) {
-              // Always keep every suggestion for the picker (even if scoring rejects them)
-              gatheredCandidates = normalizeCandidates(
-                gatheredCandidates,
-                data.map(item => ({
-                  domain: item.domain,
-                  name: item.name || item.domain,
-                  snippet: inferSnippet(item)
-                }))
-              );
-              const match = findBestDomainMatch(data, scoreAgainst || baseCleaned || companyName);
-              const resolved = toResolveResult(match, method);
-              if (resolved && (!resolved.isUnsure || match.exactName || match.score >= 100)) {
-                console.log('[resolve] Clearbit hit via', method, q, '->', resolved.domain);
-                return resolved;
-              }
-              if (resolved && !weak) weak = resolved;
-            }
-          } catch (err) {
-            console.warn('Clearbit query failed', q, err);
-          }
-        }
-        return weak;
-      };
-
-      try {
-        // Prefer unaugmented brand name BEFORE finance-augmented queries
-        const firstToken = String(baseCleaned || companyName).trim().split(/\s+/)[0];
-        const STOP_TOKENS = new Set(['office', 'west', 'new', 'the', 'city', 'of', 'and', 'for', 'group', 'fund', 'private', 'public', 'global', 'international', 'united', 'american', 'national']);
-        const strippedLegal = String(companyName)
-          .replace(/\b(llc|inc|ltd|limited|corp|corporation|co)\b/gi, '')
-          .replace(/&/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        const strippedOrgSuffix = String(companyName)
-          .replace(/\b(foundation|endowment|trust)\b/gi, '')
-          .replace(/^office of\s+/i, '')
-          .replace(/&/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        const nameOnlyQueries = [
-          strippedLegal,
-          strippedOrgSuffix,
-          baseCleaned || companyName,
-          companyName.replace(/&/g, ' ').replace(/\s+/g, ' ').trim(),
-          companyName,
-          searchQuery,
-          (firstToken && firstToken.length >= 4 && !STOP_TOKENS.has(firstToken.toLowerCase())) ? firstToken : null
-        ].filter((q, i, arr) => q && String(q).trim().length >= 2 && arr.indexOf(q) === i);
-
-        let nameHit = await tryClearbitQueries(nameOnlyQueries, baseCleaned || companyName, 'name-only');
-        let clearbitAltDomains = [
-          ...((nameHit && nameHit.alternativeDomains) || []),
-          ...gatheredCandidates.map(c => c.domain)
-        ];
-
-        // Also collect raw Clearbit domains for prominence (re-query best unaugmented once)
-        try {
-          for (const q of [strippedLegal, strippedOrgSuffix, baseCleaned || companyName].filter(Boolean)) {
-            const cbRes = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(q)}`);
-            if (cbRes.ok) {
-              const cbData = await cbRes.json();
-              if (Array.isArray(cbData)) {
-                gatheredCandidates = normalizeCandidates(
-                  gatheredCandidates,
-                  cbData.map(item => ({
-                    domain: item.domain,
-                    name: item.name || item.domain,
-                    snippet: inferSnippet(item)
-                  }))
-                );
-                clearbitAltDomains = [...new Set([
-                  ...clearbitAltDomains,
-                  ...cbData.map(x => String(x.domain || '').toLowerCase()).filter(Boolean)
-                ])];
-              }
-            }
-          }
-        } catch (_) { /* non-fatal */ }
-
-        // Prominence cross-check: prefer well-known Wikidata entity; else mark Potential
-        if (nameHit && nameHit.domain) {
-          const prominence = await crossCheckProminentDomain(
-            companyName,
-            nameHit.domain,
-            baseCleaned,
-            clearbitAltDomains
-          );
-          if (prominence) {
-            if (prominence.action === 'override') {
-              nameHit = {
-                ...nameHit,
-                domain: prominence.domain,
-                isUnsure: false,
-                matchedName: prominence.label || nameHit.matchedName,
-                industrySnippet: prominence.snippet || nameHit.industrySnippet,
-                alternatives: prominence.alternatives || [nameHit.domain, ...(nameHit.alternatives || [])].slice(0, 4),
-                alternativeDomains: normalizeCandidates(
-                  prominence.alternatives,
-                  clearbitAltDomains,
-                  [{ domain: prominence.domain, name: prominence.label, snippet: prominence.snippet }]
-                ).map(c => c.domain),
-                candidates: normalizeCandidates(
-                  prominence.alternatives,
-                  clearbitAltDomains,
-                  nameHit.candidates,
-                  [{ domain: prominence.domain, name: prominence.label, snippet: prominence.snippet }],
-                  [{ domain: nameHit.domain, name: nameHit.matchedName, snippet: nameHit.industrySnippet }]
-                ),
-                resolveMethod: 'name-only',
-                fastPath: true
-              };
-            } else if (prominence.action === 'ambiguous') {
-              nameHit = {
-                ...nameHit,
-                domain: prominence.domain || nameHit.domain,
-                isUnsure: true,
-                alternatives: prominence.alternatives || [prominence.domain, nameHit.domain].filter(Boolean),
-                alternativeDomains: normalizeCandidates(
-                  prominence.alternatives,
-                  clearbitAltDomains,
-                  nameHit.candidates
-                ).map(c => c.domain),
-                candidates: normalizeCandidates(
-                  prominence.alternatives,
-                  clearbitAltDomains,
-                  nameHit.candidates,
-                  [{ domain: prominence.domain || nameHit.domain, name: prominence.label || nameHit.matchedName, snippet: prominence.snippet || nameHit.industrySnippet }]
-                ),
-                industrySnippet: `${nameHit.industrySnippet || nameHit.matchedName} · ambiguous candidates: ${(prominence.alternatives || []).join(' · ')}`
-              };
-            }
-          }
-        }
-
-        const usePerson = effectivePerson && (effectivePerson.personName || effectivePerson.personTitle)
-          && (isAmbiguousCompanyName(companyName) || (nameHit && nameHit.isUnsure) || !nameHit);
-
-        if (usePerson) {
-          const pName = effectivePerson.personName || '';
-          const pTitle = effectivePerson.personTitle || '';
-          const personQueries = [
-            `${companyName} ${pName}`.trim(),
-            `${pName} ${pTitle} ${companyName}`.trim(),
-            `${pName} ${companyName} capital`.trim(),
-            `${companyName} ${pTitle}`.trim()
-          ].filter((q, i, arr) => q && arr.indexOf(q) === i);
-
-          console.log('[resolve] person-context search for', companyName, '→', personQueries[0]);
-          const personHit = await tryClearbitQueries(personQueries, baseCleaned || companyName, 'name+person');
-          if (personHit && (!personHit.isUnsure || !nameHit || nameHit.isUnsure)) {
-            return store({
-              ...personHit,
-              resolveMethod: 'name+person',
-              industrySnippet: `${personHit.industrySnippet || personHit.matchedName || companyName}${pName ? ' · via ' + pName : ''}`
-            });
-          }
-        }
-
-        if (nameHit) {
-          const fast = isKnownUnambiguousCompany(companyName) || (!nameHit.isUnsure && !isAmbiguousCompanyName(companyName));
-          return store({ ...nameHit, fastPath: !!fast });
-        }
-      } catch (err) {
-        console.warn("Clearbit suggest query failed, continuing waterfall:", err);
       }
 
-      // Waterfall Tier 2: DuckDuckGo Instant Answer API (checks Wikipedia/Wikidata Infoboxes)
-      try {
-        // Query base cleaned first (not finance-augmented)
-        let response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(baseCleaned)}&format=json&no_html=1`);
-        let json = await response.json();
-        
-        let item = null;
-        if (json.Infobox && json.Infobox.content) {
-          item = json.Infobox.content.find(i => i.data_type === 'official_website' || i.label === 'Official Website');
-          if (!item) {
-            item = json.Infobox.content.find(i => i.label === 'Website');
-          }
-        }
+      // Multi-source parallel gather (Clearbit + DuckDuckGo + Wikipedia/Wikidata)
+      // → shared candidate pool → multi-signal confidence scoring.
+      const STOP_TOKENS = new Set(['office', 'west', 'new', 'the', 'city', 'of', 'and', 'for', 'group', 'fund', 'private', 'public', 'global', 'international', 'united', 'american', 'national']);
+      const firstToken = String(baseCleaned || companyName).trim().split(/\s+/)[0];
+      const strippedLegal = String(companyName)
+        .replace(/\b(llc|inc|ltd|limited|corp|corporation|co)\b/gi, '')
+        .replace(/&/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const strippedOrgSuffix = String(companyName)
+        .replace(/\b(foundation|endowment|trust)\b/gi, '')
+        .replace(/^office of\s+/i, '')
+        .replace(/&/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-        if (!item && companyName.toLowerCase().trim() !== baseCleaned) {
-          response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(companyName)}&format=json&no_html=1`);
-          json = await response.json();
-          if (json.Infobox && json.Infobox.content) {
-            item = json.Infobox.content.find(i => i.data_type === 'official_website' || i.label === 'Official Website');
-            if (!item) {
-              item = json.Infobox.content.find(i => i.label === 'Website');
-            }
-          }
-        }
-
-        // Org / government / foundation: try "official site" Instant Answer
-        const looksLikeOrg = /\b(office of|university|foundation|comptroller|ministry|department of|city of|county of|state of|government|authority|board of|commission)\b/i.test(companyName);
-        if (!item && looksLikeOrg) {
-          response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(companyName + ' official website')}&format=json&no_html=1`);
-          json = await response.json();
-          if (json.Infobox && json.Infobox.content) {
-            item = json.Infobox.content.find(i => i.data_type === 'official_website' || i.label === 'Official Website' || i.label === 'Website');
-          }
-          if (!item && json.AbstractURL) {
-            const absDom = extractUrlDomain(json.AbstractURL);
-            if (absDom && absDom.includes('.') && !absDom.includes('wikipedia.org')) {
-              return store({
-                domain: absDom,
-                isUnsure: false,
-                matchedName: json.Heading || companyName,
-                industrySnippet: (json.Heading || companyName) + (json.AbstractText ? ` — ${json.AbstractText.slice(0, 80)}` : ''),
-                alternatives: [],
-                resolveMethod: 'name-only'
-              });
-            }
-          }
-        }
-
-        if (item && item.value) {
-          const domain = extractUrlDomain(item.value);
-          if (domain && domain.includes('.')) {
-            const snippet = (json.Heading || baseCleaned) + (json.AbstractText ? ` — ${json.AbstractText.slice(0, 80)}` : '');
-            return store({
-              domain,
-              isUnsure: false,
-              matchedName: json.Heading || companyName,
-              industrySnippet: snippet,
-              alternatives: [],
-              resolveMethod: 'name-only'
-            });
-          }
-        }
-      } catch (err) {
-        console.warn("DuckDuckGo Instant Answer request failed:", err);
+      let searchQuery = cleaned;
+      if (financeFilterActive) {
+        const financeTerms = ['capital', 'partners', 'ventures', 'investment', 'holdings', 'wealth', 'finance', 'fund', 'equity', 'management', 'pe', 'vc', 'advisory', 'advisors', 'associates', 'group', 'fintech', 'bank'];
+        const hasFinanceTerm = financeTerms.some(term => cleaned.toLowerCase().includes(term));
+        if (!hasFinanceTerm) searchQuery = `${cleaned} capital`;
       }
 
-      // Waterfall Tier 3: Local Dictionaries
-      if (companyDictionary[localClean]) {
-        return store({ domain: companyDictionary[localClean].domain, isUnsure: false, industrySnippet: companyDictionary[localClean].industry, resolveMethod: 'name-only', fastPath: true });
+      const nameOnlyQueries = [
+        strippedLegal,
+        strippedOrgSuffix,
+        baseCleaned || companyName,
+        companyName.replace(/&/g, ' ').replace(/\s+/g, ' ').trim(),
+        companyName,
+        searchQuery,
+        (firstToken && firstToken.length >= 4 && !STOP_TOKENS.has(firstToken.toLowerCase())) ? firstToken : null
+      ].filter((q, i, arr) => q && String(q).trim().length >= 2 && arr.indexOf(q) === i);
+
+      console.log('[resolve] multi-source gather for', companyName);
+
+      const [cbPool, ddgPool, wikiPool] = await Promise.all([
+        gatherClearbitCandidates(nameOnlyQueries),
+        gatherDuckDuckGoCandidates(companyName, baseCleaned),
+        gatherWikipediaWikidataCandidates(companyName, baseCleaned)
+      ]);
+
+      gatheredCandidates = normalizeCandidates(gatheredCandidates, cbPool, ddgPool, wikiPool);
+
+      // Optional person-context Clearbit pass for ambiguous names
+      const usePerson = effectivePerson && (effectivePerson.personName || effectivePerson.personTitle)
+        && isAmbiguousCompanyName(companyName);
+      if (usePerson) {
+        const pName = effectivePerson.personName || '';
+        const pTitle = effectivePerson.personTitle || '';
+        const personQueries = [
+          `${companyName} ${pName}`.trim(),
+          `${pName} ${pTitle} ${companyName}`.trim(),
+          `${pName} ${companyName} capital`.trim(),
+          `${companyName} ${pTitle}`.trim()
+        ].filter((q, i, arr) => q && arr.indexOf(q) === i);
+        const personCb = await gatherClearbitCandidates(personQueries);
+        gatheredCandidates = normalizeCandidates(gatheredCandidates, personCb.map(c => ({
+          ...c,
+          sources: [...new Set([...(c.sources || []), 'clearbit-person'])],
+          snippet: c.snippet || (pName ? `via ${pName}` : '')
+        })));
       }
 
-      for (const key in companyDictionary) {
-        if (localClean.includes(key) || key.includes(localClean)) {
-          return store({ domain: companyDictionary[key].domain, isUnsure: false, industrySnippet: companyDictionary[key].industry, resolveMethod: 'name-only', fastPath: true });
-        }
+      // Finance filter: soft re-rank snippets only (scoring still multi-signal)
+      if (financeFilterActive) {
+        const FINANCE_KW = ['capital', 'partner', 'venture', 'investment', 'fund', 'holding', 'wealth', 'finance', 'equity', 'fintech', 'bank', 'asset', 'credit', 'lend', 'hedge', 'advisory', 'advisors', 'securities', 'broker'];
+        gatheredCandidates = gatheredCandidates.map(c => {
+          const blob = `${c.name || ''} ${c.domain || ''}`.toLowerCase();
+          if (FINANCE_KW.some(k => blob.includes(k))) {
+            return { ...c, snippet: c.snippet || `${c.name || c.domain} · finance` };
+          }
+          return c;
+        });
       }
 
-      // Block unverified test keys — and never invent domains (hallucination risk)
-      if (["test", "asdf", "company", "xyz", "hello", "unknown"].includes(localClean)) {
+      if (!gatheredCandidates.length) {
+        console.log('[resolve] no candidates from any source for', companyName);
         return store(null);
       }
 
-      // Waterfall Tier 4: Wikipedia / Wikimedia for orgs, foundations, universities, government
-      try {
-        const orgVariants = [];
-        const pushQ = (q) => {
-          const t = String(q || '').trim();
-          if (t && !orgVariants.some(x => x.toLowerCase() === t.toLowerCase())) orgVariants.push(t);
-        };
-        pushQ(companyName);
-        pushQ(`${companyName} official website`);
-        pushQ(baseCleaned);
-        // Strip common org prefixes/suffixes for better Wikipedia hits
-        pushQ(companyName.replace(/^office of\s+/i, '').trim());
-        pushQ(companyName.replace(/\s*\(([^)]*)\)\s*/g, ' ').trim()); // drop (Moderator) etc.
-        pushQ(companyName.replace(/\b(foundation|endowment|trust)\b/gi, '').replace(/\s+/g, ' ').trim());
-        pushQ(companyName.replace(/\b(university)\s+foundation\b/i, 'university').trim());
+      const ranked = await rankCandidatesWithSignals(companyName, gatheredCandidates, {
+        skippedDomains,
+        financeFilterActive,
+        checkContent: true
+      });
 
-        for (const wq of orgVariants) {
-          if (!wq || wq.length < 3) continue;
-          const openRes = await fetch(
-            `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=5&namespace=0&format=json&origin=*`
-          );
-          if (!openRes.ok) continue;
-          const openJson = await openRes.json();
-          const titles = openJson[1] || [];
-          if (!titles.length) continue;
+      gatheredCandidates = normalizeCandidates(ranked.candidates, gatheredCandidates);
 
-          // Prefer a title that shares tokens with the query
-          const qTokens = wq.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-          let bestIdx = 0;
-          let bestScore = -1;
-          titles.forEach((t, idx) => {
-            const tl = t.toLowerCase();
-            let s = qTokens.filter(tok => tl.includes(tok)).length * 10;
-            if (tl === wq.toLowerCase()) s += 50;
-            if (s > bestScore) { bestScore = s; bestIdx = idx; }
-          });
-
-          if (bestScore < 10 && qTokens.length > 1) continue;
-
-          const title = titles[bestIdx];
-          const wikiTitle = title;
-          const wdRes = await fetch(
-            `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(wikiTitle)}&props=claims|descriptions&languages=en&format=json&origin=*`
-          );
-          if (!wdRes.ok) continue;
-          const wd = await wdRes.json();
-          const entities = wd.entities || {};
-          const entity = Object.values(entities).find(e => e && e.claims && e.claims.P856);
-          const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
-          const domain = claim ? extractUrlDomain(claim) : '';
-          const description = entity?.descriptions?.en?.value || '';
-
-          if (domain && domain.includes('.') && !domain.includes('wikipedia.org')) {
-            console.log('[resolve] Wikipedia/Wikidata official site', companyName, '->', domain, '(via', wq, ')');
-            gatheredCandidates = normalizeCandidates(
-              gatheredCandidates,
-              [{ domain, name: wikiTitle, snippet: description || wikiTitle }]
-            );
-            return store({
-              domain,
-              isUnsure: gatheredCandidates.length > 1,
-              matchedName: wikiTitle,
-              industrySnippet: `${wikiTitle}${description ? ' · ' + description : ''}`,
-              alternatives: titles.slice(0, 3),
-              candidates: gatheredCandidates,
-              resolveMethod: 'name-only'
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('Wikipedia org fallback failed:', err);
+      if (!ranked.best || !ranked.best.domain) {
+        return store(null);
       }
 
-      // No confident search hit — do not algorithmically guess a URL
-      return store(null);
+      const score = ranked.best.totalScore || 0;
+      const sourcesArr = ranked.best.sources || [];
+      // Avoid confident picks that are Clearbit-only junk with weak name overlap
+      const nameSim = ranked.best.signals?.nameSimilarity || 0;
+      const credible =
+        ranked.best.exactName ||
+        nameSim >= 28 ||
+        sourcesArr.length >= 2 ||
+        sourcesArr.includes('wikidata') ||
+        sourcesArr.includes('wikipedia') ||
+        sourcesArr.includes('duckduckgo') ||
+        sourcesArr.includes('dictionary');
+      const clearsThreshold = score >= RESOLVE_CONFIDENCE_THRESHOLD && !ranked.ambiguous && credible;
+      const methodSources = [...new Set(ranked.best.sources || [])];
+      const resolveMethod = methodSources.length ? methodSources.join('+') : 'multi-source';
+
+      console.log(
+        '[resolve] ranked', companyName, '->', ranked.best.domain,
+        'score=', score,
+        'threshold=', RESOLVE_CONFIDENCE_THRESHOLD,
+        'confident=', clearsThreshold,
+        'ambiguous=', !!ranked.ambiguous,
+        'signals=', ranked.best.signals
+      );
+
+      // Only treat as a strong recommendation when confidence clears the threshold.
+      // Weak / tied scores still return the best candidate + full pool for the picker.
+      return store({
+        domain: ranked.best.domain,
+        isUnsure: !clearsThreshold,
+        confidenceScore: score,
+        confidenceSignals: ranked.best.signals || {},
+        matchedName: ranked.best.name || companyName,
+        industrySnippet: ranked.best.snippet
+          || (clearsThreshold ? `${ranked.best.name || ranked.best.domain} · score ${score}` : `Possible match · score ${score}`),
+        alternatives: gatheredCandidates.map(c => c.snippet || c.name || c.domain),
+        alternativeDomains: gatheredCandidates.map(c => c.domain),
+        candidates: gatheredCandidates,
+        resolveMethod,
+        fastPath: clearsThreshold && (ranked.best.exactName || methodSources.includes('wikidata'))
+      });
     }
 
     // Permanent constraint: Industry / Headcount / Founders / Location must never be templated.
@@ -3675,6 +3734,22 @@
       );
     }
 
+    function ThumbsUpIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+        </svg>
+      );
+    }
+
+    function ThumbsDownIcon({ size = 16, className = "" }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+        </svg>
+      );
+    }
+
     function DownloadIcon({ size = 16, className = "" }) {
       return (
         <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -3755,6 +3830,44 @@
     // --- SITE ACCESS CODE + LOCAL PROJECTS ---
     const ACCESS_SESSION_KEY = 'plum_site_unlocked';
     const PROJECTS_STORAGE_KEY = 'plum_local_projects_v1';
+    const ACCURACY_STORAGE_KEY = 'plum_accuracy_feedback_v1';
+
+    function readAccuracyLog() {
+      try {
+        const raw = localStorage.getItem(ACCURACY_STORAGE_KEY);
+        const list = raw ? JSON.parse(raw) : [];
+        return Array.isArray(list) ? list : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function writeAccuracyLog(list) {
+      localStorage.setItem(ACCURACY_STORAGE_KEY, JSON.stringify((list || []).slice(-500)));
+    }
+
+    function getAccuracyStats() {
+      const log = readAccuracyLog();
+      const correct = log.filter(e => e && e.correct === true).length;
+      const incorrect = log.filter(e => e && e.correct === false).length;
+      const total = correct + incorrect;
+      return {
+        correct,
+        incorrect,
+        total,
+        rate: total ? Math.round((correct / total) * 1000) / 10 : null
+      };
+    }
+
+    function appendAccuracyFeedback(entry) {
+      const log = readAccuracyLog();
+      log.push({
+        ...entry,
+        ts: entry.ts || new Date().toISOString()
+      });
+      writeAccuracyLog(log);
+      return getAccuracyStats();
+    }
 
     function getAccessCode() {
       return String((window.PLUM_ACCESS && window.PLUM_ACCESS.code) || '').trim();
@@ -3865,6 +3978,7 @@
       const [editingValue, setEditingValue] = useState('');
       // Parse preview before enrichment
       const [parsePreview, setParsePreview] = useState(null); // [{ id, raw, companyName, sourceContact, personName, personTitle, notes }]
+      const [accuracyStats, setAccuracyStats] = useState(() => getAccuracyStats());
 
       // Local projects (browser localStorage)
       const [projects, setProjects] = useState([]);
@@ -4570,6 +4684,20 @@
               release(rowId);
             };
 
+            // Prefer Potential + picker over a dead-end Unverified whenever options exist
+            const finishPotentialPicker = (fields) => {
+              updateRow(rowId, {
+                status: 'potential',
+                linkVerified: false,
+                selectionLocked: false,
+                pickerOpen: true,
+                candidatesUnconfirmed: true,
+                userConfirmedDomain: false,
+                ...fields
+              });
+              release(rowId);
+            };
+
             try {
               if (!companyName || !companyName.trim() || companyName === '-') {
                 finishUnverified({
@@ -4644,27 +4772,51 @@
                   );
                   resolveMethod = resolvedObj.resolveMethod || 'name-only';
                   fastPath = !!resolvedObj.fastPath || isKnownUnambiguousCompany(companyName);
+                  const confidenceScore = Number(resolvedObj.confidenceScore) || 0;
+                  const confidenceSignals = resolvedObj.confidenceSignals || null;
+                  // Below confidence threshold: still show best guess in picker, but never auto-trust it
+                  const strongRecommend = !isUnsure && confidenceScore >= RESOLVE_CONFIDENCE_THRESHOLD;
 
-                  updateRow(rowId, { status: 'verifying', [webKey]: domain, resolveMethod, candidates });
-                  const verification = await verifyDomainLive(domain, companyName, { fastPath });
+                  updateRow(rowId, { status: 'verifying', [webKey]: domain, resolveMethod, candidates, confidenceScore, confidenceSignals });
+                  const verification = await verifyDomainLive(domain, companyName, { fastPath: fastPath && strongRecommend });
                   if (!verification.ok) {
                     const moreOpts = await ensureWebsiteOptions(companyName, candidates, '', {});
-                    finishUnverified({
-                      [webKey]: '',
-                      [indKey]: industrySnippet || '-',
-                      [hcKey]: '-',
-                      [locKey]: '-',
-                      [conKey]: '-',
-                      [genKey]: '-',
-                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', verification.reason, moreOpts.length ? 'Pick a website below (unconfirmed)' : 'Enter a website manually'].filter(Boolean).join(' · '),
-                      matchSnippet: industrySnippet,
-                      candidates: moreOpts,
-                      savedCandidates: moreOpts,
-                      selectionLocked: false,
-                      pickerOpen: true,
-                      candidatesUnconfirmed: true,
-                      resolveMethod
-                    });
+                    if (moreOpts.length) {
+                      finishPotentialPicker({
+                        [webKey]: '',
+                        [indKey]: industrySnippet || '-',
+                        [hcKey]: '-',
+                        [locKey]: '-',
+                        [conKey]: '-',
+                        [genKey]: '-',
+                        [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', verification.reason, 'Pick a website below'].filter(Boolean).join(' · '),
+                        matchSnippet: industrySnippet,
+                        candidates: moreOpts,
+                        savedCandidates: moreOpts,
+                        showManualDomain: false,
+                        resolveMethod,
+                        confidenceScore,
+                        confidenceSignals
+                      });
+                    } else {
+                      finishUnverified({
+                        [webKey]: '',
+                        [indKey]: industrySnippet || '-',
+                        [hcKey]: '-',
+                        [locKey]: '-',
+                        [conKey]: '-',
+                        [genKey]: '-',
+                        [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', verification.reason, 'Enter a website manually'].filter(Boolean).join(' · '),
+                        matchSnippet: industrySnippet,
+                        candidates: [],
+                        savedCandidates: [],
+                        selectionLocked: false,
+                        pickerOpen: true,
+                        candidatesUnconfirmed: true,
+                        showManualDomain: true,
+                        resolveMethod
+                      });
+                    }
                     return;
                   }
 
@@ -4673,29 +4825,31 @@
                   if (!userConfirmed) {
                     updateRow(rowId, {
                       status: 'potential',
-                      [webKey]: domain,
+                      [webKey]: strongRecommend || confidenceScore > 0 ? domain : (candidates[0]?.domain || domain || ''),
                       [indKey]: industrySnippet || '-',
                       [hcKey]: '-',
                       [locKey]: '-',
                       [conKey]: '-',
                       [genKey]: '-',
-                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', candidates.length ? 'Select the correct website below' : 'Enter the website manually'].filter(Boolean).join(' · '),
+                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', candidates.length ? (strongRecommend ? 'Select the correct website below' : `Low confidence (score ${confidenceScore}) — confirm a website`) : 'Enter the website manually'].filter(Boolean).join(' · '),
                       matchSnippet: industrySnippet,
                       linkVerified: false,
                       candidates,
                       savedCandidates: candidates,
                       selectionLocked: false,
                       pickerOpen: true,
-                      candidatesUnconfirmed: isUnsure,
+                      candidatesUnconfirmed: isUnsure || !strongRecommend,
                       resolveMethod,
                       userConfirmedDomain: false,
-                      showManualDomain: candidates.length === 0
+                      showManualDomain: candidates.length === 0,
+                      confidenceScore,
+                      confidenceSignals
                     });
                     release(rowId);
                     return;
                   }
 
-                  updateRow(rowId, { [webKey]: domain, status: 'enriching', matchSnippet: industrySnippet, linkVerified: true, resolveMethod, userConfirmedDomain: false });
+                  updateRow(rowId, { [webKey]: domain, status: 'enriching', matchSnippet: industrySnippet, linkVerified: true, resolveMethod, userConfirmedDomain: false, confidenceScore, confidenceSignals });
                 } else {
                   // No confident domain — still attach / fetch loose candidates for the picker
                   const looseCandidates = await ensureWebsiteOptions(
@@ -4709,22 +4863,38 @@
                     '',
                     {}
                   );
-                  finishUnverified({
-                    [webKey]: '',
-                    [indKey]: '-',
-                    [hcKey]: '-',
-                    [locKey]: '-',
-                    [conKey]: '-',
-                    [genKey]: '-',
-                    [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', 'Could not auto-pick a website', looseCandidates.length ? 'Pick from options below' : 'Enter a website manually'].filter(Boolean).join(' · '),
-                    candidates: looseCandidates,
-                    savedCandidates: looseCandidates,
-                    selectionLocked: false,
-                    pickerOpen: true,
-                    candidatesUnconfirmed: true,
-                    showManualDomain: looseCandidates.length === 0,
-                    resolveMethod: resolveMethod || 'none'
-                  });
+                  if (looseCandidates.length) {
+                    finishPotentialPicker({
+                      [webKey]: looseCandidates[0].domain || '',
+                      [indKey]: '-',
+                      [hcKey]: '-',
+                      [locKey]: '-',
+                      [conKey]: '-',
+                      [genKey]: '-',
+                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', 'No strong match — pick from options below'].filter(Boolean).join(' · '),
+                      candidates: looseCandidates,
+                      savedCandidates: looseCandidates,
+                      showManualDomain: false,
+                      resolveMethod: resolveMethod || 'multi-source'
+                    });
+                  } else {
+                    finishUnverified({
+                      [webKey]: '',
+                      [indKey]: '-',
+                      [hcKey]: '-',
+                      [locKey]: '-',
+                      [conKey]: '-',
+                      [genKey]: '-',
+                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', 'Could not find website candidates', 'Enter a website manually'].filter(Boolean).join(' · '),
+                      candidates: [],
+                      savedCandidates: [],
+                      selectionLocked: false,
+                      pickerOpen: true,
+                      candidatesUnconfirmed: true,
+                      showManualDomain: true,
+                      resolveMethod: resolveMethod || 'none'
+                    });
+                  }
                   return;
                 }
               } else {
@@ -4787,7 +4957,9 @@
                 pickerOpen: false,
                 candidatesUnconfirmed: false,
                 userConfirmedDomain: false,
-                showManualDomain: false
+                showManualDomain: false,
+                confidenceScore: rowToProcess.confidenceScore ?? null,
+                accuracyFeedback: null
               });
               release(rowId);
             } catch (err) {
@@ -5054,6 +5226,27 @@
         }));
       };
 
+      const handleAccuracyFeedback = (rowId, correct) => {
+        const row = rowsRef.current.find(r => r.id === rowId) || rows.find(r => r.id === rowId);
+        if (!row) return;
+        const compKey = getCompanyColumnKey();
+        const webKey = getWebsiteColumnKey();
+        const stats = appendAccuracyFeedback({
+          company: row[compKey] || '',
+          domain: row[webKey] || '',
+          correct: !!correct,
+          resolveMethod: row.resolveMethod || '',
+          confidenceScore: row.confidenceScore ?? null,
+          sources: (row.candidates || []).find(c => c.domain === row[webKey])?.sources || []
+        });
+        setAccuracyStats(stats);
+        updateRow(rowId, { accuracyFeedback: correct ? 'up' : 'down' });
+        if (!correct) {
+          // Wrong website — reopen picker so the user can fix it
+          handleChangeSelection(rowId);
+        }
+      };
+
       const handleCellDoubleClick = (rowId, colName, currentValue) => {
         if (activeIds.includes(rowId)) return;
         setEditingCell({ id: rowId, column: colName });
@@ -5299,6 +5492,17 @@
                 <SlidersIcon size={15} />
                 <span>Settings</span>
               </button>
+              <div
+                className="accuracy-chip"
+                title="Running website-resolution accuracy from thumbs up/down on Found rows (stored in this browser)"
+              >
+                <span>Accuracy</span>
+                <strong>
+                  {accuracyStats.total
+                    ? `${accuracyStats.rate}% (${accuracyStats.correct}/${accuracyStats.total})`
+                    : '—'}
+                </strong>
+              </div>
               <button className="btn btn-danger" disabled={rows.length === 0} onClick={handleClearTable}>
                 <TrashIcon size={15} />
                 <span>Clear Table</span>
@@ -5550,6 +5754,26 @@
                                   <span className="status-badge found">
                                     <CheckIcon size={12} />
                                     <span>Found</span>
+                                  </span>
+                                )}
+                                {row.status === 'found' && (
+                                  <span className="accuracy-feedback" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                      type="button"
+                                      className={row.accuracyFeedback === 'up' ? 'active-up' : ''}
+                                      title="Mark website as correct"
+                                      onClick={() => handleAccuracyFeedback(row.id, true)}
+                                    >
+                                      <ThumbsUpIcon size={12} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={row.accuracyFeedback === 'down' ? 'active-down' : ''}
+                                      title="Mark website as incorrect"
+                                      onClick={() => handleAccuracyFeedback(row.id, false)}
+                                    >
+                                      <ThumbsDownIcon size={12} />
+                                    </button>
                                   </span>
                                 )}
                                 {row.status === 'potential' && (

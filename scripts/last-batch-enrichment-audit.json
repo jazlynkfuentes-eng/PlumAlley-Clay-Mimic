@@ -1,0 +1,658 @@
+{
+  "summary": {
+    "total": 62,
+    "found": 55,
+    "potential": 0,
+    "unverified": 7
+  },
+  "results": [
+    {
+      "name": "Google",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "google.com",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "Pa,Qa",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Apple",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "apple.com",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "Apple Watch, Mac",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Microsoft",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "microsoft.com",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "AI, Cloud",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Notion",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "notion.so",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "Slack, Google Drive",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Stripe",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "stripe.com",
+      "candidates": 5,
+      "industry": "Financial Services",
+      "location": "Avenue, Suite",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Openai",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "openai.com",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Linkedin",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "linkedin.com",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "Diversity, Equity",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Cornell University",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "cornell.edu",
+      "candidates": 5,
+      "industry": "Education",
+      "location": "Web Communications, Cornell University",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Impactus Partners",
+      "status": "unverified",
+      "reason": "dns-fail:impactus-partners.com",
+      "website": "impactus-partners.com",
+      "candidates": 2
+    },
+    {
+      "name": "Gilder Partners FOR Growth",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "gilderpartners.com",
+      "candidates": 1,
+      "industry": "Venture Capital",
+      "location": "Raleigh, NC",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Plum Alley Ventures",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "plumalley.co",
+      "candidates": 1,
+      "industry": "Venture Capital",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Amazon",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "amazon.com",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Meta",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "meta.com",
+      "candidates": 6,
+      "industry": "Unknown",
+      "location": "Ban Meta, Oakley Meta",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Netflix",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "netflix.com",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "Shows Online, Watch Movies",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Tesla",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "tesla.com",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Impala",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "impala.co",
+      "candidates": 6,
+      "industry": "Hospitality APIs",
+      "location": "Washington Street, Suite",
+      "founders": "Unknown"
+    },
+    {
+      "name": "THE Blackstone Group",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "blackstone.com",
+      "candidates": 2,
+      "industry": "Unknown",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Blackrock",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "blackrock.com",
+      "candidates": 5,
+      "industry": "Investment Management",
+      "location": "BlackRock, Inc",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Fordham University",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "fordham.edu",
+      "candidates": 3,
+      "industry": "Education",
+      "location": "Jesuit, Catholic",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Aclima",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "aclima.io",
+      "candidates": 6,
+      "industry": "Climate Tech",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Aifi",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "aifi.com",
+      "candidates": 6,
+      "industry": "AI & Retail",
+      "location": "Inter,Inter Placeholder",
+      "founders": "Unknown"
+    },
+    {
+      "name": "AIR Protein",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "airprotein.com",
+      "candidates": 1,
+      "industry": "AgTech & Food",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Apellai",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "apellai.com",
+      "candidates": 4,
+      "industry": "Biotech & Health",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Arix Technologies",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "arixrobotics.com",
+      "candidates": 2,
+      "industry": "Industrial & Robotics",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Ashvattha Therapeutics",
+      "status": "unverified",
+      "reason": "dns-fail:ashvatthatx.com",
+      "website": "ashvatthatx.com",
+      "candidates": 2
+    },
+    {
+      "name": "Betteromics",
+      "status": "unverified",
+      "reason": "dns-fail:betteromics.com",
+      "website": "betteromics.com",
+      "candidates": 1
+    },
+    {
+      "name": "Biobot Analytics",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "biobot.io",
+      "candidates": 1,
+      "industry": "Public Health Tech",
+      "location": "AI, Biobot",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Bioeclipse",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "bioeclipse.com",
+      "candidates": 1,
+      "industry": "Biotech & Health",
+      "location": "Proprietary Allogeneic, Off",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Diligent Robotics",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "diligentrobots.com",
+      "candidates": 2,
+      "industry": "AI & Robotics",
+      "location": "Version, Sec",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Einride",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "einride.tech",
+      "candidates": 1,
+      "industry": "Autonomous EV Logistics",
+      "location": "Inter,Inter Placeholder",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Epibone",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "epibone.com",
+      "candidates": 1,
+      "industry": "Biotech & Health",
+      "location": "Version, Sec",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Evrnu",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "evrnu.com",
+      "candidates": 5,
+      "industry": "Circular Textiles",
+      "location": "Collect, Sort",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Gameto",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "gameto.com",
+      "candidates": 6,
+      "industry": "Biotech & Health",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "ONE Concern",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "oneconcern.com",
+      "candidates": 1,
+      "industry": "Climate Tech",
+      "location": "Capital Markets, Insurance",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Helaina",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "myhelaina.com",
+      "candidates": 3,
+      "industry": "FoodTech",
+      "location": "Beyond Bovine, Changing",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Innerplant",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "innerplant.com",
+      "candidates": 1,
+      "industry": "AgTech",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Juvena Therapeutics",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "juvenatx.com",
+      "candidates": 2,
+      "industry": "Biotech & Health",
+      "location": "CEO, Dr",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Ketos",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "ketos.co",
+      "candidates": 5,
+      "industry": "Water Tech & IoT",
+      "location": "Agricultural, Industrial",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Kraus Hamdani Aerospace",
+      "status": "unverified",
+      "reason": "dns-fail:khawing.com",
+      "website": "khawing.com",
+      "candidates": 2
+    },
+    {
+      "name": "MAI",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "mai.com",
+      "candidates": 6,
+      "industry": "AI Visual Commerce",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Mammoth Biosciences",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "mammoth.bio",
+      "candidates": 1,
+      "industry": "Biotech & CRISPR",
+      "location": "Mammoth Biosciences, Inc",
+      "founders": "Unknown"
+    },
+    {
+      "name": "ONE Health",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "fidocure.com",
+      "candidates": 6,
+      "industry": "Veterinary Biotech",
+      "location": "Bold, Georgia",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Openwater",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "openwater.health",
+      "candidates": 6,
+      "industry": "Biotech & Imaging",
+      "location": "For Wearable, Steerable Ultrasound",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Phoenix Tailings",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "phoenixtailings.com",
+      "candidates": 1,
+      "industry": "Climate Tech & Metals",
+      "location": "Integrated, Ecosystem Enabling",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Siren Biotechnologies",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "sirenbiotechnology.com",
+      "candidates": 1,
+      "industry": "Biotech & AAV",
+      "location": "First IND, Advancing Company",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Thinkcerca",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "thinkcerca.com",
+      "candidates": 1,
+      "industry": "EdTech",
+      "location": "Clever, Classlink",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Tinkergarten",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "tinkergarten.com",
+      "candidates": 1,
+      "industry": "EdTech",
+      "location": "Amanda, Flagstaff",
+      "founders": "Unknown"
+    },
+    {
+      "name": "VYV",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "vyv.tech",
+      "candidates": 6,
+      "industry": "CleanTech Sanitization",
+      "location": "Home, Public",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Heard Capital",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "heardcapital.com",
+      "candidates": 1,
+      "industry": "Asset Management",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Milken Institute",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "milkeninstitute.org",
+      "candidates": 2,
+      "industry": "Think Tank & Economics",
+      "location": "FinTech, Entrepreneurship",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Cara Advisory",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "caraadvisory.com",
+      "candidates": 1,
+      "industry": "Financial Advisors",
+      "location": "Version, Sec",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Inatai Foundation",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "inatai.org",
+      "candidates": 1,
+      "industry": "Philanthropy & Fund",
+      "location": "Campaigns, Litigation",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Marex",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "marex.com",
+      "candidates": 6,
+      "industry": "Financial Brokerage",
+      "location": "Inter,Helvetica",
+      "founders": "Unknown"
+    },
+    {
+      "name": "NAV Fund Services",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "navfundservices.com",
+      "candidates": 1,
+      "industry": "Fund Administration",
+      "location": "Efficiency, Accuracy",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Disciplina Capital Management",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "disciplina.com",
+      "candidates": 1,
+      "industry": "OCIO / Investment Management",
+      "location": "Arial,Helvetica",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Stable",
+      "status": "found",
+      "reason": "dictionary",
+      "website": "stableam.com",
+      "candidates": 6,
+      "industry": "Investment Management / GP Stakes",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "PIMCO",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "pimco.com",
+      "candidates": 5,
+      "industry": "Investment Management",
+      "location": "Prerna Gupta, Fixed Income",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Blackstone",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "blackstone.com",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Trinity Church Wall Street",
+      "status": "found",
+      "reason": "clearbit",
+      "website": "trinitywallstreet.org",
+      "candidates": 1,
+      "industry": "Nonprofit / Foundation",
+      "location": "West Cornwall, Connecticut",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Office of New York City Comptroller",
+      "status": "unverified",
+      "reason": "no-clearbit",
+      "candidates": 0
+    },
+    {
+      "name": "West Virginia University Foundation",
+      "status": "unverified",
+      "reason": "no-clearbit",
+      "candidates": 0
+    },
+    {
+      "name": "Private Fund (Moderator)",
+      "status": "unverified",
+      "reason": "non-entity",
+      "candidates": 0
+    }
+  ],
+  "samples": [
+    {
+      "name": "Blackstone",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "blackstone.com",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "Unknown",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Fordham University",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "fordham.edu",
+      "candidates": 3,
+      "industry": "Education",
+      "location": "Jesuit, Catholic",
+      "founders": "Unknown"
+    },
+    {
+      "name": "PIMCO",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "pimco.com",
+      "candidates": 5,
+      "industry": "Investment Management",
+      "location": "Prerna Gupta, Fixed Income",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Google",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "google.com",
+      "candidates": 5,
+      "industry": "Unknown",
+      "location": "Pa,Qa",
+      "founders": "Unknown"
+    },
+    {
+      "name": "Stripe",
+      "status": "found",
+      "reason": "major-firm",
+      "website": "stripe.com",
+      "candidates": 5,
+      "industry": "Financial Services",
+      "location": "Avenue, Suite",
+      "founders": "Unknown"
+    }
+  ]
+}
