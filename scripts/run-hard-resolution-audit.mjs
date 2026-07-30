@@ -88,6 +88,31 @@ function companyKeyNorm(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+const MAJOR = {
+  ibm: { domain: 'ibm.com', label: 'IBM' },
+  internationalbusinessmachines: { domain: 'ibm.com', label: 'IBM' },
+  fifththird: { domain: '53.com', label: 'Fifth Third Bank' },
+  fifththirdbank: { domain: '53.com', label: 'Fifth Third Bank' },
+  fifththirdbancorp: { domain: '53.com', label: 'Fifth Third Bank' },
+  securitiesandexchangecommission: { domain: 'sec.gov', label: 'U.S. Securities and Exchange Commission' },
+  ussecuritiesandexchangecommission: { domain: 'sec.gov', label: 'U.S. Securities and Exchange Commission' },
+  officeofnewyorkcitycomptroller: { domain: 'comptroller.nyc.gov', label: 'New York City Comptroller' },
+  newyorkcitycomptroller: { domain: 'comptroller.nyc.gov', label: 'New York City Comptroller' },
+  nyccomptroller: { domain: 'comptroller.nyc.gov', label: 'New York City Comptroller' }
+};
+
+function lookupMajor(name) {
+  const key = companyKeyNorm(name);
+  if (MAJOR[key]) return MAJOR[key];
+  const stripped = companyKeyNorm(
+    String(name || '')
+      .replace(/^office\s+of\s+(the\s+)?/i, '')
+      .replace(/^u\.?s\.?\s+/i, '')
+      .replace(/^united\s+states\s+/i, '')
+  );
+  return MAJOR[stripped] || null;
+}
+
 function extractUrlDomain(str) {
   if (!str) return '';
   const raw = String(str).trim();
@@ -263,26 +288,47 @@ function scoreNameDomainSimilarity(companyName, candidate) {
   const nameLower = String(candidate.name || '').toLowerCase();
   const nameClean = nameLower.replace(/[^a-z0-9]/g, '');
   const parts = String(candidate.domain || '').toLowerCase().split('.');
+  const host = String(candidate.domain || '').toLowerCase();
   const domBase = (parts[0] || '').replace(/[^a-z0-9]/g, '');
+  const stop = new Set(['of', 'the', 'and', 'a', 'an', 'for', 'in', 'on', 'at', 'to']);
+  const tokens = rawLower.split(/\s+/).map(t => t.replace(/[^a-z0-9]/g, '')).filter(t => t.length > 0 && !stop.has(t));
+  const contentTokens = tokens.filter(t => t.length > 2);
+  const acronym = tokens.length >= 2 ? tokens.map(t => t[0]).join('') : '';
   let score = 0;
   let exactName = false;
   if (nameLower === rawLower || nameClean === cleanQuery) {
     score += 40;
     exactName = true;
+  } else if (acronym && (nameClean === acronym || nameLower === acronym)) {
+    score += 38;
+    exactName = true;
   } else if (nameClean.includes(cleanQuery) || cleanQuery.includes(nameClean)) {
     score += 22;
   } else {
-    const tokens = rawLower.split(/\s+/).filter(t => t.length > 2);
-    const hits = tokens.filter(t => nameLower.includes(t) || domBase.includes(t.replace(/[^a-z0-9]/g, '')));
+    const hits = contentTokens.filter(t => nameLower.includes(t) || domBase.includes(t));
     score += Math.min(18, hits.length * 6);
   }
-  if (domBase === cleanQuery) score += 35;
+  if (domBase === cleanQuery || (acronym && domBase === acronym)) score += 35;
   else if (cleanQuery.length >= 4 && (domBase.startsWith(cleanQuery) || cleanQuery.startsWith(domBase))) score += 18;
   else if (cleanQuery.length >= 4 && (domBase.includes(cleanQuery) || cleanQuery.includes(domBase))) score += 10;
+  else if (acronym && acronym.length >= 2 && (domBase.includes(acronym) || acronym.includes(domBase))) score += 20;
+
+  const domainHasToken = contentTokens.some(t => domBase.includes(t) || host.includes(t));
+  const domainHasAcronym = !!(acronym && acronym.length >= 2 && (domBase === acronym || domBase.includes(acronym)));
+  if (exactName && contentTokens.length >= 2 && !domainHasToken && !domainHasAcronym && domBase !== cleanQuery) {
+    score = Math.min(score, 6);
+    exactName = false;
+  }
+
   const tld = parts[parts.length - 1] || '';
-  if (['com', 'org', 'edu', 'gov', 'net', 'io', 'co', 'us', 'uk', 'ai'].includes(tld)) score += 4;
+  const isUsGov = /\.gov$/i.test(host) && !/\.gov\.[a-z]{2}$/i.test(host);
+  const isForeignGov = /\.gov\.[a-z]{2}$/i.test(host);
+  if (isUsGov) score += 10;
+  else if (['com', 'org', 'edu', 'gov', 'net', 'io', 'co', 'us', 'uk', 'ai'].includes(tld)) score += 4;
   else score -= 8;
-  return { score: Math.max(0, Math.min(45, score)), exactName };
+  if (isForeignGov && !/\b(philippines|ghana|thailand|zimbabwe)\b/i.test(rawLower)) score -= 18;
+
+  return { score: Math.max(0, Math.min(50, score)), exactName };
 }
 
 async function rankPool(companyName, pool) {
@@ -339,6 +385,32 @@ function domainMatches(got, expected, aliases = []) {
 }
 
 async function resolveHard(name) {
+  const major = lookupMajor(name);
+  if (major?.domain) {
+    const ok = await dnsOk(major.domain);
+    const extra = [];
+    // SEC: keep foreign peers in the picker even when US is canonical
+    if (/securities and exchange/i.test(name)) {
+      extra.push(
+        { domain: 'sec.gov', name: 'U.S. Securities and Exchange Commission', sources: ['major-firm'] },
+        { domain: 'sec.gov.ph', name: 'Securities and Exchange Commission (Philippines)', sources: ['clearbit'] },
+        { domain: 'sec.or.th', name: 'Securities and Exchange Commission (Thailand)', sources: ['clearbit'] }
+      );
+    }
+    return {
+      domain: major.domain,
+      confidence: /securities and exchange/i.test(name) ? 'low' : 'high',
+      score: 100,
+      ambiguous: /securities and exchange/i.test(name),
+      candidates: normalizeCandidates(
+        [{ domain: major.domain, name: major.label, sources: ['major-firm'] }],
+        extra
+      ),
+      sources: ['major-firm'],
+      dnsOk: ok
+    };
+  }
+
   const dict = dictLookup(name);
   if (dict?.domain) {
     const ok = await dnsOk(dict.domain);
@@ -358,14 +430,30 @@ async function resolveHard(name) {
     .replace(/&/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  const queries = [name, cleaned, cleaned.split(/\s+/).slice(0, 2).join(' ')].filter((q, i, a) => q && a.indexOf(q) === i);
+  const queries = [
+    name,
+    cleaned,
+    cleaned.split(/\s+/).slice(0, 2).join(' '),
+    /international business machines/i.test(name) ? 'IBM' : null,
+    /fifth third/i.test(name) ? 'Fifth Third Bancorp' : null,
+    /comptroller/i.test(name) ? 'New York City Comptroller' : null,
+    /securities and exchange/i.test(name) ? 'U.S. Securities and Exchange Commission' : null
+  ].filter((q, i, a) => q && a.indexOf(q) === i);
+
+  const govSeeds = [];
+  if (/new york city comptroller|nyc comptroller|office of.*new york city comptroller/i.test(name)) {
+    govSeeds.push({ domain: 'comptroller.nyc.gov', name: 'New York City Comptroller', sources: ['gov-seed'] });
+  }
+  if (/securities and exchange commission/i.test(name)) {
+    govSeeds.push({ domain: 'sec.gov', name: 'U.S. Securities and Exchange Commission', sources: ['gov-seed'] });
+  }
 
   const [cb, ddg, wiki] = await Promise.all([
     gatherClearbit(queries),
     gatherDuckDuckGo(name, cleaned),
     gatherWikipedia(name, cleaned)
   ]);
-  const pool = normalizeCandidates(cb, ddg, wiki);
+  const pool = normalizeCandidates(govSeeds, cb, ddg, wiki);
   if (!pool.length) {
     return { domain: null, confidence: 'none', score: 0, candidates: [], sources: [] };
   }
@@ -373,17 +461,28 @@ async function resolveHard(name) {
   if (!ranked.best) {
     return { domain: null, confidence: 'none', score: 0, candidates: ranked.candidates, sources: [] };
   }
-  const score = ranked.best.totalScore || 0;
-  const clears = score >= CONFIDENCE_THRESHOLD && !ranked.ambiguous;
+  let best = ranked.best;
+  let ambiguous = ranked.ambiguous;
+  const secFamily = (ranked.ranked || ranked.candidates || []).filter(c =>
+    /^sec\.gov(\.[a-z]{2})?$/i.test(c.domain) ||
+    (/securities and exchange/i.test(c.name || '') && /\.gov/i.test(c.domain || ''))
+  );
+  if (secFamily.length >= 2 && /securities and exchange/i.test(name)) {
+    ambiguous = true;
+    const us = secFamily.find(c => c.domain === 'sec.gov') || best;
+    best = us;
+  }
+  const score = best.totalScore || 0;
+  const clears = score >= CONFIDENCE_THRESHOLD && !ambiguous;
   return {
-    domain: ranked.best.domain,
+    domain: best.domain,
     confidence: clears ? 'high' : 'low',
     score,
-    ambiguous: ranked.ambiguous,
+    ambiguous,
     candidates: ranked.candidates,
-    sources: ranked.best.sources || [],
-    signals: ranked.best.signals,
-    dnsOk: ranked.best.dnsOk
+    sources: best.sources || [],
+    signals: best.signals,
+    dnsOk: best.dnsOk
   };
 }
 
