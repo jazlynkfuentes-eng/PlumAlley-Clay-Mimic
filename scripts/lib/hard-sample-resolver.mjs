@@ -260,16 +260,102 @@ export function shouldAutoFound(resolved) {
   const financePts = Number(resolved.signals?.finance ?? resolved.confidenceSignals?.finance) || 0;
   const multiPts = Number(resolved.signals?.multiSource ?? resolved.confidenceSignals?.multiSource) || 0;
   const host = String(resolved.domain || '').toLowerCase().replace(/^www\./, '');
-  const tld = host.split('.').pop() || '';
-  const commonTld = ['com', 'org', 'edu', 'gov', 'net', 'io', 'co', 'ai', 'us', 'uk', 'health', 'tech', 'bio'].includes(tld);
-  if (!commonTld) return false;
+  const tldMatch = host.match(/\.(co\.uk|com\.au|co\.nz|com\.br|co\.za|org\.uk)$/i);
+  const tld = tldMatch ? tldMatch[1] : (host.split('.').pop() || '');
+  const commonTld = [
+    'com', 'org', 'edu', 'gov', 'net', 'io', 'co', 'ai', 'us', 'uk', 'health', 'tech', 'bio',
+    'com.au', 'co.uk', 'org.uk', 'co.nz', 'com.br', 'co.za'
+  ].includes(tld);
+  const nameKey = companyKeyNorm(resolved.matchedName || resolved.domain || '');
+  const base = (host.split('.')[0] || '').replace(/[^a-z0-9]/g, '');
+  const nameLock = !!(
+    resolved.exactName ||
+    (base && nameKey && (base === nameKey || nameKey.includes(base) || base.includes(nameKey.slice(0, 12))))
+  );
+  const financeTldOk = ['capital', 'fund', 'finance', 'ventures', 'investments'].includes(tld)
+    && financePts > 0
+    && nameLock;
+  if (!commonTld && !financeTldOk) return false;
   return !!(
     resolved.exactName ||
     nameSim >= 40 ||
     financePts > 0 ||
     resolved.soleFinanceMatch ||
-    multiPts >= 11
+    multiPts >= 11 ||
+    !!(resolved.signals?.soleDominant ?? resolved.confidenceSignals?.soleDominant)
   );
+}
+
+async function gatherOfficialWebsiteFallback(companyName) {
+  const out = [];
+  const q = `${String(companyName || '').trim()} official website`;
+  if (q.length < 8) return [];
+
+  try {
+    const short = String(companyName || '')
+      .replace(/\b(llc|llp|inc|ltd|limited|corp|corporation|group|partners|management|foundation|system|university|investment|wealth|markets|solutions|hedge|fund|capital|office|growth)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const tokens = short.split(/\s+/).filter(Boolean);
+    const cb = await gatherClearbit([
+      q,
+      short,
+      tokens.slice(0, 2).join(' '),
+      tokens[0],
+      companyName
+    ].filter((x, i, a) => x && a.indexOf(x) === i));
+    for (const c of cb) {
+      out.push({ ...c, sources: [...new Set([...(c.sources || []), 'fallback-clearbit'])], snippet: c.snippet || 'Fallback Clearbit' });
+    }
+  } catch (_) {}
+
+  const ddgHtmlUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
+  const proxies = [
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`
+  ];
+  const spam = /wikipedia\.org|wikidata\.org|duckduckgo\.com|google\.com|bing\.com|yahoo\.com|facebook\.com|linkedin\.com|twitter\.com|x\.com|youtube\.com|instagram\.com|crunchbase\.com|bloomberg\.com|reuters\.com|pitchbook\.com|zoominfo\.com|apollo\.io|rocketreach/i;
+
+  for (const build of proxies) {
+    try {
+      const res = await fetch(build(ddgHtmlUrl), { signal: AbortSignal.timeout(12000) });
+      if (!res.ok) continue;
+      const html = await res.text();
+      if (!html || html.length < 80) continue;
+      const domains = [];
+      const uddgRe = /uddg=([^&"']+)/gi;
+      let m;
+      while ((m = uddgRe.exec(html)) && domains.length < 10) {
+        try {
+          const decoded = decodeURIComponent(m[1]);
+          const dom = extractUrlDomain(decoded);
+          if (dom && dom.includes('.') && !spam.test(dom)) domains.push(dom);
+        } catch (_) {}
+      }
+      const hrefRe = /href="(https?:\/\/[^"]+)"/gi;
+      while ((m = hrefRe.exec(html)) && domains.length < 12) {
+        const url = m[1];
+        if (/duckduckgo\.com|spreadingprivacy/i.test(url)) continue;
+        const dom = extractUrlDomain(url);
+        if (dom && dom.includes('.') && !spam.test(dom)) domains.push(dom);
+      }
+      const seen = new Set();
+      for (const domain of domains) {
+        const d = domain.toLowerCase().replace(/^www\./, '');
+        if (seen.has(d)) continue;
+        seen.add(d);
+        out.push({
+          domain: d,
+          name: companyName,
+          snippet: 'Web search · official website',
+          sources: ['web-fallback']
+        });
+        if (seen.size >= 6) break;
+      }
+      if (seen.size) break;
+    } catch (_) {}
+  }
+  return normalizeCandidates(out);
 }
 
 async function gatherClearbit(queries) {
@@ -548,6 +634,21 @@ async function rankPool(companyName, pool, options = {}) {
     }
   }
 
+  // Sole-dominant bonus (+6): clean single-best match just under auto-Found (e.g. 78→84)
+  // without lifting the 60–69 band into auto-Found (67+6=73 < 80).
+  if (best && !ambiguous && best.totalScore >= 70) {
+    const gap = runnerUp ? (best.totalScore - runnerUp.totalScore) : 999;
+    const weakRunner = !runnerUp || runnerUp.totalScore < CONFIDENCE_THRESHOLD - 15 || gap >= 18;
+    if (weakRunner) {
+      const bonus = 6;
+      best = {
+        ...best,
+        signals: { ...best.signals, soleDominant: bonus },
+        totalScore: best.totalScore + bonus
+      };
+    }
+  }
+
   return { best, ambiguous, candidates: ranked.slice(0, 8), ranked: contenders, soleFinanceMatch };
 }
 
@@ -643,10 +744,27 @@ export async function resolveHard(name, options = {}) {
   const dictSoft = dictLookup(name);
   const dictSlug = dictSoft?.domain ? String(dictSoft.domain).split('.')[0] : null;
 
+  // Aggressive shortening for Clearbit coverage (MetLife Investment Management → MetLife)
+  const brandShort = cleaned
+    .replace(/\b(the|and|of|for)\b/gi, ' ')
+    .replace(/\b(investment|management|wealth|markets|solutions|advisors?|advisory|partners|group|foundation|system|university|retirement|board|office|growth|hedge|fund|capital|introductions|marketplace|global|limited|llc|llp)\b/gi, ' ')
+    .replace(/[–—-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const brandTokens = brandShort.split(/\s+/).filter(Boolean);
+  const brandCore = brandTokens.slice(0, 2).join(' ');
+  // Avoid ultra-short leftovers (e.g. "CANY" alone → Canyon Partners false positive)
+  const usableShort = brandShort && companyKeyNorm(brandShort).length >= 5 ? brandShort : null;
+  const usableCore = brandCore && companyKeyNorm(brandCore).length >= 5 ? brandCore : null;
+  const usableFirst = brandTokens[0] && brandTokens[0].length >= 5 ? brandTokens[0] : null;
+
   const queries = [
     name,
     cleaned,
     cleaned.split(/\s+/).slice(0, 2).join(' '),
+    usableShort,
+    usableCore,
+    usableFirst,
     financeFilterActive && !/\b(capital|partners|ventures|investment|fund|equity|advisory|advisors|wealth|finance|bank)\b/i.test(cleaned)
       ? `${cleaned} capital`
       : null,
@@ -674,7 +792,11 @@ export async function resolveHard(name, options = {}) {
     gatherDuckDuckGo(name, cleaned),
     gatherWikipedia(name, cleaned)
   ]);
-  const pool = normalizeCandidates(dictSeeds, govSeeds, cb, ddg, wiki);
+  let pool = normalizeCandidates(dictSeeds, govSeeds, cb, ddg, wiki);
+  if (!pool.length) {
+    const fallback = await gatherOfficialWebsiteFallback(name);
+    pool = normalizeCandidates(fallback);
+  }
   if (!pool.length) {
     return { domain: null, confidence: 'none', score: 0, candidates: [], sources: [], financeFilterActive };
   }
@@ -701,6 +823,7 @@ export async function resolveHard(name, options = {}) {
     score,
     ambiguous,
     exactName: !!best.exactName,
+    matchedName: best.name || name,
     candidates: ranked.candidates,
     sources: best.sources || [],
     signals: best.signals,

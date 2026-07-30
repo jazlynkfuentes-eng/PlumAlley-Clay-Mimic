@@ -1970,6 +1970,32 @@
 
     /** Auto-Found when score ≥ 80 (with guards), or major-firm / dictionary / learned at confidence 100.
      *  With Finance Search Filter: sole finance-typed top candidate (≥ picker threshold) also auto-Founds. */
+    function domainCloselyMatchesCompany(domain, companyName) {
+      const host = String(domain || '').toLowerCase().replace(/^www\./, '').split('/')[0];
+      const base = (host.split('.')[0] || '').replace(/[^a-z0-9]/g, '');
+      const key = companyKeyNormLite(companyName);
+      if (!base || base.length < 3) return false;
+      if (key && (base === key || key.includes(base) || base.includes(key.slice(0, Math.min(12, key.length))))) return true;
+      const stop = new Set(['the', 'and', 'for', 'of', 'llc', 'inc', 'ltd', 'llp', 'corp', 'management', 'capital', 'group', 'partners', 'office', 'foundation', 'system', 'health']);
+      const tokens = String(companyName || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(t => t.length >= 4 && !stop.has(t));
+      if (!tokens.length) return false;
+      // All significant tokens appear in domain base, or first brand token anchors it
+      if (tokens.every(t => base.includes(t) || key.includes(t))) return true;
+      return base.startsWith(tokens[0]) || base.includes(tokens[0]);
+    }
+
+    function registrableTld(host) {
+      const h = String(host || '').toLowerCase().replace(/^www\./, '');
+      const m = h.match(/\.(co\.uk|com\.au|co\.nz|com\.br|co\.za|org\.uk|com\.mx)$/i);
+      if (m) return m[1];
+      const parts = h.split('.');
+      return parts[parts.length - 1] || '';
+    }
+
     function shouldAutoFoundResolve(resolved) {
       if (!resolved || !resolved.domain) return false;
       if (resolved.ambiguous) return false;
@@ -1994,15 +2020,23 @@
       const financePts = Number(resolved.confidenceSignals?.finance) || 0;
       const multiPts = Number(resolved.confidenceSignals?.multiSource) || 0;
       const host = String(resolved.domain || '').toLowerCase().replace(/^www\./, '');
-      const tld = host.split('.').pop() || '';
-      const commonTld = ['com', 'org', 'edu', 'gov', 'net', 'io', 'co', 'ai', 'us', 'uk', 'health', 'tech', 'bio'].includes(tld);
-      if (!commonTld) return false;
+      const tld = registrableTld(host);
+      const commonTld = [
+        'com', 'org', 'edu', 'gov', 'net', 'io', 'co', 'ai', 'us', 'uk', 'health', 'tech', 'bio',
+        'com.au', 'co.uk', 'org.uk', 'co.nz', 'com.br', 'co.za'
+      ].includes(tld);
+      // Finance-native TLDs (e.g. lakeview.capital) OK when finance-boosted + name-locked
+      const financeTldOk = ['capital', 'fund', 'finance', 'ventures', 'investments'].includes(tld)
+        && financePts > 0
+        && domainCloselyMatchesCompany(host, resolved.matchedName || resolved.domain);
+      if (!commonTld && !financeTldOk) return false;
       return !!(
         resolved.exactName ||
         nameSim >= 40 ||
         financePts > 0 ||
         resolved.soleFinanceMatch ||
-        multiPts >= 11
+        multiPts >= 11 ||
+        !!resolved.confidenceSignals?.soleDominant
       );
     }
 
@@ -2380,6 +2414,80 @@
       return normalizeCandidates(out);
     }
 
+    /**
+     * Last-resort coverage when Clearbit / DDG Instant Answer / Wikipedia all return nothing.
+     * Scrapes DuckDuckGo HTML results for "[name] official website" via public CORS proxies
+     * and surfaces domains as picker candidates (not forced auto-Found).
+     */
+    async function gatherOfficialWebsiteFallback(companyName) {
+      const out = [];
+      const q = `${String(companyName || '').trim()} official website`;
+      if (q.length < 8) return [];
+
+      // Also try Clearbit on the fallback query + shortened brand tokens
+      try {
+        const short = String(companyName || '')
+          .replace(/\b(llc|llp|inc|ltd|limited|corp|corporation|group|partners|management|foundation|system|university)\b/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        const cb = await gatherClearbitCandidates([q, short, companyName].filter(Boolean));
+        for (const c of cb) out.push({ ...c, sources: [...new Set([...(c.sources || []), 'fallback-clearbit'])], snippet: c.snippet || 'Fallback Clearbit' });
+      } catch (_) {}
+
+      const ddgHtmlUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
+      const proxies = [
+        (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+        (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`
+      ];
+      const spam = /wikipedia\.org|wikidata\.org|duckduckgo\.com|google\.com|bing\.com|yahoo\.com|facebook\.com|linkedin\.com|twitter\.com|x\.com|youtube\.com|instagram\.com|crunchbase\.com|bloomberg\.com|reuters\.com|pitchbook\.com|zoominfo\.com|apollo\.io|rocketreach/i;
+
+      for (const build of proxies) {
+        try {
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), 12000);
+          const res = await fetch(build(ddgHtmlUrl), { signal: controller.signal });
+          clearTimeout(t);
+          if (!res.ok) continue;
+          let html = await res.text();
+          if (!html || html.length < 80) continue;
+          const domains = [];
+          // DDG redirect links: uddg=https%3A%2F%2Fexample.com
+          const uddgRe = /uddg=([^&"']+)/gi;
+          let m;
+          while ((m = uddgRe.exec(html)) && domains.length < 10) {
+            try {
+              const decoded = decodeURIComponent(m[1]);
+              const dom = extractUrlDomain(decoded);
+              if (dom && dom.includes('.') && !spam.test(dom)) domains.push(dom);
+            } catch (_) {}
+          }
+          // Bare result anchors
+          const hrefRe = /href="(https?:\/\/[^"]+)"/gi;
+          while ((m = hrefRe.exec(html)) && domains.length < 12) {
+            const url = m[1];
+            if (/duckduckgo\.com|spreadingprivacy/i.test(url)) continue;
+            const dom = extractUrlDomain(url);
+            if (dom && dom.includes('.') && !spam.test(dom)) domains.push(dom);
+          }
+          const seen = new Set();
+          for (const domain of domains) {
+            const d = domain.toLowerCase().replace(/^www\./, '');
+            if (seen.has(d)) continue;
+            seen.add(d);
+            out.push({
+              domain: d,
+              name: companyName,
+              snippet: 'Web search · official website',
+              sources: ['web-fallback']
+            });
+            if (seen.size >= 6) break;
+          }
+          if (seen.size) break; // one successful proxy is enough
+        } catch (_) { /* try next proxy */ }
+      }
+      return normalizeCandidates(out);
+    }
+
     function buildNameAcronym(companyName) {
       const stop = new Set(['of', 'the', 'and', 'a', 'an', 'for', 'in', 'on', 'at', 'to', 'inc', 'llc', 'ltd', 'corp']);
       const tokens = String(companyName || '')
@@ -2685,6 +2793,27 @@
         }
       }
 
+      // Sole-dominant bonus: clean single-best match (no meaningful runner-up) gets +6 so
+      // correct wiki-less hits at ~78 can clear auto-Found without a blanket threshold drop.
+      // Does not lift the 60–69 band into auto-Found (67+6=73 < 80).
+      let soleDominant = false;
+      if (best && !ambiguous && best.totalScore >= 70) {
+        const gap = runnerUp ? (best.totalScore - runnerUp.totalScore) : 999;
+        const weakRunner = !runnerUp
+          || runnerUp.totalScore < RESOLVE_CONFIDENCE_THRESHOLD - 15
+          || gap >= 18;
+        if (weakRunner) {
+          soleDominant = true;
+          const bonus = 6;
+          best = {
+            ...best,
+            signals: { ...best.signals, soleDominant: bonus },
+            totalScore: best.totalScore + bonus
+          };
+          ranked = ranked.map(c => (c.domain === best.domain ? best : c));
+        }
+      }
+
       const candidates = ranked.slice(0, 8).map(c => ({
         domain: c.domain,
         name: c.name || c.domain,
@@ -2695,7 +2824,7 @@
         financeAffinity: c.financeAffinity || classifyFinanceAffinity(c, companyName)
       }));
 
-      return { best, ambiguous, candidates, ranked: contenders, soleFinanceMatch };
+      return { best, ambiguous, candidates, ranked: contenders, soleFinanceMatch, soleDominant };
     }
 
     /**
@@ -3531,6 +3660,19 @@
       const dictDomainSlug = dictSeed?.domain ? String(dictSeed.domain).split('.')[0] : null;
       const dictIndustryHint = dictSeed?.industry || '';
 
+      // Aggressive shortening for Clearbit coverage gaps (long legal names)
+      const brandShort = String(baseCleaned || companyName)
+        .replace(/\b(the|and|of|for)\b/gi, ' ')
+        .replace(/\b(investment|management|wealth|markets|solutions|advisors?|advisory|partners|group|foundation|system|university|retirement|board|office|growth|hedge|fund|capital|introductions|marketplace|global|limited|llc|llp)\b/gi, ' ')
+        .replace(/[–—-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const brandTokens = brandShort.split(/\s+/).filter(Boolean);
+      const brandCore = brandTokens.slice(0, 2).join(' ');
+      const usableShort = brandShort && companyKeyNormLite(brandShort).length >= 5 ? brandShort : null;
+      const usableCore = brandCore && companyKeyNormLite(brandCore).length >= 5 ? brandCore : null;
+      const usableFirst = brandTokens[0] && brandTokens[0].length >= 5 ? brandTokens[0] : null;
+
       const nameOnlyQueries = [
         strippedLegal,
         strippedOrgSuffix,
@@ -3538,6 +3680,9 @@
         companyName.replace(/&/g, ' ').replace(/\s+/g, ' ').trim(),
         companyName,
         searchQuery,
+        usableShort,
+        usableCore,
+        usableFirst,
         dictDomainSlug || null,
         dictSeed ? `${companyName} ${dictIndustryHint}`.trim() : null,
         dictSeed && /investment|asset|capital|venture|equity|advisory|finance/i.test(dictIndustryHint)
@@ -3571,6 +3716,14 @@
       ]);
 
       gatheredCandidates = normalizeCandidates(gatheredCandidates, catalogueSeeds, govSeeds, cbPool, ddgPool, wikiPool);
+
+      // Coverage gap: when every primary source is empty, try "[name] official website" web fallback
+      // for picker candidates (not a scoring change — just something to show / verify).
+      if (!gatheredCandidates.length) {
+        console.log('[resolve] empty pool — official-website web fallback for', companyName);
+        const fallback = await gatherOfficialWebsiteFallback(companyName);
+        gatheredCandidates = normalizeCandidates(gatheredCandidates, fallback);
+      }
 
       // Optional person-context Clearbit pass for ambiguous names
       const usePerson = effectivePerson && (effectivePerson.personName || effectivePerson.personTitle)
