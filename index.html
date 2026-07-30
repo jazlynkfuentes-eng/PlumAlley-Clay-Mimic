@@ -3144,6 +3144,108 @@
       return String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
     }
 
+    const US_STATE_OR_PROVINCE = new Set([
+      'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+      'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+      'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC',
+      'AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT'
+    ]);
+
+    const KNOWN_COUNTRIES = new Set([
+      'usa', 'us', 'u.s.', 'u.s.a.', 'united states', 'united states of america',
+      'uk', 'u.k.', 'united kingdom', 'england', 'scotland', 'wales', 'ireland', 'northern ireland',
+      'canada', 'mexico', 'france', 'germany', 'spain', 'italy', 'portugal', 'netherlands', 'belgium',
+      'switzerland', 'austria', 'sweden', 'norway', 'denmark', 'finland', 'poland', 'australia',
+      'new zealand', 'japan', 'china', 'hong kong', 'singapore', 'india', 'israel', 'uae',
+      'united arab emirates', 'south korea', 'korea', 'brazil', 'argentina', 'chile', 'colombia',
+      'south africa', 'nigeria', 'kenya', 'egypt', 'turkey', 'greece', 'czech republic', 'luxembourg'
+    ]);
+
+    const KNOWN_SOLO_PLACES = new Set([
+      'new york', 'new york city', 'san francisco', 'los angeles', 'chicago', 'boston', 'seattle',
+      'austin', 'denver', 'miami', 'atlanta', 'dallas', 'houston', 'philadelphia', 'washington',
+      'washington dc', 'london', 'paris', 'berlin', 'toronto', 'vancouver', 'montreal', 'tokyo',
+      'singapore', 'hong kong', 'sydney', 'melbourne', 'dublin', 'amsterdam', 'zurich', 'geneva',
+      'mountain view', 'cupertino', 'redmond', 'menlo park', 'palo alto', 'sunnyvale', 'ithaca',
+      'united states', 'united kingdom', 'canada', 'germany', 'france'
+    ]);
+
+    const LOCATION_STREET_NOISE = /\b(avenue|ave\.?|suite|ste\.?|street|str\.?|road|rd\.?|boulevard|blvd\.?|floor|fl\.?|apartment|apt\.?|drive|dr\.?|lane|ln\.?|way|court|ct\.?|plaza|tower|room|unit|building|bldg\.?|pobox|po box|zip|postal)\b/i;
+
+    const LOCATION_NON_PLACE = /\b(jesuit|catholic|protestant|baptist|methodist|evangelical|orthodox|jewish|muslim|hindu|buddhist|fixed income|private equity|venture capital|asset management|sales|marketing|engineering|operations|diversity|inclusion|product|research|innovation|proprietary|allogeneic|placeholder|founder|co-founder|ceo|cto|cfo|inc|llc|ltd|corp|gmbh|inter)\b/i;
+
+    /**
+     * Accept only real place-like Location values (City, ST / City, Country / known solo place).
+     * Reject person names, adjectives, and address fragments.
+     */
+    function isValidLocationPlace(value) {
+      if (isBlankOrUnknown(value)) return false;
+      const raw = String(value).trim().replace(/\s+/g, ' ');
+      if (raw.length < 3 || raw.length > 55) return false;
+      if (LOCATION_STREET_NOISE.test(raw) || LOCATION_NON_PLACE.test(raw)) return false;
+      if (/^\d/.test(raw)) return false;
+      if (/[@#_/\\|]/.test(raw)) return false;
+
+      const solo = raw.toLowerCase().replace(/\.$/, '');
+      if (KNOWN_SOLO_PLACES.has(solo) || KNOWN_COUNTRIES.has(solo)) return true;
+
+      // City, ST  (or City, Province) — 2-letter codes that are NOT states fall through to country check
+      const cityState = raw.match(/^([A-Za-z][A-Za-z .'-]+),\s*([A-Za-z]{2})$/);
+      if (cityState) {
+        const city = cityState[1].trim();
+        const st = cityState[2].toUpperCase();
+        if (US_STATE_OR_PROVINCE.has(st)) {
+          if (city.split(/\s+/).length > 4) return false;
+          if (LOCATION_STREET_NOISE.test(city) || LOCATION_NON_PLACE.test(city)) return false;
+          const tokens = city.split(/\s+/);
+          if (tokens.length === 2) {
+            const looksLikePerson =
+              /^[A-Z][a-z'+.-]+$/.test(tokens[0]) &&
+              /^[A-Z][a-z'+.-]+$/.test(tokens[1]) &&
+              !/^(San|Los|Las|Fort|Port|Lake|Mount|New|North|South|East|West|Santa|Saint|St)$/i.test(tokens[0]) &&
+              !/^(Beach|City|Hill|Hills|Park|Parks|Springs|Valley|Heights|Grove|Woods|Falls|Creek|Ridge|Bay|Harbor|Harbour|Vista|Junction|Center|Centre)$/i.test(tokens[1]);
+            if (looksLikePerson && !KNOWN_SOLO_PLACES.has(city.toLowerCase())) {
+              const TWO_WORD_CITIES = /^(New York|Los Angeles|San Francisco|San Diego|San Jose|Las Vegas|Fort Worth|Salt Lake|Des Moines|Baton Rouge|Ann Arbor|Palo Alto|Menlo Park|Mountain View|Santa Clara|Santa Monica|El Paso|St Louis|Saint Louis|Newport Beach|Long Beach|Palm Beach|Green Bay|Cedar Rapids)$/i;
+              if (!TWO_WORD_CITIES.test(city)) return false;
+            }
+          }
+          return true;
+        }
+        // e.g. "London, UK" — treat as City, Country below
+      }
+
+      // City, Country (including 2-letter country codes like UK, US)
+      const cityCountry = raw.match(/^([A-Za-z][A-Za-z .'-]+),\s*([A-Za-z][A-Za-z .'-]+)$/);
+      if (cityCountry) {
+        const city = cityCountry[1].trim();
+        const country = cityCountry[2].trim().toLowerCase().replace(/\.$/, '');
+        if (!KNOWN_COUNTRIES.has(country)) return false;
+        if (city.split(/\s+/).length > 4) return false;
+        if (LOCATION_STREET_NOISE.test(city) || LOCATION_NON_PLACE.test(city)) return false;
+        return true;
+      }
+
+      return false;
+    }
+
+    function sanitizeLocationValue(value) {
+      return isValidLocationPlace(value) ? String(value).trim().replace(/\s+/g, ' ') : UNKNOWN;
+    }
+
+    /** Prefer a specific City, Region over a bare city name when both are valid. */
+    function preferLocation(scrapedVal, dictVal) {
+      const s = sanitizeLocationValue(scrapedVal);
+      const d = sanitizeLocationValue(dictVal);
+      if (isBlankOrUnknown(s) && isBlankOrUnknown(d)) return UNKNOWN;
+      if (isBlankOrUnknown(s)) return d;
+      if (isBlankOrUnknown(d)) return s;
+      const sSpecific = String(s).includes(',');
+      const dSpecific = String(d).includes(',');
+      if (dSpecific && !sSpecific) return d;
+      if (sSpecific && !dSpecific) return s;
+      return s;
+    }
+
     /**
      * Hard rule: if the same founder/industry/notes text is about to be written for two
      * different domains in this batch, blank it to Unknown (shared boilerplate = bug signal).
@@ -3172,9 +3274,9 @@
           enrichmentValueRegistry[key].set(norm, host);
         }
       }
-      // Headcount / location: never invent; blank → Unknown (no cross-company text collision check needed as often)
+      // Headcount / location: never invent; blank or invalid place → Unknown
       if (isBlankOrUnknown(out.headcount)) out.headcount = UNKNOWN;
-      if (isBlankOrUnknown(out.location)) out.location = UNKNOWN;
+      out.location = sanitizeLocationValue(out.location);
       if (isBlankOrUnknown(out.gender)) out.gender = UNKNOWN;
       return out;
     }
@@ -3274,20 +3376,29 @@
         }
       }
 
-      // Location — explicit city/region patterns from page/footer
+      // Location — only accept real place patterns (City, ST / City, Country / known place)
       let location = UNKNOWN;
       const locPatterns = [
-        /\b(?:based in|headquartered in|headquarters(?:\s+in)?|located in)\s+([A-Z][a-zA-Z .'-]+(?:,\s*[A-Z]{2})?)/,
-        /\b([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)?),\s*([A-Z]{2})\b(?:\s+\d{5})?/,
-        /\b(New York|San Francisco|London|Paris|Berlin|Toronto|Austin|Seattle|Boston|Chicago|Los Angeles|Nashville|Mountain View|Cupertino|Redmond|Menlo Park),\s*([A-Z]{2}|UK|CA|NY|TX|WA|MA|IL|TN)?/i
+        // "headquartered in New York, NY" / "based in London, UK"
+        /\b(?:based in|headquartered in|headquarters(?:\s+in)?|located in|hq in)\s+([A-Z][a-zA-Z .'-]{1,40}?),\s*([A-Z]{2}|[A-Z][a-zA-Z][a-zA-Z .'-]{1,30})\b/,
+        // City, ST
+        /\b([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+){0,3}),\s*([A-Z]{2})\b(?:\s+\d{5}(?:-\d{4})?)?/,
+        // Well-known City, ST|Country
+        /\b(New York|San Francisco|Los Angeles|London|Paris|Berlin|Toronto|Austin|Seattle|Boston|Chicago|Nashville|Mountain View|Cupertino|Redmond|Menlo Park|Palo Alto|Ithaca),\s*([A-Z]{2}|UK|USA|United States|France|Germany|Canada|England)?\b/i
       ];
       for (const re of locPatterns) {
         const m = corpus.match(re);
-        if (m) {
-          if (m[2]) location = `${m[1].replace(/^based in\s+/i, '').trim()}, ${m[2]}`.replace(/,\s*,/g, ',').trim();
-          else location = m[1].replace(/^(?:based in|headquartered in|headquarters(?:\s+in)?|located in)\s+/i, '').trim();
-          if (location.length > 3) break;
-          location = UNKNOWN;
+        if (!m) continue;
+        let candidate = '';
+        if (m[2] && String(m[2]).trim()) {
+          candidate = `${m[1].trim()}, ${m[2].trim()}`.replace(/,\s*,/g, ',').trim();
+        } else {
+          candidate = m[1].replace(/^(?:based in|headquartered in|headquarters(?:\s+in)?|located in|hq in)\s+/i, '').trim();
+        }
+        candidate = sanitizeLocationValue(candidate);
+        if (!isBlankOrUnknown(candidate)) {
+          location = candidate;
+          break;
         }
       }
 
@@ -3382,7 +3493,9 @@
             scraped = {
               industry: !isBlankOrUnknown(scraped.industry) ? scraped.industry : aboutFields.industry,
               headcount: !isBlankOrUnknown(scraped.headcount) ? scraped.headcount : aboutFields.headcount,
-              location: !isBlankOrUnknown(scraped.location) ? scraped.location : aboutFields.location,
+              location: !isBlankOrUnknown(sanitizeLocationValue(scraped.location))
+                ? sanitizeLocationValue(scraped.location)
+                : sanitizeLocationValue(aboutFields.location),
               contacts: !isBlankOrUnknown(scraped.contacts) ? scraped.contacts : aboutFields.contacts,
               gender: UNKNOWN,
               notes: !isBlankOrUnknown(scraped.notes) ? scraped.notes : aboutFields.notes,
@@ -3435,7 +3548,7 @@
         scraped = {
           industry: merge(scraped.industry, dictEntry.industry),
           headcount: merge(scraped.headcount, dictEntry.headcount),
-          location: merge(scraped.location, dictEntry.location),
+          location: preferLocation(scraped.location, dictEntry.location),
           contacts: !isBlankOrUnknown(dictFounder) ? dictFounder : (scrapeContactOk ? scraped.contacts : UNKNOWN),
           gender: merge(scraped.gender, dictEntry.gender),
           notes: merge(scraped.notes, dictEntry.notes),
@@ -3458,7 +3571,7 @@
         scraped = {
           industry: mergeApi(scraped.industry, apiData.industry),
           headcount: mergeApi(scraped.headcount, apiData.headcount),
-          location: mergeApi(scraped.location, apiData.location),
+          location: mergeApi(sanitizeLocationValue(scraped.location), sanitizeLocationValue(apiData.location)),
           contacts: mergeApi(scraped.contacts, apiData.founder),
           gender: mergeApi(scraped.gender, apiData.gender),
           notes: mergeApi(scraped.notes, apiData.notes),
@@ -3470,7 +3583,7 @@
       const result = {
         industry: isBlankOrUnknown(scraped.industry) ? UNKNOWN : scraped.industry,
         headcount: isBlankOrUnknown(scraped.headcount) ? UNKNOWN : scraped.headcount,
-        location: isBlankOrUnknown(scraped.location) ? UNKNOWN : scraped.location,
+        location: sanitizeLocationValue(scraped.location),
         contacts: isBlankOrUnknown(scraped.contacts) ? UNKNOWN : scraped.contacts,
         gender: isBlankOrUnknown(scraped.gender) ? UNKNOWN : scraped.gender,
         notes: isBlankOrUnknown(scraped.notes) ? UNKNOWN : scraped.notes,
