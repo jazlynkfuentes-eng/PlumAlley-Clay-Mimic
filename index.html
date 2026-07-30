@@ -1996,12 +1996,19 @@
       return parts[parts.length - 1] || '';
     }
 
+    function isTrustedCatalogueMethod(method) {
+      const m = String(method || '');
+      return m === 'major-firm' || m === 'dictionary' || m === 'learned'
+        || m.startsWith('dictionary') || m.startsWith('major-firm') || m.startsWith('learned');
+    }
+
     function shouldAutoFoundResolve(resolved) {
       if (!resolved || !resolved.domain) return false;
       if (resolved.ambiguous) return false;
       const score = Number(resolved.confidenceScore) || 0;
       const method = String(resolved.resolveMethod || '');
-      if ((method === 'major-firm' || method === 'dictionary' || method === 'learned') && score >= 100) {
+      // Dictionary / major-firm / learned are curated — auto-Found even on fuzzy@90
+      if (isTrustedCatalogueMethod(method) && score >= 90) {
         return true;
       }
       if (
@@ -3499,20 +3506,11 @@
         });
       }
 
-      // Globally recognized firms: prefer the canonical domain, but still gather
-      // multi-source alternatives so the UI can always show website options.
+      // Globally recognized firms: prefer the canonical domain immediately.
+      // Do NOT await Clearbit/DDG/Wiki here — that delayed Enriched by tens of seconds per row.
       const majorFirm = lookupMajorKnownFirm(companyName);
       if (majorFirm && !skippedDomains.includes(majorFirm.domain.toLowerCase())) {
         console.log('[resolve] MAJOR FIRM canonical', companyName, '->', majorFirm.domain);
-        const cleanedMajor = String(companyName || '')
-          .replace(/\b(llc|inc|ltd|limited|corp|corporation|co|gmbh|plc)\b/gi, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-        const [cbMaj, ddgMaj, wikiMaj] = await Promise.all([
-          gatherClearbitCandidates([companyName, cleanedMajor]),
-          gatherDuckDuckGoCandidates(companyName, cleanedMajor),
-          gatherWikipediaWikidataCandidates(companyName, cleanedMajor)
-        ]);
         gatheredCandidates = normalizeCandidates(
           [{
             domain: majorFirm.domain.toLowerCase(),
@@ -3520,9 +3518,7 @@
             snippet: `${majorFirm.label} · ${majorFirm.industry}`,
             sources: ['major-firm']
           }],
-          cbMaj,
-          ddgMaj,
-          wikiMaj
+          gatheredCandidates
         );
         return store({
           domain: majorFirm.domain.toLowerCase(),
@@ -4236,6 +4232,43 @@
             enrichSource: 'dictionary'
           }
         : { ...blank };
+
+      // Fast path: dictionary already has enough real fields — skip scrape + Wikidata (was blocking Enriched for ~30–60s/row)
+      const dictFilled = [fromDict.industry, fromDict.headcount, fromDict.location, fromDict.contacts]
+        .filter(v => !isBlankOrUnknown(v)).length;
+      if (dictEntry && dictFilled >= 2) {
+        const quick = {
+          industry: isBlankOrUnknown(fromDict.industry) ? UNKNOWN : fromDict.industry,
+          headcount: isBlankOrUnknown(fromDict.headcount) ? UNKNOWN : fromDict.headcount,
+          location: sanitizeLocationValue(fromDict.location),
+          contacts: isBlankOrUnknown(fromDict.contacts) ? UNKNOWN : fromDict.contacts,
+          gender: isBlankOrUnknown(fromDict.gender) ? UNKNOWN : fromDict.gender,
+          notes: isBlankOrUnknown(fromDict.notes) ? UNKNOWN : fromDict.notes,
+          enrichSource: 'dictionary'
+        };
+        const guardedQuick = applyBatchUniquenessGuard(host, quick);
+        enrichCache.set(enrichKey, guardedQuick);
+        console.log('[enrich] FAST dictionary', originalName, '->', guardedQuick.enrichSource);
+        return guardedQuick;
+      }
+
+      // Fast path: major-firm catalogue — industry known, skip scrape/wiki so Enriched ticks up immediately
+      const majorHit = lookupMajorKnownFirm(originalName);
+      if (majorHit && String(majorHit.domain || '').toLowerCase() === host) {
+        const quickMaj = {
+          industry: majorHit.industry || UNKNOWN,
+          headcount: UNKNOWN,
+          location: UNKNOWN,
+          contacts: UNKNOWN,
+          gender: UNKNOWN,
+          notes: `${majorHit.label || originalName} · major firm`,
+          enrichSource: 'major-firm'
+        };
+        const guardedMaj = applyBatchUniquenessGuard(host, quickMaj);
+        enrichCache.set(enrichKey, guardedMaj);
+        console.log('[enrich] FAST major-firm', originalName, '->', guardedMaj.industry);
+        return guardedMaj;
+      }
 
       // 2) Live scrape only to fill gaps the dictionary doesn't cover
       let scraped = { ...blank };
@@ -5279,41 +5312,55 @@
 
         log('domainStrongMatch=', domainStrongMatch, 'domBase=', domBase, 'nameKey=', nameKey, 'fastPath=', !!options.fastPath);
 
-        // 1) DNS check via Google DNS-over-HTTPS
-        let dnsOk = false;
-        try {
-          const dnsRes = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(cleanDom)}&type=A`);
-          if (dnsRes.ok) {
-            const dnsJson = await dnsRes.json();
-            dnsOk = dnsJson.Status === 0 && Array.isArray(dnsJson.Answer) && dnsJson.Answer.length > 0;
-            log('DNS', dnsOk ? 'OK' : 'FAIL', 'status=', dnsJson.Status, 'answers=', dnsJson.Answer?.length || 0);
-          } else {
-            log('DNS HTTP', dnsRes.status);
-          }
-        } catch (e) {
-          log('DNS error', e.message || e);
-        }
-
-        if (!dnsOk) {
-          // Retry once (short backoff)
+        // 1) DNS check — Google DoH, then Cloudflare DoH fallback (browser/network blips)
+        const checkDns = async (endpoint, label, headers = {}) => {
           try {
-            await new Promise(r => setTimeout(r, 200));
-            const dnsRes = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(cleanDom)}&type=A`);
+            const dnsRes = await fetch(endpoint, { headers });
+            if (!dnsRes.ok) {
+              log('DNS', label, 'HTTP', dnsRes.status);
+              return false;
+            }
             const dnsJson = await dnsRes.json();
-            dnsOk = dnsJson.Status === 0 && Array.isArray(dnsJson.Answer) && dnsJson.Answer.length > 0;
-            log('DNS retry', dnsOk ? 'OK' : 'FAIL');
+            const ok = dnsJson.Status === 0 && Array.isArray(dnsJson.Answer) && dnsJson.Answer.length > 0;
+            log('DNS', label, ok ? 'OK' : 'FAIL', 'status=', dnsJson.Status, 'answers=', dnsJson.Answer?.length || 0);
+            return ok;
           } catch (e) {
-            log('DNS retry error', e.message || e);
+            log('DNS', label, 'error', e.message || e);
+            return false;
           }
+        };
+
+        let dnsOk = await checkDns(
+          `https://dns.google/resolve?name=${encodeURIComponent(cleanDom)}&type=A`,
+          'google'
+        );
+        if (!dnsOk) {
+          await new Promise(r => setTimeout(r, 150));
+          dnsOk = await checkDns(
+            `https://dns.google/resolve?name=${encodeURIComponent(cleanDom)}&type=A`,
+            'google-retry'
+          );
+        }
+        if (!dnsOk) {
+          dnsOk = await checkDns(
+            `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(cleanDom)}&type=A`,
+            'cloudflare',
+            { Accept: 'application/dns-json' }
+          );
         }
 
         if (!dnsOk) {
+          // Curated catalogue / explicit trust: do not block enrichment on DNS outages
+          if (options.allowDnsFail || options.trustedCatalogue) {
+            log('PASS trusted path without DNS');
+            return storeVerify({ ok: true, reason: 'Trusted catalogue (DNS unavailable)' });
+          }
           log('FAIL DNS does not resolve');
           return storeVerify({ ok: false, reason: 'Domain does not resolve (DNS)' });
         }
 
         // Strong signal / known fast path: domain closely matches name + DNS → verified (skip proxies)
-        if (domainStrongMatch || options.fastPath || isKnownUnambiguousCompany(companyName)) {
+        if (domainStrongMatch || options.fastPath || options.trustedCatalogue || isKnownUnambiguousCompany(companyName)) {
           log('PASS strong domain+DNS match (content fetch skipped)');
           return storeVerify({ ok: true, reason: 'Verified via DNS + domain/name match' });
         }
@@ -5614,22 +5661,11 @@
                   apiData = resolvedObj.apiData || null;
                   industrySnippet = resolvedObj.industrySnippet || resolvedObj.matchedName || '';
                   alternatives = resolvedObj.alternatives || [];
-                  candidates = await ensureWebsiteOptions(
-                    companyName,
-                    normalizeCandidates(
-                      resolvedObj.candidates,
-                      resolvedObj.alternativeDomains,
-                      alternatives,
-                      [{ domain, name: resolvedObj.matchedName, snippet: industrySnippet }]
-                    ),
-                    domain,
-                    { name: resolvedObj.matchedName || companyName, snippet: industrySnippet }
-                  );
                   resolveMethod = resolvedObj.resolveMethod || 'name-only';
                   fastPath = !!resolvedObj.fastPath || isKnownUnambiguousCompany(companyName);
                   const confidenceScore = Number(resolvedObj.confidenceScore) || 0;
                   const confidenceSignals = resolvedObj.confidenceSignals || null;
-                  // 70–89 → Potential picker; 90+ / major-firm|dictionary|learned@100 → auto-Found
+                  // 70–79 → Potential picker; 80+ (with guards) / catalogue@90+ → auto-Found
                   const strongRecommend = !isUnsure && confidenceScore >= RESOLVE_CONFIDENCE_THRESHOLD;
                   const autoFound = shouldAutoFoundResolve({
                     ...resolvedObj,
@@ -5643,9 +5679,32 @@
                     exactName: !!resolvedObj.exactName,
                     confidenceSignals: confidenceSignals || resolvedObj.confidenceSignals
                   });
+                  const trustedCatalogue = isTrustedCatalogueMethod(resolveMethod);
+
+                  // Skip expensive option-gathering on trusted auto-Found (was delaying Enriched for minutes)
+                  const baseCandidates = normalizeCandidates(
+                    resolvedObj.candidates,
+                    resolvedObj.alternativeDomains,
+                    alternatives,
+                    [{ domain, name: resolvedObj.matchedName, snippet: industrySnippet }]
+                  );
+                  if (autoFound && (trustedCatalogue || fastPath)) {
+                    candidates = baseCandidates.slice(0, 8);
+                  } else {
+                    candidates = await ensureWebsiteOptions(
+                      companyName,
+                      baseCandidates,
+                      domain,
+                      { name: resolvedObj.matchedName || companyName, snippet: industrySnippet }
+                    );
+                  }
 
                   updateRow(rowId, { status: 'verifying', [webKey]: domain, resolveMethod, candidates, confidenceScore, confidenceSignals });
-                  const verification = await verifyDomainLive(domain, companyName, { fastPath: fastPath && (strongRecommend || autoFound) });
+                  const verification = await verifyDomainLive(domain, companyName, {
+                    fastPath: fastPath && (strongRecommend || autoFound),
+                    trustedCatalogue: trustedCatalogue && autoFound,
+                    allowDnsFail: trustedCatalogue && autoFound
+                  });
                   if (!verification.ok) {
                     const moreOpts = await ensureWebsiteOptions(companyName, candidates, '', {});
                     if (moreOpts.length) {
@@ -6293,8 +6352,8 @@
 
       const stats = {
         total: rows.length,
-        pending: rows.filter(r => r.status === 'pending').length + queue.length,
-        searching: rows.filter(r => r.status === 'searching' || r.status === 'verifying' || r.status === 'enriching').length + activeIds.length,
+        pending: rows.filter(r => r.status === 'pending').length,
+        searching: rows.filter(r => r.status === 'searching' || r.status === 'verifying' || r.status === 'enriching').length,
         found: rows.filter(r => r.status === 'found').length,
         potential: rows.filter(r => r.status === 'potential').length,
         unverified: rows.filter(r => r.status === 'unverified').length

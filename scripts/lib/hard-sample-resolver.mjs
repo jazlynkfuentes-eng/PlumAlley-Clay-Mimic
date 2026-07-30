@@ -242,7 +242,7 @@ export function shouldAutoFound(resolved) {
   if (
     (sources.includes('major-firm') || sources.includes('dictionary') || sources.includes('learned') ||
       method === 'major-firm' || method === 'dictionary' || method === 'learned') &&
-    score >= 100
+    score >= 90
   ) {
     return true;
   }
