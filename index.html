@@ -3453,17 +3453,60 @@
 
     function lookupDictionaryByDomain(domain) {
       const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      if (!host) return null;
       for (const entry of Object.values(companyDictionary)) {
         if (String(entry.domain || '').toLowerCase() === host) return entry;
       }
       return null;
     }
 
+    /** Curated lookup by confirmed domain first, then company name keys. */
+    function lookupDictionaryEntry(domain, companyName) {
+      const byDomain = lookupDictionaryByDomain(domain);
+      if (byDomain) return byDomain;
+
+      const raw = String(companyName || '').trim().toLowerCase();
+      if (!raw) return null;
+      if (companyDictionary[raw]) return companyDictionary[raw];
+      const cleaned = cleanName(companyName);
+      if (cleaned && companyDictionary[cleaned]) return companyDictionary[cleaned];
+
+      const norm = companyKeyNorm(companyName);
+      if (!norm) return null;
+      let best = null;
+      for (const [key, entry] of Object.entries(companyDictionary)) {
+        const kn = companyKeyNorm(key);
+        if (kn === norm) return entry;
+        // Prefer longer key matches (e.g. "disciplina capital management" over "disciplina")
+        if (kn && (norm.includes(kn) || kn.includes(norm)) && Math.min(kn.length, norm.length) >= 4) {
+          if (!best || key.length > best.key.length) best = { key, entry };
+        }
+      }
+      return best ? best.entry : null;
+    }
+
+    function dictFieldOrUnknown(val) {
+      if (isBlankOrUnknown(val) || /^needs manual/i.test(String(val)) || /^needs verification/i.test(String(val))) {
+        return UNKNOWN;
+      }
+      return String(val).trim();
+    }
+
+    /**
+     * Dictionary wins when it has a real value; otherwise use scrape/api.
+     */
+    function preferDictThenScrape(dictVal, scrapedVal, { isLocation = false } = {}) {
+      const d = isLocation ? sanitizeLocationValue(dictFieldOrUnknown(dictVal)) : dictFieldOrUnknown(dictVal);
+      const s = isLocation ? sanitizeLocationValue(scrapedVal) : (isBlankOrUnknown(scrapedVal) ? UNKNOWN : scrapedVal);
+      if (!isBlankOrUnknown(d)) return d;
+      if (!isBlankOrUnknown(s)) return s;
+      return UNKNOWN;
+    }
+
     async function enrichCompanyDetails(domain, originalName, apiData = null) {
-      const enrichKey = `v2|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
+      const enrichKey = `v3|dict-first|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
       if (enrichCache.has(enrichKey)) {
         console.log('[enrich] CACHE HIT', domain);
-        // Still re-run uniqueness guard against current batch
         return applyBatchUniquenessGuard(domain, { ...enrichCache.get(enrichKey), fromCache: true });
       }
 
@@ -3477,13 +3520,29 @@
         enrichSource: 'none'
       };
 
-      // 1) Prefer live scrape of homepage + about
       const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-      let scraped = blank;
+
+      // 1) Curated dictionary FIRST (domain or company name) — before scrape.
+      const dictEntry = lookupDictionaryEntry(host, originalName);
+      const fromDict = dictEntry
+        ? {
+            industry: dictFieldOrUnknown(dictEntry.industry),
+            headcount: dictFieldOrUnknown(dictEntry.headcount),
+            location: sanitizeLocationValue(dictFieldOrUnknown(dictEntry.location)),
+            contacts: dictFieldOrUnknown(dictEntry.founder),
+            gender: dictFieldOrUnknown(dictEntry.gender),
+            notes: dictFieldOrUnknown(dictEntry.notes),
+            enrichSource: 'dictionary'
+          }
+        : { ...blank };
+
+      // 2) Live scrape only to fill gaps the dictionary doesn't cover
+      let scraped = { ...blank };
       try {
         const homeHtml = await fetchPageHtml(`https://${host}/`, 3000);
         scraped = extractEnrichmentFromHtml(homeHtml, originalName);
-        const needsMore = [scraped.industry, scraped.headcount, scraped.location, scraped.contacts].filter(v => isBlankOrUnknown(v)).length >= 3;
+        const needsMore = [scraped.industry, scraped.headcount, scraped.location, scraped.contacts]
+          .filter(v => isBlankOrUnknown(v)).length >= 3;
         if (needsMore) {
           const aboutHtml = await fetchPageHtml(`https://${host}/about`, 2800)
             || await fetchPageHtml(`https://${host}/about-us`, 2800)
@@ -3502,92 +3561,64 @@
               enrichSource: 'scrape'
             };
           }
-        } else {
+        } else if (!isBlankOrUnknown(scraped.industry) || !isBlankOrUnknown(scraped.contacts) || !isBlankOrUnknown(scraped.location)) {
           scraped = { ...scraped, enrichSource: 'scrape' };
         }
       } catch (e) {
         console.warn('[enrich] scrape failed', domain, e);
       }
 
-      // Entity-type industry ALWAYS wins over scraped keyword noise.
-      // Check TLD/name first, then Wikidata classification — only scrape Industry for businesses.
-      const entityType = await lookupWikidataEntityType(originalName, host);
-      if (entityType?.industry) {
-        scraped = {
-          ...scraped,
-          industry: entityType.industry,
-          enrichSource: scraped.enrichSource === 'none'
-            ? `entity-type:${entityType.source}`
-            : `${scraped.enrichSource}+entity-type:${entityType.source}`
-        };
-      }
-
-      // 2) Real lookup only: curated dictionary entry that matches this exact domain
-      //    (never invent founders/industry from name heuristics or name pools)
-      const dictEntry = lookupDictionaryByDomain(host);
-      if (dictEntry) {
-        const merge = (scrapedVal, dictVal) => {
-          if (!isBlankOrUnknown(scrapedVal)) return scrapedVal;
-          if (isBlankOrUnknown(dictVal) || /^needs manual/i.test(String(dictVal)) || /^needs verification/i.test(String(dictVal))) {
-            return UNKNOWN;
-          }
-          return dictVal;
-        };
-        // Founders: prefer curated domain lookup over weak homepage regex hits
-        // (scraped names that equal the company name, or title fragments, are discarded)
-        const scrapeContactOk = (() => {
-          if (isBlankOrUnknown(scraped.contacts)) return false;
-          const c = String(scraped.contacts).trim().toLowerCase();
-          const n = String(originalName || '').trim().toLowerCase();
-          if (c === n || n.includes(c) || c.includes(n)) return false;
-          return true;
-        })();
-        const dictFounder = isBlankOrUnknown(dictEntry.founder) || /^needs manual/i.test(String(dictEntry.founder))
-          ? UNKNOWN
-          : dictEntry.founder;
-        scraped = {
-          industry: merge(scraped.industry, dictEntry.industry),
-          headcount: merge(scraped.headcount, dictEntry.headcount),
-          location: preferLocation(scraped.location, dictEntry.location),
-          contacts: !isBlankOrUnknown(dictFounder) ? dictFounder : (scrapeContactOk ? scraped.contacts : UNKNOWN),
-          gender: merge(scraped.gender, dictEntry.gender),
-          notes: merge(scraped.notes, dictEntry.notes),
-          enrichSource: scraped.enrichSource === 'scrape' ? 'scrape+dictionary' : 'dictionary'
-        };
-      } else if (!isBlankOrUnknown(scraped.contacts)) {
-        // No dictionary: still reject contacts that are just the company name
+      // Reject scrape contacts that are just the company name
+      if (!isBlankOrUnknown(scraped.contacts)) {
         const c = String(scraped.contacts).trim().toLowerCase();
         const n = String(originalName || '').trim().toLowerCase();
         if (c === n || n.includes(c) || c.includes(n)) scraped.contacts = UNKNOWN;
       }
 
-      // 3) Optional API payload — only accept explicit fields, never invent defaults
-      if (apiData) {
-        const mergeApi = (scrapedVal, apiVal) => {
-          if (!isBlankOrUnknown(scrapedVal)) return scrapedVal;
-          if (isBlankOrUnknown(apiVal)) return UNKNOWN;
-          return apiVal;
-        };
-        scraped = {
-          industry: mergeApi(scraped.industry, apiData.industry),
-          headcount: mergeApi(scraped.headcount, apiData.headcount),
-          location: mergeApi(sanitizeLocationValue(scraped.location), sanitizeLocationValue(apiData.location)),
-          contacts: mergeApi(scraped.contacts, apiData.founder),
-          gender: mergeApi(scraped.gender, apiData.gender),
-          notes: mergeApi(scraped.notes, apiData.notes),
-          enrichSource: scraped.enrichSource || 'api'
+      // 3) Merge: dictionary wins for Industry / Location / Founders / Headcount / Notes
+      let merged = {
+        industry: preferDictThenScrape(fromDict.industry, scraped.industry),
+        headcount: preferDictThenScrape(fromDict.headcount, scraped.headcount),
+        location: preferDictThenScrape(fromDict.location, scraped.location, { isLocation: true }),
+        contacts: preferDictThenScrape(fromDict.contacts, scraped.contacts),
+        gender: preferDictThenScrape(fromDict.gender, scraped.gender),
+        notes: preferDictThenScrape(fromDict.notes, scraped.notes),
+        enrichSource: dictEntry
+          ? (scraped.enrichSource === 'scrape' ? 'dictionary+scrape' : 'dictionary')
+          : (scraped.enrichSource || 'none')
+      };
+
+      // Entity-type industry ALWAYS wins over keyword/dict noise for edu/gov/nonprofit
+      const entityType = await lookupWikidataEntityType(originalName, host);
+      if (entityType?.industry) {
+        merged = {
+          ...merged,
+          industry: entityType.industry,
+          enrichSource: `${merged.enrichSource}+entity-type:${entityType.source}`
         };
       }
 
-      // Guarantee no leftover blanks look "filled"
+      // 4) Optional API payload — only fill remaining Unknowns
+      if (apiData) {
+        merged = {
+          industry: preferDictThenScrape(merged.industry, apiData.industry),
+          headcount: preferDictThenScrape(merged.headcount, apiData.headcount),
+          location: preferDictThenScrape(merged.location, apiData.location, { isLocation: true }),
+          contacts: preferDictThenScrape(merged.contacts, apiData.founder),
+          gender: preferDictThenScrape(merged.gender, apiData.gender),
+          notes: preferDictThenScrape(merged.notes, apiData.notes),
+          enrichSource: merged.enrichSource === 'none' ? 'api' : merged.enrichSource
+        };
+      }
+
       const result = {
-        industry: isBlankOrUnknown(scraped.industry) ? UNKNOWN : scraped.industry,
-        headcount: isBlankOrUnknown(scraped.headcount) ? UNKNOWN : scraped.headcount,
-        location: sanitizeLocationValue(scraped.location),
-        contacts: isBlankOrUnknown(scraped.contacts) ? UNKNOWN : scraped.contacts,
-        gender: isBlankOrUnknown(scraped.gender) ? UNKNOWN : scraped.gender,
-        notes: isBlankOrUnknown(scraped.notes) ? UNKNOWN : scraped.notes,
-        enrichSource: scraped.enrichSource || 'none'
+        industry: isBlankOrUnknown(merged.industry) ? UNKNOWN : merged.industry,
+        headcount: isBlankOrUnknown(merged.headcount) ? UNKNOWN : merged.headcount,
+        location: sanitizeLocationValue(merged.location),
+        contacts: isBlankOrUnknown(merged.contacts) ? UNKNOWN : merged.contacts,
+        gender: isBlankOrUnknown(merged.gender) ? UNKNOWN : merged.gender,
+        notes: isBlankOrUnknown(merged.notes) ? UNKNOWN : merged.notes,
+        enrichSource: merged.enrichSource || 'none'
       };
 
       const guarded = applyBatchUniquenessGuard(host, result);
@@ -3596,7 +3627,8 @@
         industry: guarded.industry,
         headcount: guarded.headcount,
         location: guarded.location,
-        contacts: guarded.contacts
+        contacts: guarded.contacts,
+        dictHit: !!dictEntry
       });
       return guarded;
     }
@@ -4996,6 +5028,13 @@
             savedCandidates: preserved
           };
         }));
+        // Drop stale enrich cache for this domain so dictionary founders re-apply on confirm
+        try {
+          const needle = String(clean).toLowerCase();
+          for (const key of [...enrichCache.keys()]) {
+            if (String(key).toLowerCase().includes(needle)) enrichCache.delete(key);
+          }
+        } catch (_) {}
         setQueue(prev => [...prev, rowId]);
       };
 
