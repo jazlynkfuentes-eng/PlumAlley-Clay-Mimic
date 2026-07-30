@@ -1,12 +1,19 @@
 /**
  * Full-batch enrichment audit for the Clay Mimic dictionary + EXTRA test set.
- * Mirrors resolve → verify → enrich, then classifies Found / Potential / Unverified.
- *
- * Note: the live UI now always pauses at Potential until the user confirms a website.
- * For this audit, "Found & Verified" = recommended domain verified + enriched as if Confirm was clicked
- * on a high-confidence pick (dictionary / major firm / strong Clearbit). Ambiguous picks stay Potential.
+ * Mirrors live resolve thresholds:
+ *   Found     = auto-Found (score ≥ 90, or major-firm / dictionary / learned @ 100)
+ *   Potential = picker band (score 70–89 or otherwise not auto-Found but has a domain)
+ *   Unverified = no usable domain / DNS fail
  */
 import fs from 'fs';
+import {
+  resolveHard,
+  shouldAutoFound,
+  mapPool,
+  CONFIDENCE_THRESHOLD,
+  AUTO_FOUND_THRESHOLD,
+  companyKeyNorm
+} from './lib/hard-sample-resolver.mjs';
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const start = html.indexOf('const companyDictionary = {');
@@ -51,33 +58,6 @@ for (const e of byDomain.values()) batchMap.set(prettyKey(e.key), e);
 for (const e of EXTRA) batchMap.set(e.key, e);
 const batch = [...batchMap.keys()];
 
-function companyKeyNorm(name) {
-  return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-const MAJOR = {
-  blackstone: { domain: 'blackstone.com', label: 'The Blackstone Group' },
-  blackstonegroup: { domain: 'blackstone.com', label: 'The Blackstone Group' },
-  theblackstonegroup: { domain: 'blackstone.com', label: 'The Blackstone Group' },
-  blackrock: { domain: 'blackrock.com', label: 'BlackRock' },
-  pimco: { domain: 'pimco.com', label: 'PIMCO' },
-  fordham: { domain: 'fordham.edu', label: 'Fordham University' },
-  fordhamuniversity: { domain: 'fordham.edu', label: 'Fordham University' },
-  cornell: { domain: 'cornell.edu', label: 'Cornell University' },
-  cornelluniversity: { domain: 'cornell.edu', label: 'Cornell University' },
-  google: { domain: 'google.com', label: 'Google' },
-  microsoft: { domain: 'microsoft.com', label: 'Microsoft' },
-  apple: { domain: 'apple.com', label: 'Apple' },
-  amazon: { domain: 'amazon.com', label: 'Amazon' },
-  meta: { domain: 'meta.com', label: 'Meta' },
-  stripe: { domain: 'stripe.com', label: 'Stripe' },
-  openai: { domain: 'openai.com', label: 'OpenAI' },
-  netflix: { domain: 'netflix.com', label: 'Netflix' },
-  tesla: { domain: 'tesla.com', label: 'Tesla' },
-  notion: { domain: 'notion.so', label: 'Notion' },
-  linkedin: { domain: 'linkedin.com', label: 'LinkedIn' }
-};
-
 function isNonEntity(name) {
   return /\(\s*moderator\s*\)/i.test(name) || /^private fund$/i.test(String(name).trim());
 }
@@ -104,7 +84,6 @@ async function dnsOk(domain) {
     } catch (_) {}
     await new Promise((r) => setTimeout(r, 200 + attempt * 300));
   }
-  // Fallback: reachable HTTPS counts as live even if DNS API was rate-limited
   try {
     const r = await fetch(`https://${domain}`, {
       method: 'GET',
@@ -124,88 +103,6 @@ async function dnsOk(domain) {
     if (r.status > 0 && r.status < 500) return true;
   } catch (_) {}
   return false;
-}
-
-async function clearbitSuggest(q) {
-  try {
-    const r = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(q)}`);
-    if (!r.ok) return [];
-    const data = await r.json();
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
-}
-
-function dictLookup(name) {
-  const key = String(name || '').trim().toLowerCase();
-  const norm = companyKeyNorm(name);
-  for (const e of byDomain.values()) {
-    if (e.key === key || companyKeyNorm(e.key) === norm) return e;
-  }
-  // fuzzy: entry key contained / contains
-  for (const e of byDomain.values()) {
-    const ek = companyKeyNorm(e.key);
-    if (ek && (norm.includes(ek) || ek.includes(norm)) && Math.min(ek.length, norm.length) >= 4) return e;
-  }
-  return null;
-}
-
-async function resolveCompany(name) {
-  if (isNonEntity(name)) {
-    return { domain: null, confidence: 'none', reason: 'non-entity', candidates: [] };
-  }
-  const major = MAJOR[companyKeyNorm(name)];
-  if (major) {
-    const extras = await clearbitSuggest(name);
-    const candidates = [
-      { domain: major.domain, name: major.label },
-      ...extras.map((x) => ({ domain: x.domain, name: x.name }))
-    ].filter((c, i, arr) => c.domain && arr.findIndex((y) => y.domain === c.domain) === i);
-    return { domain: major.domain, confidence: 'high', reason: 'major-firm', candidates, matchedName: major.label };
-  }
-  const dict = dictLookup(name);
-  if (dict?.domain) {
-    const extras = await clearbitSuggest(name);
-    const candidates = [
-      { domain: dict.domain, name: prettyKey(dict.key) },
-      ...extras.map((x) => ({ domain: x.domain, name: x.name }))
-    ].filter((c, i, arr) => c.domain && arr.findIndex((y) => y.domain === c.domain) === i);
-    return {
-      domain: dict.domain,
-      confidence: 'high',
-      reason: 'dictionary',
-      candidates,
-      matchedName: prettyKey(dict.key),
-      industryHint: dict.industry
-    };
-  }
-
-  const cleaned = String(name)
-    .replace(/\b(llc|inc|ltd|limited|corp|corporation|co|gmbh|plc)\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const suggestions = await clearbitSuggest(cleaned || name);
-  if (!suggestions.length) {
-    return { domain: null, confidence: 'none', reason: 'no-clearbit', candidates: [] };
-  }
-  const top = suggestions[0];
-  const topName = String(top.name || '').toLowerCase();
-  const q = cleaned.toLowerCase();
-  const exactish =
-    topName === q ||
-    topName.includes(q) ||
-    q.includes(topName) ||
-    companyKeyNorm(top.name) === companyKeyNorm(name);
-  const second = suggestions[1];
-  const ambiguous = !exactish || (second && String(second.name || '').toLowerCase().includes(q.split(' ')[0]));
-  return {
-    domain: top.domain,
-    confidence: ambiguous ? 'low' : 'high',
-    reason: ambiguous ? 'clearbit-ambiguous' : 'clearbit',
-    candidates: suggestions.slice(0, 8).map((x) => ({ domain: x.domain, name: x.name })),
-    matchedName: top.name
-  };
 }
 
 async function fetchPageHtml(absoluteUrl, timeoutMs = 4500) {
@@ -313,57 +210,77 @@ async function enrich(name, domain, industryHint) {
   };
 }
 
-async function mapPool(items, limit, fn) {
-  const out = new Array(items.length);
-  let i = 0;
-  async function worker() {
-    while (i < items.length) {
-      const idx = i++;
-      out[idx] = await fn(items[idx], idx);
-    }
+function classifyStatus(resolved) {
+  if (!resolved?.domain) return { status: 'unverified', reason: resolved?.reason || 'no-domain' };
+  const score = Number(resolved.score) || 0;
+  const method = resolved.resolveMethod || (resolved.sources || [])[0] || 'multi-source';
+  const auto = shouldAutoFound(resolved);
+  if (auto) {
+    return {
+      status: 'found',
+      reason: `${method}@${score} (auto-found ≥${AUTO_FOUND_THRESHOLD} or trusted path)`
+    };
   }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
-  return out;
+  if (score >= CONFIDENCE_THRESHOLD || resolved.confidence === 'high' || (resolved.candidates || []).length) {
+    const band = score >= CONFIDENCE_THRESHOLD && score < AUTO_FOUND_THRESHOLD
+      ? `mid-band ${score} (confirm required)`
+      : `not-auto (${method}@${score}${resolved.ambiguous ? ', ambiguous' : ''})`;
+    return { status: 'potential', reason: band };
+  }
+  return { status: 'unverified', reason: `below-threshold:${score}` };
 }
 
-console.log(`Running enrichment audit on ${batch.length} companies (concurrency 5)...\n`);
+console.log(
+  `Running enrichment audit on ${batch.length} companies ` +
+  `(Found ≥${AUTO_FOUND_THRESHOLD} / Potential ${CONFIDENCE_THRESHOLD}–${AUTO_FOUND_THRESHOLD - 1}; concurrency 2)...\n`
+);
 
-const results = await mapPool(batch, 3, async (name) => {
-  const resolved = await resolveCompany(name);
-  if (!resolved.domain) {
-    return { name, status: 'unverified', reason: resolved.reason, candidates: 0 };
+const results = await mapPool(batch, 2, async (name) => {
+  if (isNonEntity(name)) {
+    return { name, status: 'unverified', reason: 'non-entity', candidates: 0, score: 0 };
   }
-  const ok = await dnsOk(resolved.domain);
+
+  const resolved = await resolveHard(name);
+  const score = Number(resolved.score) || 0;
+  const method = resolved.resolveMethod || (resolved.sources || [])[0] || 'none';
+  const candidates = resolved.candidates || [];
+
+  if (!resolved.domain) {
+    return { name, status: 'unverified', reason: 'no-domain', candidates: candidates.length, score, method };
+  }
+
+  const ok = resolved.dnsOk === true || resolved.dnsOk === false
+    ? resolved.dnsOk
+    : await dnsOk(resolved.domain);
   if (!ok) {
     return {
       name,
       status: 'unverified',
       reason: `dns-fail:${resolved.domain}`,
       website: resolved.domain,
-      candidates: resolved.candidates.length
+      candidates: candidates.length,
+      score,
+      method
     };
   }
 
-  // Ambiguous Clearbit → Potential (options exist, not auto-trusted)
-  if (resolved.confidence === 'low') {
-    const details = await enrich(name, resolved.domain, resolved.industryHint);
-    return {
-      name,
-      status: 'potential',
-      reason: resolved.reason,
-      website: resolved.domain,
-      candidates: resolved.candidates.length,
-      ...details
-    };
-  }
+  const { status, reason } = classifyStatus(resolved);
+  const expected = batchMap.get(name);
+  const industryHint = expected?.industry || null;
+  const details = status === 'unverified'
+    ? { website: resolved.domain }
+    : await enrich(name, resolved.domain, industryHint);
 
-  const details = await enrich(name, resolved.domain, resolved.industryHint);
   return {
     name,
-    status: 'found',
-    reason: resolved.reason,
+    status,
+    reason,
     website: resolved.domain,
-    candidates: resolved.candidates.length,
+    candidates: candidates.length,
+    score,
+    method,
+    ambiguous: !!resolved.ambiguous,
+    autoFound: shouldAutoFound(resolved),
     ...details
   };
 });
@@ -380,13 +297,19 @@ console.log(`Unverified:           ${unverified.length}`);
 console.log('');
 
 console.log('--- Unverified ---');
-for (const r of unverified) console.log(`  ${r.name}  (${r.reason})`);
+for (const r of unverified) console.log(`  ${r.name}  (${r.reason}${r.score != null ? `, score ${r.score}` : ''})`);
 console.log('');
-console.log('--- Potential ---');
-for (const r of potential) console.log(`  ${r.name}  → ${r.website}  (${r.reason}, ${r.candidates} options)`);
+console.log('--- Potential (manual Confirm) ---');
+for (const r of potential) {
+  console.log(`  ${r.name}  → ${r.website}  (${r.reason}; ${r.candidates} options)`);
+}
+console.log('');
+console.log('--- Found (auto) ---');
+for (const r of found) {
+  console.log(`  ${r.name}  → ${r.website}  (${r.method}@${r.score})`);
+}
 console.log('');
 
-// Prefer diverse Found samples for manual check
 const preferred = [
   'Blackstone',
   'Fordham University',
@@ -417,11 +340,25 @@ for (const r of samples) {
   console.log(`  Industry:  ${r.industry}`);
   console.log(`  Location:  ${r.location}`);
   console.log(`  Founders:  ${r.founders}`);
-  console.log(`  (resolve: ${r.reason})`);
+  console.log(`  (resolve: ${r.method}@${r.score})`);
 }
 
 fs.writeFileSync(
   new URL('../scripts/last-batch-enrichment-audit.json', import.meta.url),
-  JSON.stringify({ summary: { total: results.length, found: found.length, potential: potential.length, unverified: unverified.length }, results, samples }, null, 2)
+  JSON.stringify({
+    summary: {
+      total: results.length,
+      found: found.length,
+      potential: potential.length,
+      unverified: unverified.length,
+      autoFoundThreshold: AUTO_FOUND_THRESHOLD,
+      pickerThreshold: CONFIDENCE_THRESHOLD
+    },
+    results,
+    samples
+  }, null, 2)
 );
 console.log('\nWrote scripts/last-batch-enrichment-audit.json');
+
+// silence unused import warning for companyKeyNorm if tree-shaken — keep available for debug
+void companyKeyNorm;

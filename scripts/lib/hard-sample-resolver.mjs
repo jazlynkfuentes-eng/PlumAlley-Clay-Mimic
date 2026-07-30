@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const CONFIDENCE_THRESHOLD = 70;
+const AUTO_FOUND_THRESHOLD = 90;
 const AMBIGUITY_GAP = 12;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -134,6 +135,37 @@ async function dnsOk(domain) {
   }
 }
 
+async function fetchWikiApiJson(url, label = 'wiki') {
+  try {
+    let res = await fetch(url);
+    if (res.status === 429) {
+      const waitMs = 900 + Math.floor(Math.random() * 500);
+      console.warn(`[wiki] 429 on ${label}, backoff ${waitMs}ms`);
+      await new Promise((r) => setTimeout(r, waitMs));
+      res = await fetch(url);
+    }
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export function shouldAutoFound(resolved) {
+  if (!resolved?.domain || resolved.ambiguous) return false;
+  const score = Number(resolved.score ?? resolved.confidenceScore) || 0;
+  const method = String((resolved.sources || [])[0] || resolved.resolveMethod || '');
+  const sources = resolved.sources || [];
+  if (
+    (sources.includes('major-firm') || sources.includes('dictionary') || sources.includes('learned') ||
+      method === 'major-firm' || method === 'dictionary' || method === 'learned') &&
+    score >= 100
+  ) {
+    return true;
+  }
+  return score >= AUTO_FOUND_THRESHOLD && resolved.confidence === 'high';
+}
+
 async function gatherClearbit(queries) {
   const out = [];
   const seen = new Set();
@@ -186,26 +218,25 @@ async function gatherDuckDuckGo(companyName, cleaned) {
         const wikiTitleMatch = abs.match(/wikipedia\.org\/wiki\/([^?#]+)/i);
         if (wikiTitleMatch) {
           const title = decodeURIComponent(wikiTitleMatch[1].replace(/_/g, ' '));
-          try {
-            const wdRes = await fetch(
-              `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions&languages=en&format=json&origin=*`
-            );
-            if (wdRes.ok) {
-              const wd = await wdRes.json();
-              const entity = Object.values(wd.entities || {}).find(e => e && !e.missing);
-              const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
-              const domain = claim ? extractUrlDomain(claim) : '';
-              if (domain && !domain.includes('wikipedia.org')) {
-                out.push({
-                  domain,
-                  name: title,
-                  snippet: entity?.descriptions?.en?.value || title,
-                  sources: ['duckduckgo', 'wikipedia', 'wikidata'],
-                  wikiProminence: 40
-                });
-              }
+          const wd = await fetchWikiApiJson(
+            `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions&languages=en&format=json&origin=*`,
+            `ddg→wd:${title}`
+          );
+          await new Promise((r) => setTimeout(r, 120));
+          if (wd) {
+            const entity = Object.values(wd.entities || {}).find(e => e && !e.missing);
+            const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
+            const domain = claim ? extractUrlDomain(claim) : '';
+            if (domain && !domain.includes('wikipedia.org')) {
+              out.push({
+                domain,
+                name: title,
+                snippet: entity?.descriptions?.en?.value || title,
+                sources: ['duckduckgo', 'wikipedia', 'wikidata'],
+                wikiProminence: 40
+              });
             }
-          } catch (_) {}
+          }
         }
         const absDom = extractUrlDomain(abs);
         if (absDom && !/wikipedia\.org|wikidata\.org/i.test(absDom)) {
@@ -241,20 +272,24 @@ async function gatherWikipedia(companyName, cleaned) {
   const seen = new Set();
   for (const wq of queries.slice(0, 5)) {
     try {
-      const openRes = await fetch(
-        `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=5&namespace=0&format=json&origin=*`
+      const openJson = await fetchWikiApiJson(
+        `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=5&namespace=0&format=json&origin=*`,
+        `opensearch:${wq}`
       );
-      if (!openRes.ok) continue;
-      const openJson = await openRes.json();
+      if (!openJson) {
+        await new Promise((r) => setTimeout(r, 200));
+        continue;
+      }
       const titles = openJson[1] || [];
       for (const title of titles.slice(0, 3)) {
         if (seen.has(title)) continue;
         seen.add(title);
-        const wdRes = await fetch(
-          `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions&languages=en&format=json&origin=*`
+        const wd = await fetchWikiApiJson(
+          `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions&languages=en&format=json&origin=*`,
+          `wb:${title}`
         );
-        if (!wdRes.ok) continue;
-        const wd = await wdRes.json();
+        await new Promise((r) => setTimeout(r, 120));
+        if (!wd) continue;
         const entity = Object.values(wd.entities || {}).find(e => e && !e.missing);
         if (!entity) continue;
         const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
@@ -412,7 +447,7 @@ export async function resolveHard(name) {
     }
     return {
       domain: major.domain,
-      confidence: /securities and exchange/i.test(name) ? 'low' : 'high',
+      confidence: 'high',
       score: 100,
       ambiguous: /securities and exchange/i.test(name),
       candidates: normalizeCandidates(
@@ -420,6 +455,7 @@ export async function resolveHard(name) {
         extra
       ),
       sources: ['major-firm'],
+      resolveMethod: 'major-firm',
       dnsOk: ok
     };
   }
@@ -430,10 +466,11 @@ export async function resolveHard(name) {
     return {
       domain: dict.domain,
       confidence: 'high',
-      score: 95,
+      score: 100,
       ambiguous: false,
       candidates: [{ domain: dict.domain, name, sources: ['dictionary'] }],
       sources: ['dictionary'],
+      resolveMethod: 'dictionary',
       dnsOk: ok
     };
   }
@@ -521,4 +558,4 @@ export async function mapPool(items, limit, fn) {
   return out;
 }
 
-export { CONFIDENCE_THRESHOLD };
+export { CONFIDENCE_THRESHOLD, AUTO_FOUND_THRESHOLD };

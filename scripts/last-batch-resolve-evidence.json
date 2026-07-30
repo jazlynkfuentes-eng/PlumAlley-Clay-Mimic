@@ -1,0 +1,161 @@
+{
+  "threshold": 70,
+  "generatedAt": "2026-07-30T14:57:47.525Z",
+  "report": [
+    {
+      "name": "PIMCO",
+      "majorFirmDomain": "pimco.com",
+      "clearbit": {
+        "status": 200,
+        "ok": true,
+        "count": 5,
+        "top": "pimco.com"
+      },
+      "ddg": {
+        "status": 200,
+        "ok": true,
+        "count": 1,
+        "heading": "PIMCO"
+      },
+      "wiki": {
+        "status": 200,
+        "ok": true,
+        "titles": 5,
+        "withP856": 2
+      },
+      "bestDomain": "pimco.com",
+      "bestScore": 99,
+      "clearsThreshold": true,
+      "topSignals": {
+        "nameSimilarity": 50,
+        "wikiNotability": 12,
+        "multiSource": 14,
+        "dns": 23
+      }
+    },
+    {
+      "name": "Blackstone",
+      "majorFirmDomain": "blackstone.com",
+      "clearbit": {
+        "status": 200,
+        "ok": true,
+        "count": 5,
+        "top": "blackstone.com"
+      },
+      "ddg": {
+        "status": 200,
+        "ok": true,
+        "count": 0,
+        "heading": "Blackstone"
+      },
+      "wiki": {
+        "status": 200,
+        "ok": true,
+        "titles": 5,
+        "withP856": 0
+      },
+      "bestDomain": "blackstone.com",
+      "bestScore": 81,
+      "clearsThreshold": true,
+      "topSignals": {
+        "nameSimilarity": 50,
+        "wikiNotability": 0,
+        "multiSource": 8,
+        "dns": 23
+      }
+    },
+    {
+      "name": "Stripe",
+      "majorFirmDomain": "stripe.com",
+      "clearbit": {
+        "status": 200,
+        "ok": true,
+        "count": 5,
+        "top": "stripe.com"
+      },
+      "ddg": {
+        "status": 200,
+        "ok": true,
+        "count": 0,
+        "heading": "Stripe"
+      },
+      "wiki": {
+        "status": 429,
+        "ok": false,
+        "titles": 0,
+        "withP856": 0
+      },
+      "bestDomain": "stripe.com",
+      "bestScore": 81,
+      "clearsThreshold": true,
+      "topSignals": {
+        "nameSimilarity": 50,
+        "wikiNotability": 0,
+        "multiSource": 8,
+        "dns": 23
+      }
+    },
+    {
+      "name": "Microsoft",
+      "majorFirmDomain": "microsoft.com",
+      "clearbit": {
+        "status": 200,
+        "ok": true,
+        "count": 5,
+        "top": "office.com"
+      },
+      "ddg": {
+        "status": 200,
+        "ok": true,
+        "count": 1,
+        "heading": "Microsoft"
+      },
+      "wiki": {
+        "status": 429,
+        "ok": false,
+        "titles": 0,
+        "withP856": 0
+      },
+      "bestDomain": "microsoft.com",
+      "bestScore": 87,
+      "clearsThreshold": true,
+      "topSignals": {
+        "nameSimilarity": 50,
+        "wikiNotability": 0,
+        "multiSource": 14,
+        "dns": 23
+      }
+    },
+    {
+      "name": "Goldman Sachs",
+      "majorFirmDomain": "goldmansachs.com",
+      "clearbit": {
+        "status": 200,
+        "ok": true,
+        "count": 5,
+        "top": "goldmansachs.com"
+      },
+      "ddg": {
+        "status": 200,
+        "ok": true,
+        "count": 0,
+        "heading": "Goldman Sachs"
+      },
+      "wiki": {
+        "status": 429,
+        "ok": false,
+        "titles": 0,
+        "withP856": 0
+      },
+      "bestDomain": "goldmansachs.com",
+      "bestScore": 81,
+      "clearsThreshold": true,
+      "topSignals": {
+        "nameSimilarity": 50,
+        "wikiNotability": 0,
+        "multiSource": 8,
+        "dns": 23
+      }
+    }
+  ]
+}

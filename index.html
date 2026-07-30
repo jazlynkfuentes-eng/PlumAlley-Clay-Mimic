@@ -1957,8 +1957,41 @@
     }
 
     // --- Multi-source resolution + confidence scoring ---
-    const RESOLVE_CONFIDENCE_THRESHOLD = 70;
+    const RESOLVE_CONFIDENCE_THRESHOLD = 70; // show Potential picker (manual Confirm)
+    const RESOLVE_AUTO_FOUND_THRESHOLD = 90; // auto-Found without Confirm
     const RESOLVE_AMBIGUITY_GAP = 12;
+
+    /** Auto-Found when score ≥ 90, or major-firm / dictionary / learned at confidence 100. */
+    function shouldAutoFoundResolve(resolved) {
+      if (!resolved || !resolved.domain) return false;
+      if (resolved.ambiguous) return false;
+      const score = Number(resolved.confidenceScore) || 0;
+      const method = String(resolved.resolveMethod || '');
+      if ((method === 'major-firm' || method === 'dictionary' || method === 'learned') && score >= 100) {
+        return true;
+      }
+      return score >= RESOLVE_AUTO_FOUND_THRESHOLD && !resolved.isUnsure;
+    }
+
+    async function fetchWikiApiJson(url, { label = 'wiki' } = {}) {
+      try {
+        let res = await fetch(url);
+        if (res.status === 429) {
+          const waitMs = 900 + Math.floor(Math.random() * 500);
+          console.warn(`[wiki] 429 on ${label}, backing off ${waitMs}ms then retry once`);
+          await new Promise(r => setTimeout(r, waitMs));
+          res = await fetch(url);
+        }
+        if (!res.ok) {
+          console.warn(`[wiki] ${label} HTTP ${res.status} — continuing without this result`);
+          return null;
+        }
+        return await res.json();
+      } catch (e) {
+        console.warn(`[wiki] ${label} failed:`, e.message || e);
+        return null;
+      }
+    }
 
     function extractUrlDomain(str) {
       if (!str) return '';
@@ -2201,11 +2234,12 @@
       // Resolve Wikipedia titles discovered via DDG Instant Answer (e.g. IBM redirect page)
       for (const title of [...new Set(wikiTitlesFromDdg)].slice(0, 3)) {
         try {
-          const wdRes = await fetch(
-            `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions&languages=en&format=json&origin=*`
+          const wd = await fetchWikiApiJson(
+            `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions&languages=en&format=json&origin=*`,
+            { label: `ddg→wikidata:${title}` }
           );
-          if (!wdRes.ok) continue;
-          const wd = await wdRes.json();
+          await new Promise(r => setTimeout(r, 120));
+          if (!wd) continue;
           const entity = Object.values(wd.entities || {}).find(e => e && !e.missing);
           const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
           const domain = claim ? extractUrlDomain(claim) : '';
@@ -2221,7 +2255,7 @@
                 : 40
             });
           }
-        } catch (_) { /* best-effort */ }
+        } catch (_) { /* best-effort — never block on Wiki */ }
       }
       return normalizeCandidates(out);
     }
@@ -2300,11 +2334,14 @@
 
       for (const wq of orgVariants.slice(0, 6)) {
         try {
-          const openRes = await fetch(
-            `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=5&namespace=0&format=json&origin=*`
+          const openJson = await fetchWikiApiJson(
+            `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=5&namespace=0&format=json&origin=*`,
+            { label: `opensearch:${wq}` }
           );
-          if (!openRes.ok) continue;
-          const openJson = await openRes.json();
+          if (!openJson) {
+            await new Promise(r => setTimeout(r, 200));
+            continue;
+          }
           const titles = openJson[1] || [];
           if (!titles.length) continue;
 
@@ -2321,11 +2358,12 @@
             .slice(0, 3);
 
           for (const { title } of rankedTitles) {
-            const wdRes = await fetch(
-              `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions|labels&languages=en&format=json&origin=*`
+            const wd = await fetchWikiApiJson(
+              `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions|labels&languages=en&format=json&origin=*`,
+              { label: `wbgetentities:${title}` }
             );
-            if (!wdRes.ok) continue;
-            const wd = await wdRes.json();
+            await new Promise(r => setTimeout(r, 120)); // pace Wiki requests during batches
+            if (!wd) continue;
             const entity = Object.values(wd.entities || {}).find(e => e && !e.missing);
             if (!entity) continue;
             const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
@@ -2343,7 +2381,6 @@
                 wikiProminence: prominence
               });
             } else if (prominence >= 30) {
-              // Notable entity without official site still helps notability scoring later
               out.push({
                 domain: '',
                 name: title,
@@ -2353,7 +2390,7 @@
               });
             }
           }
-        } catch (_) { /* best-effort */ }
+        } catch (_) { /* best-effort — never block resolution on Wiki */ }
       }
       return normalizeCandidates(out.filter(c => c.domain));
     }
@@ -2826,11 +2863,14 @@
       const results = [];
       for (const wq of queries.slice(0, 3)) {
         try {
-          const openRes = await fetch(
-            `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=6&namespace=0&format=json&origin=*`
+          const openJson = await fetchWikiApiJson(
+            `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=6&namespace=0&format=json&origin=*`,
+            { label: `prominence-opensearch:${wq}` }
           );
-          if (!openRes.ok) continue;
-          const openJson = await openRes.json();
+          if (!openJson) {
+            await new Promise(r => setTimeout(r, 200));
+            continue;
+          }
           const titles = openJson[1] || [];
           if (!titles.length) continue;
 
@@ -2846,11 +2886,12 @@
           }).filter(x => x.titleScore >= 8).sort((a, b) => b.titleScore - a.titleScore);
 
           for (const { title, titleScore } of ranked.slice(0, 3)) {
-            const wdRes = await fetch(
-              `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions|labels&languages=en&format=json&origin=*`
+            const wd = await fetchWikiApiJson(
+              `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions|labels&languages=en&format=json&origin=*`,
+              { label: `prominence-wb:${title}` }
             );
-            if (!wdRes.ok) continue;
-            const wd = await wdRes.json();
+            await new Promise(r => setTimeout(r, 120));
+            if (!wd) continue;
             const entity = Object.values(wd.entities || {}).find(e => e && e.claims && !e.missing);
             if (!entity) continue;
             const description = entity?.descriptions?.en?.value || '';
@@ -3186,14 +3227,14 @@
         );
         return store({
           domain: majorFirm.domain.toLowerCase(),
-          isUnsure: true,
+          isUnsure: false,
           confidenceScore: 100,
           matchedName: majorFirm.label,
           industrySnippet: `${majorFirm.label} · ${majorFirm.industry}`,
           alternatives: gatheredCandidates.map(c => c.snippet || c.name || c.domain),
           alternativeDomains: gatheredCandidates.map(c => c.domain),
           candidates: gatheredCandidates,
-          resolveMethod: 'multi-source',
+          resolveMethod: 'major-firm',
           fastPath: true
         });
       }
@@ -3249,7 +3290,7 @@
           return store({
             domain: d,
             isUnsure: false,
-            confidenceScore: 95,
+            confidenceScore: 100,
             industrySnippet: companyDictionary[rawKey].industry,
             candidates: [{ domain: d, name: companyName, snippet: companyDictionary[rawKey].industry, sources: ['dictionary'] }],
             resolveMethod: 'dictionary',
@@ -3264,7 +3305,7 @@
           return store({
             domain: d,
             isUnsure: false,
-            confidenceScore: 95,
+            confidenceScore: 100,
             industrySnippet: companyDictionary[localClean].industry,
             candidates: [{ domain: d, name: companyName, snippet: companyDictionary[localClean].industry, sources: ['dictionary'] }],
             resolveMethod: 'dictionary',
@@ -5240,11 +5281,19 @@
                   fastPath = !!resolvedObj.fastPath || isKnownUnambiguousCompany(companyName);
                   const confidenceScore = Number(resolvedObj.confidenceScore) || 0;
                   const confidenceSignals = resolvedObj.confidenceSignals || null;
-                  // Below confidence threshold: still show best guess in picker, but never auto-trust it
+                  // 70–89 → Potential picker; 90+ / major-firm|dictionary|learned@100 → auto-Found
                   const strongRecommend = !isUnsure && confidenceScore >= RESOLVE_CONFIDENCE_THRESHOLD;
+                  const autoFound = shouldAutoFoundResolve({
+                    ...resolvedObj,
+                    domain,
+                    isUnsure,
+                    confidenceScore,
+                    resolveMethod,
+                    ambiguous: !!resolvedObj.ambiguous
+                  });
 
                   updateRow(rowId, { status: 'verifying', [webKey]: domain, resolveMethod, candidates, confidenceScore, confidenceSignals });
-                  const verification = await verifyDomainLive(domain, companyName, { fastPath: fastPath && strongRecommend });
+                  const verification = await verifyDomainLive(domain, companyName, { fastPath: fastPath && (strongRecommend || autoFound) });
                   if (!verification.ok) {
                     const moreOpts = await ensureWebsiteOptions(companyName, candidates, '', {});
                     if (moreOpts.length) {
@@ -5286,9 +5335,10 @@
                     return;
                   }
 
-                  // Always show website options — never auto-accept Found without a user pick.
-                  // (User-confirmed domains skip this and continue to enrich below.)
-                  if (!userConfirmed) {
+                  // Auto-Found (≥90 or major-firm/dictionary/learned@100): skip picker, enrich now.
+                  // Scores 70–89 stay Potential and require manual Confirm.
+                  if (!userConfirmed && !autoFound) {
+                    const midBand = confidenceScore >= RESOLVE_CONFIDENCE_THRESHOLD && confidenceScore < RESOLVE_AUTO_FOUND_THRESHOLD;
                     updateRow(rowId, {
                       status: 'potential',
                       [webKey]: strongRecommend || confidenceScore > 0 ? domain : (candidates[0]?.domain || domain || ''),
@@ -5297,7 +5347,11 @@
                       [locKey]: '-',
                       [conKey]: '-',
                       [genKey]: '-',
-                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', candidates.length ? (strongRecommend ? 'Select the correct website below' : `Low confidence (score ${confidenceScore}) — confirm a website`) : 'Enter the website manually'].filter(Boolean).join(' · '),
+                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', candidates.length
+                        ? (midBand
+                          ? `Score ${confidenceScore} (confirm required under ${RESOLVE_AUTO_FOUND_THRESHOLD})`
+                          : (strongRecommend ? 'Select the correct website below' : `Low confidence (score ${confidenceScore}) — confirm a website`))
+                        : 'Enter the website manually'].filter(Boolean).join(' · '),
                       matchSnippet: industrySnippet,
                       linkVerified: false,
                       candidates,
@@ -5315,7 +5369,19 @@
                     return;
                   }
 
-                  updateRow(rowId, { [webKey]: domain, status: 'enriching', matchSnippet: industrySnippet, linkVerified: true, resolveMethod, userConfirmedDomain: false, confidenceScore, confidenceSignals });
+                  updateRow(rowId, {
+                    [webKey]: domain,
+                    status: 'enriching',
+                    matchSnippet: industrySnippet,
+                    linkVerified: true,
+                    resolveMethod: autoFound && !userConfirmed ? (resolveMethod || 'auto-found') : resolveMethod,
+                    userConfirmedDomain: false,
+                    confidenceScore,
+                    confidenceSignals,
+                    pickerOpen: false,
+                    selectionLocked: false,
+                    candidatesUnconfirmed: false
+                  });
                 } else {
                   // No confident domain — still attach / fetch loose candidates for the picker
                   const looseCandidates = await ensureWebsiteOptions(
