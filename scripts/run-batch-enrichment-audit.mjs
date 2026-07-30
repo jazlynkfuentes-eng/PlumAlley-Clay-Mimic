@@ -1,19 +1,33 @@
 /**
- * Full-batch enrichment audit for the Clay Mimic dictionary + EXTRA test set.
- * Mirrors live resolve thresholds:
- *   Found     = auto-Found (score ≥ 90, or major-firm / dictionary / learned @ 100)
- *   Potential = picker band (score 70–89 or otherwise not auto-Found but has a domain)
- *   Unverified = no usable domain / DNS fail
+ * Batch enrichment audit — modes mirror (or explicitly diverge from) the live UI.
+ *
+ * Modes:
+ *   live-ui      Default. Same short-circuits as Enrich All: learned → major-firm → dictionary,
+ *                then multi-source. Finance filter ON (matches UI default).
+ *   live-parity  Multi-source only (skip dictionary short-circuit). Finance ON.
+ *                Use this when measuring wiki-less / Clearbit scoring without catalogue bypass.
+ *
+ * Usage:
+ *   node scripts/run-batch-enrichment-audit.mjs
+ *   node scripts/run-batch-enrichment-audit.mjs --mode=live-parity
+ *   node scripts/run-batch-enrichment-audit.mjs --mode=live-ui
  */
 import fs from 'fs';
 import {
   resolveHard,
   shouldAutoFound,
+  classifyFinanceAffinity,
   mapPool,
   CONFIDENCE_THRESHOLD,
   AUTO_FOUND_THRESHOLD,
   companyKeyNorm
 } from './lib/hard-sample-resolver.mjs';
+
+const args = process.argv.slice(2);
+const modeArg = (args.find((a) => a.startsWith('--mode=')) || '--mode=live-ui').split('=')[1];
+const MODE = modeArg === 'live-parity' ? 'live-parity' : 'live-ui';
+const SKIP_DICTIONARY = MODE === 'live-parity';
+const FINANCE_ON = true;
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const start = html.indexOf('const companyDictionary = {');
@@ -120,23 +134,6 @@ async function fetchPageHtml(absoluteUrl, timeoutMs = 4500) {
       if (htmlText && htmlText.length >= 40) return htmlText;
     }
   } catch (_) {}
-  for (const build of [
-    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`
-  ]) {
-    try {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(build(absoluteUrl), { signal: controller.signal });
-      clearTimeout(t);
-      if (!res.ok) continue;
-      let text = await res.text();
-      if (text.trim().startsWith('{') && text.includes('"contents"')) {
-        try { text = JSON.parse(text).contents || ''; } catch (_) {}
-      }
-      if (text && text.length >= 40) return text;
-    } catch (_) {}
-  }
   return null;
 }
 
@@ -219,7 +216,7 @@ function classifyStatus(resolved) {
     const soleNote = resolved.soleFinanceMatch ? ', sole-finance' : '';
     return {
       status: 'found',
-      reason: `${method}@${score} (auto-found ≥${AUTO_FOUND_THRESHOLD} or trusted path${soleNote})`
+      reason: `${method}@${score} (auto-found ≥${AUTO_FOUND_THRESHOLD}${soleNote})`
     };
   }
   if (score >= CONFIDENCE_THRESHOLD || resolved.confidence === 'high' || (resolved.candidates || []).length) {
@@ -231,23 +228,34 @@ function classifyStatus(resolved) {
   return { status: 'unverified', reason: `below-threshold:${score}` };
 }
 
-console.log(
-  `Running enrichment audit on ${batch.length} companies ` +
-  `(Finance filter ON; Found ≥${AUTO_FOUND_THRESHOLD} / Potential ${CONFIDENCE_THRESHOLD}–${AUTO_FOUND_THRESHOLD - 1}; concurrency 2)...\n`
-);
+console.log('='.repeat(64));
+console.log(`MODE: ${MODE}${MODE === 'live-parity' ? '  ← labeled live-parity (finance ON, no dictionary short-circuit)' : '  ← live UI path (dictionary/major/learned short-circuits ON)'}`);
+console.log(`Finance filter: ${FINANCE_ON ? 'ON' : 'OFF'} | auto-Found ≥${AUTO_FOUND_THRESHOLD} | picker ≥${CONFIDENCE_THRESHOLD}`);
+console.log(`Companies: ${batch.length} | concurrency 2`);
+console.log('='.repeat(64));
+console.log('');
 
 const results = await mapPool(batch, 2, async (name) => {
   if (isNonEntity(name)) {
-    return { name, status: 'unverified', reason: 'non-entity', candidates: 0, score: 0 };
+    return { name, status: 'unverified', reason: 'non-entity', candidates: 0, score: 0, mode: MODE };
   }
 
-  const resolved = await resolveHard(name, { financeFilterActive: true });
+  const resolved = await resolveHard(name, {
+    financeFilterActive: FINANCE_ON,
+    skipDictionary: SKIP_DICTIONARY
+  });
   const score = Number(resolved.score) || 0;
   const method = resolved.resolveMethod || (resolved.sources || [])[0] || 'none';
   const candidates = resolved.candidates || [];
+  const financeAffinity = resolved.domain
+    ? classifyFinanceAffinity({ name, domain: resolved.domain, snippet: '' }, name)
+    : 'n/a';
 
   if (!resolved.domain) {
-    return { name, status: 'unverified', reason: 'no-domain', candidates: candidates.length, score, method };
+    return {
+      name, status: 'unverified', reason: 'no-domain', candidates: candidates.length,
+      score, method, financePts: null, financeAffinity, mode: MODE
+    };
   }
 
   const ok = resolved.dnsOk === true || resolved.dnsOk === false
@@ -261,7 +269,10 @@ const results = await mapPool(batch, 2, async (name) => {
       website: resolved.domain,
       candidates: candidates.length,
       score,
-      method
+      method,
+      financePts: resolved.signals?.finance ?? null,
+      financeAffinity,
+      mode: MODE
     };
   }
 
@@ -283,7 +294,12 @@ const results = await mapPool(batch, 2, async (name) => {
     ambiguous: !!resolved.ambiguous,
     autoFound: shouldAutoFound(resolved),
     soleFinanceMatch: !!resolved.soleFinanceMatch,
-    financeFilterActive: true,
+    financePts: resolved.signals?.finance ?? null,
+    financeAffinity,
+    exactName: !!resolved.exactName,
+    nameSimilarity: resolved.signals?.nameSimilarity ?? null,
+    financeFilterActive: FINANCE_ON,
+    mode: MODE,
     ...details
   };
 });
@@ -292,7 +308,7 @@ const found = results.filter((r) => r.status === 'found');
 const potential = results.filter((r) => r.status === 'potential');
 const unverified = results.filter((r) => r.status === 'unverified');
 
-console.log('=== BREAKDOWN ===');
+console.log(`=== BREAKDOWN [${MODE}] ===`);
 console.log(`Total rows:           ${results.length}`);
 console.log(`Found & Verified:     ${found.length}`);
 console.log(`Potential:            ${potential.length}`);
@@ -304,85 +320,57 @@ for (const r of unverified) console.log(`  ${r.name}  (${r.reason}${r.score != n
 console.log('');
 console.log('--- Potential (manual Confirm) ---');
 for (const r of potential) {
-  console.log(`  ${r.name}  → ${r.website}  (${r.reason}; ${r.candidates} options)`);
-}
-console.log('');
-console.log('--- Found (auto) ---');
-for (const r of found) {
-  console.log(`  ${r.name}  → ${r.website}  (${r.method}@${r.score}${r.soleFinanceMatch ? ', sole-finance' : ''})`);
-}
-console.log('');
-
-// Multi-source probe for key finance names (skip dictionary) to verify Finance filter scoring
-const financeProbeNames = [
-  'Cara Advisory',
-  'PIMCO',
-  'Heard Capital',
-  'NAV Fund Services',
-  'Disciplina Capital Management',
-  'Stable',
-  'Blackstone'
-];
-console.log('=== FINANCE FILTER PROBE (multi-source only, skip dictionary) ===');
-const probes = [];
-for (const name of financeProbeNames) {
-  const resolved = await resolveHard(name, { financeFilterActive: true, skipDictionary: true });
-  const auto = shouldAutoFound(resolved);
-  const row = {
-    name,
-    domain: resolved.domain,
-    score: resolved.score,
-    method: resolved.resolveMethod || (resolved.sources || [])[0],
-    soleFinanceMatch: !!resolved.soleFinanceMatch,
-    ambiguous: !!resolved.ambiguous,
-    autoFound: auto,
-    status: auto ? 'found' : (resolved.domain && (resolved.score || 0) >= CONFIDENCE_THRESHOLD ? 'potential' : 'unverified'),
-    financePts: resolved.signals?.finance
-  };
-  probes.push(row);
   console.log(
-    `  ${name} → ${row.domain || '(none)'}  score=${row.score}  ` +
-    `${row.status}${row.soleFinanceMatch ? ' (sole-finance)' : ''}  financePts=${row.financePts ?? '-'}`
+    `  ${r.name}  → ${r.website}  score=${r.score} financePts=${r.financePts ?? '-'} ` +
+    `affinity=${r.financeAffinity} (${r.reason})`
   );
 }
 console.log('');
+console.log('--- Found (auto) sample ---');
+for (const r of found.slice(0, 25)) {
+  console.log(
+    `  ${r.name}  → ${r.website}  ${r.method}@${r.score}` +
+    ` financePts=${r.financePts ?? '-'} affinity=${r.financeAffinity}` +
+    `${r.soleFinanceMatch ? ' sole-finance' : ''}`
+  );
+}
+if (found.length > 25) console.log(`  ... +${found.length - 25} more Found`);
+console.log('');
 
-const preferred = [
-  'Blackstone',
-  'Fordham University',
-  'PIMCO',
-  'Google',
+// Spotlight the previously sticky / diagnostic names
+const spotlight = [
   'Stripe',
-  'Cornell University',
   'Trinity Church Wall Street',
-  'Blackrock',
-  'Openai',
-  'Impactus Partners'
+  'Stable',
+  'Epibone',
+  'ONE Concern',
+  'Cara Advisory',
+  'PIMCO',
+  'Heard Capital'
 ];
-const samples = [];
-for (const p of preferred) {
-  const hit = found.find((r) => r.name.toLowerCase() === p.toLowerCase());
-  if (hit && !samples.find((s) => s.name === hit.name)) samples.push(hit);
-  if (samples.length >= 5) break;
-}
-for (const r of found) {
-  if (samples.length >= 5) break;
-  if (!samples.find((s) => s.name === r.name)) samples.push(r);
-}
-
-console.log('=== 5 FOUND & VERIFIED (full fields for manual check) ===');
-for (const r of samples) {
-  console.log(`\n${r.name}`);
-  console.log(`  Website:   ${r.website}`);
-  console.log(`  Industry:  ${r.industry}`);
-  console.log(`  Location:  ${r.location}`);
-  console.log(`  Founders:  ${r.founders}`);
-  console.log(`  (resolve: ${r.method}@${r.score})`);
+console.log('=== SPOTLIGHT ===');
+for (const n of spotlight) {
+  const r = results.find((x) => x.name.toLowerCase() === n.toLowerCase());
+  if (!r) {
+    console.log(`  ${n}: (not in batch)`);
+    continue;
+  }
+  console.log(
+    `  ${r.name}: ${r.status} → ${r.website || '-'} score=${r.score} ` +
+    `financePts=${r.financePts ?? '-'} affinity=${r.financeAffinity} method=${r.method}`
+  );
 }
 
+const outName = MODE === 'live-parity'
+  ? '../scripts/last-live-parity-batch.json'
+  : '../scripts/last-batch-enrichment-audit.json';
 fs.writeFileSync(
-  new URL('../scripts/last-batch-enrichment-audit.json', import.meta.url),
+  new URL(outName, import.meta.url),
   JSON.stringify({
+    mode: MODE,
+    label: MODE === 'live-parity'
+      ? 'live-parity (finance ON, no dictionary short-circuit)'
+      : 'live-ui (dictionary/major/learned short-circuits like Enrich All)',
     summary: {
       total: results.length,
       found: found.length,
@@ -390,14 +378,11 @@ fs.writeFileSync(
       unverified: unverified.length,
       autoFoundThreshold: AUTO_FOUND_THRESHOLD,
       pickerThreshold: CONFIDENCE_THRESHOLD,
-      financeFilterActive: true
+      financeFilterActive: FINANCE_ON,
+      skipDictionary: SKIP_DICTIONARY
     },
-    results,
-    samples,
-    financeProbes: probes
+    results
   }, null, 2)
 );
-console.log('\nWrote scripts/last-batch-enrichment-audit.json');
-
-// silence unused import warning for companyKeyNorm if tree-shaken — keep available for debug
+console.log(`\nWrote ${outName.replace('../', '')}`);
 void companyKeyNorm;

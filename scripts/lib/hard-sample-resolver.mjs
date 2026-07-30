@@ -7,7 +7,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const CONFIDENCE_THRESHOLD = 70;
-const AUTO_FOUND_THRESHOLD = 90;
+// 80: wiki-less Clearbit+DNS correct matches commonly land ~81; 90 was too strict under Wiki 429s.
+const AUTO_FOUND_THRESHOLD = 80;
 const AMBIGUITY_GAP = 12;
 
 const FINANCE_AFFINITY_PHRASES = [
@@ -16,14 +17,31 @@ const FINANCE_AFFINITY_PHRASES = [
   'capital markets', 'family office', 'broker dealer', 'broker-dealer',
   'investment bank', 'investment banking', 'fund services', 'fund administration',
   'alternative asset', 'growth equity', 'private credit', 'credit fund',
-  'sovereign wealth', 'merchant bank', 'private bank', 'buyout', 'fintech'
+  'sovereign wealth', 'merchant bank', 'private bank', 'buyout', 'fintech',
+  'financial technology', 'financial services', 'payments', 'payment processing',
+  'payment platform', 'neobank', 'robo-advisor', 'robo advisor'
 ];
 const FINANCE_AFFINITY_TOKENS = [
   'capital', 'ventures', 'venture', 'investment', 'investments', 'investor', 'investors',
   'equity', 'hedge', 'wealth', 'fintech', 'securities', 'banking', 'bank',
   'asset', 'assets', 'advisory', 'advisor', 'advisors', 'fund', 'funds',
-  'holdings', 'credit', 'lending', 'brokerage', 'broker', 'pe', 'vc'
+  'holdings', 'credit', 'lending', 'brokerage', 'broker', 'pe', 'vc',
+  'payments', 'payment', 'financing'
 ];
+const FINANCE_KNOWN_BRANDS = new Set([
+  'stripe', 'square', 'block', 'plaid', 'paypal', 'visa', 'mastercard', 'adyen', 'checkout',
+  'klarna', 'affirm', 'brex', 'ramp', 'mercury', 'coinbase', 'robinhood', 'sofi',
+  'pimco', 'blackrock', 'blackstone', 'kkr', 'apollo', 'carlyle', 'bridgewater', 'citadel',
+  'fidelity', 'vanguard', 'schroders', 'goldman', 'goldmansachs', 'morganstanley', 'jpmorgan',
+  'heardcapital', 'caraadvisory', 'navfundservices', 'disciplina', 'stableam', 'gilderpartners',
+  'plumalley', 'marex'
+]);
+const FINANCE_KNOWN_DOMAINS = new Set([
+  'stripe.com', 'square.com', 'plaid.com', 'paypal.com', 'adyen.com', 'checkout.com',
+  'pimco.com', 'blackrock.com', 'blackstone.com', 'heardcapital.com', 'caraadvisory.com',
+  'navfundservices.com', 'disciplina.com', 'stableam.com', 'gilderpartners.com',
+  'plumalley.co', 'marex.com', 'bridgewater.com', 'citadel.com'
+]);
 const UNRELATED_INDUSTRY_PHRASES = [
   'retail', 'grocery', 'supermarket', 'restaurant', 'restaurants', 'cafe', 'coffee shop',
   'entertainment', 'media', 'publishing', 'newspaper', 'magazine', 'music',
@@ -32,29 +50,43 @@ const UNRELATED_INDUSTRY_PHRASES = [
   'food & beverage', 'food and beverage', 'hotel', 'hospitality', 'travel agency',
   'sports', 'nightlife', 'casino', 'e-commerce', 'ecommerce', 'marketplace',
   'consumer goods', 'consumer electronics', 'cpg', 'toys', 'grocery store',
-  'fast food', 'streaming entertainment'
+  'fast food', 'streaming entertainment',
+  'biotech', 'biotechnology', 'therapeutics', 'pharmaceutical', 'medical device',
+  'robotics', 'aerospace', 'semiconductor'
 ];
 
-export function classifyFinanceAffinity(candidate) {
-  const blob = `${candidate?.name || ''} ${candidate?.domain || ''} ${candidate?.snippet || ''} ${candidate?.industry || ''}`.toLowerCase();
+export function classifyFinanceAffinity(candidate, queryCompanyName = '') {
+  const domain = String(candidate?.domain || '').toLowerCase().replace(/^www\./, '');
+  const name = String(candidate?.name || '');
+  const blob = `${name} ${domain} ${candidate?.snippet || ''} ${candidate?.industry || ''}`.toLowerCase();
   if (!blob.trim()) return 'neutral';
+
+  if (FINANCE_KNOWN_DOMAINS.has(domain)) return 'finance';
+  const nameKey = companyKeyNorm(name);
+  const domBase = domain.split('.')[0] || '';
+  if (FINANCE_KNOWN_BRANDS.has(nameKey) || FINANCE_KNOWN_BRANDS.has(domBase)) return 'finance';
+  const qKey = companyKeyNorm(queryCompanyName);
+  if (qKey && FINANCE_KNOWN_BRANDS.has(qKey)) {
+    if (nameKey === qKey || domBase === qKey || domain.startsWith(qKey + '.')) return 'finance';
+  }
+
   if (UNRELATED_INDUSTRY_PHRASES.some(p => blob.includes(p)) && !FINANCE_AFFINITY_PHRASES.some(p => blob.includes(p))) {
-    const host = String(candidate?.domain || '').toLowerCase().replace(/\./g, ' ');
-    if (!/\b(capital|ventures|venture|invest|advisory|advisor|wealth|asset|fund|equity|fintech|bank|hedge)\b/.test(host)) {
+    const host = domain.replace(/\./g, ' ');
+    if (!/\b(capital|ventures|venture|invest|advisory|advisor|wealth|asset|fund|equity|fintech|bank|hedge|payment)\b/.test(host)) {
       return 'unrelated';
     }
   }
   if (FINANCE_AFFINITY_PHRASES.some(p => blob.includes(p))) return 'finance';
-  const hostTokens = String(candidate?.domain || '').toLowerCase().replace(/\./g, ' ');
-  if (/\b(capital|ventures|venture|invest|advisory|advisor|wealth|assetmgmt|asset|fund|equity|fintech|bank|hedge)\b/.test(hostTokens)) {
+  const hostTokens = domain.replace(/\./g, ' ');
+  if (/\b(capital|ventures|venture|invest|advisory|advisor|wealth|assetmgmt|asset|fund|equity|fintech|bank|hedge|payment)\b/.test(hostTokens)) {
     return 'finance';
   }
   if (FINANCE_AFFINITY_TOKENS.some(t => new RegExp(`\\b${t}\\b`, 'i').test(blob))) return 'finance';
   return 'neutral';
 }
 
-export function isFinanceTypedCandidate(c) {
-  return classifyFinanceAffinity(c) === 'finance';
+export function isFinanceTypedCandidate(c, queryCompanyName = '') {
+  return classifyFinanceAffinity(c, queryCompanyName) === 'finance';
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -98,7 +130,11 @@ const MAJOR = {
   ussecuritiesandexchangecommission: { domain: 'sec.gov', label: 'U.S. Securities and Exchange Commission' },
   officeofnewyorkcitycomptroller: { domain: 'comptroller.nyc.gov', label: 'New York City Comptroller' },
   newyorkcitycomptroller: { domain: 'comptroller.nyc.gov', label: 'New York City Comptroller' },
-  nyccomptroller: { domain: 'comptroller.nyc.gov', label: 'New York City Comptroller' }
+  nyccomptroller: { domain: 'comptroller.nyc.gov', label: 'New York City Comptroller' },
+  // Short ambiguous name: Clearbit "Stable" → usestable.com; canonical is Stable Asset Management
+  stable: { domain: 'stableam.com', label: 'Stable Asset Management' },
+  stableam: { domain: 'stableam.com', label: 'Stable Asset Management' },
+  stableassetmanagement: { domain: 'stableam.com', label: 'Stable Asset Management' }
 };
 
 function lookupMajor(name) {
@@ -218,7 +254,22 @@ export function shouldAutoFound(resolved) {
   ) {
     return true;
   }
-  return score >= AUTO_FOUND_THRESHOLD && resolved.confidence === 'high';
+  if (score < AUTO_FOUND_THRESHOLD || resolved.confidence !== 'high') return false;
+  if (score >= 90) return true;
+  const nameSim = Number(resolved.signals?.nameSimilarity ?? resolved.confidenceSignals?.nameSimilarity) || 0;
+  const financePts = Number(resolved.signals?.finance ?? resolved.confidenceSignals?.finance) || 0;
+  const multiPts = Number(resolved.signals?.multiSource ?? resolved.confidenceSignals?.multiSource) || 0;
+  const host = String(resolved.domain || '').toLowerCase().replace(/^www\./, '');
+  const tld = host.split('.').pop() || '';
+  const commonTld = ['com', 'org', 'edu', 'gov', 'net', 'io', 'co', 'ai', 'us', 'uk', 'health', 'tech', 'bio'].includes(tld);
+  if (!commonTld) return false;
+  return !!(
+    resolved.exactName ||
+    nameSim >= 40 ||
+    financePts > 0 ||
+    resolved.soleFinanceMatch ||
+    multiPts >= 11
+  );
 }
 
 async function gatherClearbit(queries) {
@@ -417,7 +468,7 @@ function scoreNameDomainSimilarity(companyName, candidate) {
 
 async function rankPool(companyName, pool, options = {}) {
   const financeFilterActive = !!options.financeFilterActive;
-  const anyFinanceInPool = normalizeCandidates(pool).some(isFinanceTypedCandidate);
+  const anyFinanceInPool = normalizeCandidates(pool).some(c => isFinanceTypedCandidate(c, companyName));
 
   let ranked = normalizeCandidates(pool).map(c => {
     const sim = scoreNameDomainSimilarity(companyName, c);
@@ -429,10 +480,11 @@ async function rankPool(companyName, pool, options = {}) {
     if (sources.includes('clearbit') && sim.exactName) sourcePts += 8;
     if (sources.includes('duckduckgo')) sourcePts += 5;
     if (sources.includes('wikipedia') || sources.includes('wikidata')) sourcePts += 6;
+    if (sources.includes('dictionary') || sources.includes('major-firm') || sources.includes('dict-seed')) sourcePts += 40;
     if (sources.length >= 2) sourcePts += 6;
 
     let financePts = 0;
-    const financeAffinity = classifyFinanceAffinity(c);
+    const financeAffinity = classifyFinanceAffinity(c, companyName);
     if (financeFilterActive) {
       if (financeAffinity === 'finance') financePts = 34;
       else if (financeAffinity === 'unrelated' && anyFinanceInPool) financePts = -30;
@@ -473,10 +525,10 @@ async function rankPool(companyName, pool, options = {}) {
   );
 
   let soleFinanceMatch = false;
-  if (financeFilterActive && best && isFinanceTypedCandidate(best)) {
+  if (financeFilterActive && best && isFinanceTypedCandidate(best, companyName)) {
     const competingFinance = contenders.filter(c =>
       c.domain !== best.domain &&
-      isFinanceTypedCandidate(c) &&
+      isFinanceTypedCandidate(c, companyName) &&
       Math.abs(c.totalScore - best.totalScore) < AMBIGUITY_GAP + 8 &&
       c.totalScore >= CONFIDENCE_THRESHOLD - 20
     );
@@ -491,7 +543,7 @@ async function rankPool(companyName, pool, options = {}) {
           totalScore: AUTO_FOUND_THRESHOLD
         };
       }
-    } else if (runnerUp && classifyFinanceAffinity(runnerUp) === 'unrelated') {
+    } else if (runnerUp && classifyFinanceAffinity(runnerUp, companyName) === 'unrelated') {
       ambiguous = false;
     }
   }
@@ -584,6 +636,13 @@ export async function resolveHard(name, options = {}) {
     .replace(/&/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+  // Soft-seed catalogue even when skipDictionary: short names like "Stable" otherwise
+  // lose to Clearbit imposters (usestable.com) because Clearbit never returns stableam.com
+  // for the bare query.
+  const dictSoft = dictLookup(name);
+  const dictSlug = dictSoft?.domain ? String(dictSoft.domain).split('.')[0] : null;
+
   const queries = [
     name,
     cleaned,
@@ -591,6 +650,8 @@ export async function resolveHard(name, options = {}) {
     financeFilterActive && !/\b(capital|partners|ventures|investment|fund|equity|advisory|advisors|wealth|finance|bank)\b/i.test(cleaned)
       ? `${cleaned} capital`
       : null,
+    dictSlug || null,
+    dictSoft ? `${name} asset management` : null,
     /international business machines/i.test(name) ? 'IBM' : null,
     /fifth third/i.test(name) ? 'Fifth Third Bancorp' : null,
     /comptroller/i.test(name) ? 'New York City Comptroller' : null,
@@ -604,13 +665,16 @@ export async function resolveHard(name, options = {}) {
   if (/securities and exchange commission/i.test(name)) {
     govSeeds.push({ domain: 'sec.gov', name: 'U.S. Securities and Exchange Commission', sources: ['gov-seed'] });
   }
+  const dictSeeds = dictSoft?.domain
+    ? [{ domain: dictSoft.domain, name, snippet: 'Catalogue', sources: ['dictionary', 'dict-seed'] }]
+    : [];
 
   const [cb, ddg, wiki] = await Promise.all([
     gatherClearbit(queries),
     gatherDuckDuckGo(name, cleaned),
     gatherWikipedia(name, cleaned)
   ]);
-  const pool = normalizeCandidates(govSeeds, cb, ddg, wiki);
+  const pool = normalizeCandidates(dictSeeds, govSeeds, cb, ddg, wiki);
   if (!pool.length) {
     return { domain: null, confidence: 'none', score: 0, candidates: [], sources: [], financeFilterActive };
   }
@@ -636,6 +700,7 @@ export async function resolveHard(name, options = {}) {
     confidence: clears ? 'high' : 'low',
     score,
     ambiguous,
+    exactName: !!best.exactName,
     candidates: ranked.candidates,
     sources: best.sources || [],
     signals: best.signals,

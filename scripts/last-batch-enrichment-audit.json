@@ -1112,13 +1112,13 @@
     },
     {
       "name": "Blackstone",
-      "domain": "blackstonecap.com",
-      "score": 101,
+      "domain": "blackstone.com",
+      "score": 145,
       "method": "clearbit",
-      "soleFinanceMatch": false,
-      "ambiguous": true,
-      "autoFound": false,
-      "status": "potential",
+      "soleFinanceMatch": true,
+      "ambiguous": false,
+      "autoFound": true,
+      "status": "found",
       "financePts": 34
     }
   ]

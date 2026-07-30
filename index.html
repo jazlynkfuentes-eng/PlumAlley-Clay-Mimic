@@ -1884,7 +1884,8 @@
       'tesla', 'jpmorgan', 'morganstanley', 'vanguard', 'fidelity', 'statestreet', 'impactuspartners',
       'caraadvisory', 'navfundservices', 'fordham', 'fordhamuniversity', 'cornell', 'cornelluniversity',
       'ibm', 'internationalbusinessmachines', 'fifththird', 'fifththirdbank',
-      'securitiesandexchangecommission', 'officeofnewyorkcitycomptroller', 'newyorkcitycomptroller'
+      'securitiesandexchangecommission', 'officeofnewyorkcitycomptroller', 'newyorkcitycomptroller',
+      'stable', 'stableassetmanagement', 'stableam'
     ]);
 
     /**
@@ -1906,6 +1907,10 @@
       vanguard: { domain: 'vanguard.com', label: 'Vanguard', industry: 'Asset Management' },
       fidelity: { domain: 'fidelity.com', label: 'Fidelity', industry: 'Asset Management' },
       pimco: { domain: 'pimco.com', label: 'PIMCO', industry: 'Investment Management' },
+      // Short ambiguous name: Clearbit returns usestable.com for "Stable"; canonical is Stable AM
+      stable: { domain: 'stableam.com', label: 'Stable Asset Management', industry: 'Investment Management / GP Stakes' },
+      stableam: { domain: 'stableam.com', label: 'Stable Asset Management', industry: 'Investment Management / GP Stakes' },
+      stableassetmanagement: { domain: 'stableam.com', label: 'Stable Asset Management', industry: 'Investment Management / GP Stakes' },
       google: { domain: 'google.com', label: 'Google', industry: 'Technology / AI' },
       microsoft: { domain: 'microsoft.com', label: 'Microsoft', industry: 'Software & Cloud' },
       apple: { domain: 'apple.com', label: 'Apple', industry: 'Consumer Electronics' },
@@ -1958,10 +1963,12 @@
 
     // --- Multi-source resolution + confidence scoring ---
     const RESOLVE_CONFIDENCE_THRESHOLD = 70; // show Potential picker (manual Confirm)
-    const RESOLVE_AUTO_FOUND_THRESHOLD = 90; // auto-Found without Confirm
+    // 80: wiki-less Clearbit+DNS correct matches commonly land ~81; 90 was too strict under Wiki 429s.
+    // 80–89 still requires strong name lock / multi-source / finance signal (see shouldAutoFoundResolve).
+    const RESOLVE_AUTO_FOUND_THRESHOLD = 80;
     const RESOLVE_AMBIGUITY_GAP = 12;
 
-    /** Auto-Found when score ≥ 90, or major-firm / dictionary / learned at confidence 100.
+    /** Auto-Found when score ≥ 80 (with guards), or major-firm / dictionary / learned at confidence 100.
      *  With Finance Search Filter: sole finance-typed top candidate (≥ picker threshold) also auto-Founds. */
     function shouldAutoFoundResolve(resolved) {
       if (!resolved || !resolved.domain) return false;
@@ -1979,7 +1986,24 @@
       ) {
         return true;
       }
-      return score >= RESOLVE_AUTO_FOUND_THRESHOLD && !resolved.isUnsure;
+      if (score < RESOLVE_AUTO_FOUND_THRESHOLD || resolved.isUnsure) return false;
+      // High confidence (≥90 legacy bar): accept
+      if (score >= 90) return true;
+      // 80–89 (typical wiki-less correct match): require strong lock to limit near-miss FPs
+      const nameSim = Number(resolved.confidenceSignals?.nameSimilarity) || 0;
+      const financePts = Number(resolved.confidenceSignals?.finance) || 0;
+      const multiPts = Number(resolved.confidenceSignals?.multiSource) || 0;
+      const host = String(resolved.domain || '').toLowerCase().replace(/^www\./, '');
+      const tld = host.split('.').pop() || '';
+      const commonTld = ['com', 'org', 'edu', 'gov', 'net', 'io', 'co', 'ai', 'us', 'uk', 'health', 'tech', 'bio'].includes(tld);
+      if (!commonTld) return false;
+      return !!(
+        resolved.exactName ||
+        nameSim >= 40 ||
+        financePts > 0 ||
+        resolved.soleFinanceMatch ||
+        multiPts >= 11
+      );
     }
 
     const FINANCE_AFFINITY_PHRASES = [
@@ -1988,14 +2012,32 @@
       'capital markets', 'family office', 'broker dealer', 'broker-dealer',
       'investment bank', 'investment banking', 'fund services', 'fund administration',
       'alternative asset', 'growth equity', 'private credit', 'credit fund',
-      'sovereign wealth', 'merchant bank', 'private bank', 'buyout', 'fintech'
+      'sovereign wealth', 'merchant bank', 'private bank', 'buyout', 'fintech',
+      'financial technology', 'financial services', 'payments', 'payment processing',
+      'payment platform', 'neobank', 'robo-advisor', 'robo advisor'
     ];
     const FINANCE_AFFINITY_TOKENS = [
       'capital', 'ventures', 'venture', 'investment', 'investments', 'investor', 'investors',
       'equity', 'hedge', 'wealth', 'fintech', 'securities', 'banking', 'bank',
       'asset', 'assets', 'advisory', 'advisor', 'advisors', 'fund', 'funds',
-      'holdings', 'credit', 'lending', 'brokerage', 'broker', 'pe', 'vc'
+      'holdings', 'credit', 'lending', 'brokerage', 'broker', 'pe', 'vc',
+      'payments', 'payment', 'financing'
     ];
+    // Clearbit often returns industry:null — brand/domain seeds still mark known finance/fintech firms
+    const FINANCE_KNOWN_BRANDS = new Set([
+      'stripe', 'square', 'block', 'plaid', 'paypal', 'visa', 'mastercard', 'adyen', 'checkout',
+      'klarna', 'affirm', 'brex', 'ramp', 'mercury', 'coinbase', 'robinhood', 'sofi',
+      'pimco', 'blackrock', 'blackstone', 'kkr', 'apollo', 'carlyle', 'bridgewater', 'citadel',
+      'fidelity', 'vanguard', 'schroders', 'goldman', 'goldmansachs', 'morganstanley', 'jpmorgan',
+      'heardcapital', 'caraadvisory', 'navfundservices', 'disciplina', 'stableam', 'gilderpartners',
+      'plumalley', 'marex'
+    ]);
+    const FINANCE_KNOWN_DOMAINS = new Set([
+      'stripe.com', 'square.com', 'plaid.com', 'paypal.com', 'adyen.com', 'checkout.com',
+      'pimco.com', 'blackrock.com', 'blackstone.com', 'heardcapital.com', 'caraadvisory.com',
+      'navfundservices.com', 'disciplina.com', 'stableam.com', 'gilderpartners.com',
+      'plumalley.co', 'marex.com', 'bridgewater.com', 'citadel.com'
+    ]);
     const UNRELATED_INDUSTRY_PHRASES = [
       'retail', 'grocery', 'supermarket', 'restaurant', 'restaurants', 'cafe', 'coffee shop',
       'entertainment', 'media', 'publishing', 'newspaper', 'magazine', 'music',
@@ -2004,31 +2046,51 @@
       'food & beverage', 'food and beverage', 'hotel', 'hospitality', 'travel agency',
       'sports', 'nightlife', 'casino', 'e-commerce', 'ecommerce', 'marketplace',
       'consumer goods', 'consumer electronics', 'cpg', 'toys', 'grocery store',
-      'fast food', 'supermarket', 'streaming entertainment'
+      'fast food', 'supermarket', 'streaming entertainment',
+      'biotech', 'biotechnology', 'therapeutics', 'pharmaceutical', 'medical device',
+      'robotics', 'aerospace', 'semiconductor'
     ];
 
+    function companyKeyNormLite(s) {
+      return String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
     /** Classify candidate as finance / unrelated / neutral from name, domain, industry snippet. */
-    function classifyFinanceAffinity(candidate) {
-      const blob = `${candidate?.name || ''} ${candidate?.domain || ''} ${candidate?.snippet || ''} ${candidate?.industry || ''}`.toLowerCase();
+    function classifyFinanceAffinity(candidate, queryCompanyName = '') {
+      const domain = String(candidate?.domain || '').toLowerCase().replace(/^www\./, '');
+      const name = String(candidate?.name || '');
+      const blob = `${name} ${domain} ${candidate?.snippet || ''} ${candidate?.industry || ''}`.toLowerCase();
       if (!blob.trim()) return 'neutral';
+
+      if (FINANCE_KNOWN_DOMAINS.has(domain)) return 'finance';
+      const nameKey = companyKeyNormLite(name);
+      const domBase = domain.split('.')[0] || '';
+      if (FINANCE_KNOWN_BRANDS.has(nameKey) || FINANCE_KNOWN_BRANDS.has(domBase) || FINANCE_KNOWN_BRANDS.has(companyKeyNormLite(domBase))) {
+        return 'finance';
+      }
+      // Query is a known finance brand and this candidate is the brand's apex domain / exact name
+      const qKey = companyKeyNormLite(queryCompanyName);
+      if (qKey && FINANCE_KNOWN_BRANDS.has(qKey)) {
+        if (nameKey === qKey || domBase === qKey || domain.startsWith(qKey + '.')) return 'finance';
+      }
+
       if (UNRELATED_INDUSTRY_PHRASES.some(p => blob.includes(p)) && !FINANCE_AFFINITY_PHRASES.some(p => blob.includes(p))) {
-        // Domain cues can still mark finance even if industry text is noisy
-        const host = String(candidate?.domain || '').toLowerCase();
-        if (!/\b(capital|ventures|venture|invest|advisory|advisor|wealth|asset|fund|equity|fintech|bank|hedge)\b/.test(host.replace(/\./g, ' '))) {
+        const host = domain.replace(/\./g, ' ');
+        if (!/\b(capital|ventures|venture|invest|advisory|advisor|wealth|asset|fund|equity|fintech|bank|hedge|payment)\b/.test(host)) {
           return 'unrelated';
         }
       }
       if (FINANCE_AFFINITY_PHRASES.some(p => blob.includes(p))) return 'finance';
-      const hostTokens = String(candidate?.domain || '').toLowerCase().replace(/\./g, ' ');
-      if (/\b(capital|ventures|venture|invest|advisory|advisor|wealth|assetmgmt|asset|fund|equity|fintech|bank|hedge)\b/.test(hostTokens)) {
+      const hostTokens = domain.replace(/\./g, ' ');
+      if (/\b(capital|ventures|venture|invest|advisory|advisor|wealth|assetmgmt|asset|fund|equity|fintech|bank|hedge|payment)\b/.test(hostTokens)) {
         return 'finance';
       }
       if (FINANCE_AFFINITY_TOKENS.some(t => new RegExp(`\\b${t}\\b`, 'i').test(blob))) return 'finance';
       return 'neutral';
     }
 
-    function isFinanceTypedCandidate(c) {
-      return classifyFinanceAffinity(c) === 'finance';
+    function isFinanceTypedCandidate(c, queryCompanyName = '') {
+      return classifyFinanceAffinity(c, queryCompanyName) === 'finance';
     }
 
     async function fetchWikiApiJson(url, { label = 'wiki' } = {}) {
@@ -2466,7 +2528,7 @@
         return { best: null, ambiguous: true, candidates: [], ranked: [], soleFinanceMatch: false };
       }
 
-      const anyFinanceInPool = base.some(isFinanceTypedCandidate);
+      const anyFinanceInPool = base.some(c => isFinanceTypedCandidate(c, companyName));
 
       // Pass 1 — cheap signals (+ finance affinity when filter on)
       let ranked = base.map(c => {
@@ -2479,13 +2541,14 @@
         if (sources.includes('clearbit') && sim.exactName) sourcePts += 8;
         if (sources.includes('duckduckgo')) sourcePts += 5;
         if (sources.includes('wikipedia') || sources.includes('wikidata')) sourcePts += 6;
+        if (sources.includes('dictionary') || sources.includes('major-firm') || sources.includes('dict-seed')) sourcePts += 40;
         if (sources.length >= 2) sourcePts += 6;
 
         let financePts = 0;
-        const financeAffinity = classifyFinanceAffinity(c);
+        const financeAffinity = classifyFinanceAffinity(c, companyName);
         if (financeFilterActive) {
           if (financeAffinity === 'finance') {
-            // Strong enough that a clear finance best often clears auto-Found (90) alone
+            // Strong enough that a clear finance best often clears auto-Found alone
             financePts = 34;
           } else if (financeAffinity === 'unrelated' && anyFinanceInPool) {
             // Deprioritize retail/grocery/entertainment/etc. when a finance option exists
@@ -2596,8 +2659,8 @@
 
       // Finance filter: sole finance-typed top among contenders → clear ambiguity & lift to auto-Found floor
       let soleFinanceMatch = false;
-      if (financeFilterActive && best && isFinanceTypedCandidate(best)) {
-        const financePeers = contenders.filter(c => c.domain !== best.domain && isFinanceTypedCandidate(c));
+      if (financeFilterActive && best && isFinanceTypedCandidate(best, companyName)) {
+        const financePeers = contenders.filter(c => c.domain !== best.domain && isFinanceTypedCandidate(c, companyName));
         const competingFinance = financePeers.filter(c =>
           Math.abs(c.totalScore - best.totalScore) < RESOLVE_AMBIGUITY_GAP + 8 &&
           c.totalScore >= RESOLVE_CONFIDENCE_THRESHOLD - 20
@@ -2616,7 +2679,7 @@
             // Keep ranked list in sync for UI confidence display
             ranked = ranked.map(c => (c.domain === best.domain ? best : c));
           }
-        } else if (runnerUp && classifyFinanceAffinity(runnerUp) === 'unrelated') {
+        } else if (runnerUp && classifyFinanceAffinity(runnerUp, companyName) === 'unrelated') {
           // Don't treat finance-vs-unrelated as ambiguous even if scores were close pre-penalty
           ambiguous = false;
         }
@@ -2629,7 +2692,7 @@
         sources: c.sources || [],
         wikiProminence: c.wikiProminence || 0,
         confidenceScore: c.totalScore,
-        financeAffinity: c.financeAffinity || classifyFinanceAffinity(c)
+        financeAffinity: c.financeAffinity || classifyFinanceAffinity(c, companyName)
       }));
 
       return { best, ambiguous, candidates, ranked: contenders, soleFinanceMatch };
@@ -3462,6 +3525,12 @@
         if (!hasFinanceTerm) searchQuery = `${cleaned} capital`;
       }
 
+      // Dictionary soft-seed queries: short ambiguous names (e.g. Stable) often miss the
+      // canonical domain on Clearbit ("Stable" → usestable.com) unless we query the slug.
+      const dictSeed = companyDictionary[rawKey] || companyDictionary[localClean] || null;
+      const dictDomainSlug = dictSeed?.domain ? String(dictSeed.domain).split('.')[0] : null;
+      const dictIndustryHint = dictSeed?.industry || '';
+
       const nameOnlyQueries = [
         strippedLegal,
         strippedOrgSuffix,
@@ -3469,6 +3538,11 @@
         companyName.replace(/&/g, ' ').replace(/\s+/g, ' ').trim(),
         companyName,
         searchQuery,
+        dictDomainSlug || null,
+        dictSeed ? `${companyName} ${dictIndustryHint}`.trim() : null,
+        dictSeed && /investment|asset|capital|venture|equity|advisory|finance/i.test(dictIndustryHint)
+          ? `${companyName} asset management`
+          : null,
         (firstToken && firstToken.length >= 4 && !STOP_TOKENS.has(firstToken.toLowerCase())) ? firstToken : null,
         buildNameAcronym(companyName) || null,
         /comptroller/i.test(companyName) && /new york|nyc/i.test(companyName) ? 'New York City Comptroller' : null,
@@ -3480,6 +3554,15 @@
       console.log('[resolve] multi-source gather for', companyName);
 
       const govSeeds = seedGovernmentCandidates(companyName);
+      const catalogueSeeds = [];
+      if (dictSeed?.domain && !skippedDomains.includes(String(dictSeed.domain).toLowerCase())) {
+        catalogueSeeds.push({
+          domain: String(dictSeed.domain).toLowerCase(),
+          name: companyName,
+          snippet: dictIndustryHint || 'Catalogue',
+          sources: ['dictionary', 'dict-seed']
+        });
+      }
 
       const [cbPool, ddgPool, wikiPool] = await Promise.all([
         gatherClearbitCandidates(nameOnlyQueries),
@@ -3487,7 +3570,7 @@
         gatherWikipediaWikidataCandidates(companyName, baseCleaned)
       ]);
 
-      gatheredCandidates = normalizeCandidates(gatheredCandidates, govSeeds, cbPool, ddgPool, wikiPool);
+      gatheredCandidates = normalizeCandidates(gatheredCandidates, catalogueSeeds, govSeeds, cbPool, ddgPool, wikiPool);
 
       // Optional person-context Clearbit pass for ambiguous names
       const usePerson = effectivePerson && (effectivePerson.personName || effectivePerson.personTitle)
@@ -3512,7 +3595,7 @@
       // Finance filter: annotate finance-typed snippets for the picker
       if (financeFilterActive) {
         gatheredCandidates = gatheredCandidates.map(c => {
-          if (isFinanceTypedCandidate(c)) {
+          if (isFinanceTypedCandidate(c, companyName)) {
             return { ...c, snippet: c.snippet || `${c.name || c.domain} · finance` };
           }
           return c;
@@ -3571,6 +3654,7 @@
         isUnsure: !clearsThreshold,
         confidenceScore: score,
         confidenceSignals: ranked.best.signals || {},
+        exactName: !!ranked.best.exactName,
         matchedName: ranked.best.name || companyName,
         industrySnippet: ranked.best.snippet
           || (clearsThreshold ? `${ranked.best.name || ranked.best.domain} · score ${score}` : `Possible match · score ${score}`),
@@ -5402,7 +5486,9 @@
                     resolveMethod,
                     ambiguous: !!resolvedObj.ambiguous,
                     financeFilterActive,
-                    soleFinanceMatch: !!resolvedObj.soleFinanceMatch
+                    soleFinanceMatch: !!resolvedObj.soleFinanceMatch,
+                    exactName: !!resolvedObj.exactName,
+                    confidenceSignals: confidenceSignals || resolvedObj.confidenceSignals
                   });
 
                   updateRow(rowId, { status: 'verifying', [webKey]: domain, resolveMethod, candidates, confidenceScore, confidenceSignals });
