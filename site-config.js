@@ -1,12 +1,7 @@
 /**
- * Site access for Plum Alley Clay Mimic (no Supabase).
- *
- * Change `code` below to your team passcode, or set Vercel env:
- *   PLUM_ACCESS_CODE=your-secret
- * and keep buildCommand: node scripts/write-site-config.mjs
- *
- * Anyone who knows the code can unlock the app in this browser until they lock it.
+ * AUTO-GENERATED at build time by scripts/write-site-config.mjs
+ * Set PLUM_ACCESS_CODE in Vercel → Environment Variables (Production), then Redeploy.
  */
-window.PLUM_ACCESS = window.PLUM_ACCESS || {
-  code: 'plumalley'
+window.PLUM_ACCESS = {
+  code: "plumalley"
 };

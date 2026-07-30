@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "name": "hard-sample-resolution",
+  "description": "Permanent regression fixture for name-only website resolution. Emphasizes harder categories (law, foundations, regional banks, legacy brands, government) plus curated PE/advisory names — not just household tech brands.",
+  "baseline": {
+    "top1MinPercent": 85,
+    "notes": "Exit non-zero if top-1 accuracy falls below this floor. SEC may be Potential (ambiguous multi-jurisdiction) but top pick must still be sec.gov."
+  },
+  "companies": [
+    {
+      "name": "Cravath Swaine & Moore",
+      "expectedDomain": "cravath.com",
+      "category": "law"
+    },
+    {
+      "name": "Sullivan & Cromwell",
+      "expectedDomain": "sullcrom.com",
+      "category": "law"
+    },
+    {
+      "name": "Wachtell Lipton Rosen & Katz",
+      "expectedDomain": "wlrk.com",
+      "category": "law"
+    },
+    {
+      "name": "Skadden Arps",
+      "expectedDomain": "skadden.com",
+      "category": "law"
+    },
+    {
+      "name": "Kirkland & Ellis",
+      "expectedDomain": "kirkland.com",
+      "category": "law"
+    },
+    {
+      "name": "Latham & Watkins",
+      "expectedDomain": "lw.com",
+      "category": "law"
+    },
+    {
+      "name": "Baker McKenzie",
+      "expectedDomain": "bakermckenzie.com",
+      "category": "law"
+    },
+    {
+      "name": "Ford Foundation",
+      "expectedDomain": "fordfoundation.org",
+      "category": "foundation"
+    },
+    {
+      "name": "Rockefeller Foundation",
+      "expectedDomain": "rockefellerfoundation.org",
+      "category": "foundation"
+    },
+    {
+      "name": "Andrew W. Mellon Foundation",
+      "expectedDomain": "mellon.org",
+      "category": "foundation"
+    },
+    {
+      "name": "MacArthur Foundation",
+      "expectedDomain": "macfound.org",
+      "category": "foundation"
+    },
+    {
+      "name": "Bill & Melinda Gates Foundation",
+      "expectedDomain": "gatesfoundation.org",
+      "category": "foundation"
+    },
+    {
+      "name": "West Virginia University Foundation",
+      "expectedDomain": "wvuf.org",
+      "category": "foundation"
+    },
+    {
+      "name": "Trinity Church Wall Street",
+      "expectedDomain": "trinitywallstreet.org",
+      "category": "foundation"
+    },
+    {
+      "name": "Fifth Third Bank",
+      "expectedDomain": "53.com",
+      "aliases": ["fifththird.com"],
+      "category": "regional",
+      "notes": "Clearbit often returns spam domains with the exact bank name; canonical site is 53.com."
+    },
+    {
+      "name": "PNC Financial Services",
+      "expectedDomain": "pnc.com",
+      "category": "regional"
+    },
+    {
+      "name": "Huntington Bancshares",
+      "expectedDomain": "huntington.com",
+      "category": "regional"
+    },
+    {
+      "name": "Associated Bank",
+      "expectedDomain": "associatedbank.com",
+      "category": "regional"
+    },
+    {
+      "name": "Frost Bank",
+      "expectedDomain": "frostbank.com",
+      "category": "regional"
+    },
+    {
+      "name": "Commerce Bank",
+      "expectedDomain": "commercebank.com",
+      "category": "regional"
+    },
+    {
+      "name": "Procter & Gamble",
+      "expectedDomain": "pg.com",
+      "category": "legacy"
+    },
+    {
+      "name": "General Electric",
+      "expectedDomain": "ge.com",
+      "category": "legacy"
+    },
+    {
+      "name": "International Business Machines",
+      "expectedDomain": "ibm.com",
+      "aliases": ["ibm.com"],
+      "category": "legacy",
+      "notes": "Long legal name must resolve via acronym/Wikidata IBM entity, not International Business Times."
+    },
+    {
+      "name": "Caterpillar",
+      "expectedDomain": "caterpillar.com",
+      "aliases": ["cat.com"],
+      "category": "legacy"
+    },
+    {
+      "name": "DuPont",
+      "expectedDomain": "dupont.com",
+      "category": "legacy"
+    },
+    {
+      "name": "3M Company",
+      "expectedDomain": "3m.com",
+      "category": "legacy"
+    },
+    {
+      "name": "Office of New York City Comptroller",
+      "expectedDomain": "comptroller.nyc.gov",
+      "category": "government",
+      "notes": "Government-entity path / gov-seed; Clearbit alone misses this."
+    },
+    {
+      "name": "Securities and Exchange Commission",
+      "expectedDomain": "sec.gov",
+      "category": "government",
+      "notes": "Multi-jurisdiction ambiguity (sec.gov.ph, sec.or.th, etc.). Top pick must be US sec.gov; picker may still show foreign SECs."
+    },
+    {
+      "name": "Federal Reserve Bank of New York",
+      "expectedDomain": "newyorkfed.org",
+      "category": "government"
+    },
+    {
+      "name": "Congressional Budget Office",
+      "expectedDomain": "cbo.gov",
+      "category": "government"
+    },
+    {
+      "name": "United States Patent and Trademark Office",
+      "expectedDomain": "uspto.gov",
+      "category": "government"
+    },
+    {
+      "name": "City of Chicago",
+      "expectedDomain": "chicago.gov",
+      "aliases": ["cityofchicago.org"],
+      "category": "government"
+    },
+    {
+      "name": "Cara Advisory",
+      "expectedDomain": "caraadvisory.com",
+      "category": "regional"
+    },
+    {
+      "name": "Disciplina Capital Management",
+      "expectedDomain": "disciplina.com",
+      "category": "regional"
+    },
+    {
+      "name": "NAV Fund Services",
+      "expectedDomain": "navfundservices.com",
+      "category": "regional"
+    }
+  ]
+}

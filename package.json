@@ -5,8 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "node scripts/write-site-config.mjs && node scripts/write-learned-corrections-config.mjs && node scripts/dev-static-server.mjs",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:hard-sample": "node scripts/test-hard-sample-resolution.mjs",
+    "test:learned": "node scripts/test-learned-corrections.mjs",
+    "write:learned": "node scripts/write-learned-corrections-config.mjs"
   },
   "dependencies": {
     "canvas-confetti": "^1.6.0",

@@ -25,6 +25,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <!-- Simple site access code (no Supabase) -->
   <script src="./site-config.js"></script>
+  <!-- Committed learned corrections (data/learned-corrections.json → build) -->
+  <script src="./learned-corrections-config.js"></script>
 
   <style>
     /* Design System Variables */
@@ -922,6 +924,60 @@
       background: #fee2e2;
     }
 
+    .learned-list {
+      max-height: 360px;
+      overflow: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: var(--surface-color);
+    }
+
+    .learned-row {
+      display: grid;
+      grid-template-columns: 1.4fr 1.2fr auto;
+      gap: 0.5rem;
+      align-items: center;
+      padding: 0.55rem 0.7rem;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.8rem;
+    }
+
+    .learned-row:last-child {
+      border-bottom: none;
+    }
+
+    .learned-row input {
+      width: 100%;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 0.3rem 0.45rem;
+      font-family: inherit;
+      font-size: 0.8rem;
+    }
+
+    .learned-row .learned-meta {
+      grid-column: 1 / -1;
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+    }
+
+    .learned-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      align-items: center;
+    }
+
+    .learned-toolbar input[type="search"] {
+      flex: 1;
+      min-width: 160px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.85rem;
+    }
+
     /* Spinner and micro-animations */
     .spinner {
       width: 12px;
@@ -1165,7 +1221,7 @@
 
   <!-- React code starts here -->
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useRef, useMemo } = React;
 
     // --- AI SIMULATOR ENGINE (Simulating Base44 backend) ---
     const companyDictionary = {
@@ -2683,16 +2739,8 @@
     }
 
     /**
-     * Extract a hostname from a Wikidata / DDG URL-ish string.
+     * extractUrlDomain is defined with the multi-source helpers above.
      */
-    function extractUrlDomain(str) {
-      if (!str) return '';
-      const bracketMatch = String(str).match(/\[\s*(https?:\/\/[^\s\]]+)/i);
-      let url = bracketMatch ? bracketMatch[1] : String(str);
-      const urlMatch = url.match(/(https?:\/\/[^\s\/]+)/i);
-      if (urlMatch) url = urlMatch[1];
-      return url.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-    }
 
     // Wikidata instance-of (P31) IDs → institutional industry
     const WD_EDUCATION = new Set([
@@ -3082,6 +3130,33 @@
       if (isNonEntityCompany(companyName) || /\(\s*moderator\s*\)/i.test(companyName)) {
         console.log('[resolve] skipping non-entity label:', companyName);
         return store(null);
+      }
+
+      // Learned corrections (thumbs-down / manual teach) — highest priority, skip search
+      const learnedHit = lookupLearnedCorrection(companyName);
+      if (learnedHit && learnedHit.domain && !skippedDomains.includes(String(learnedHit.domain).toLowerCase())) {
+        console.log('[resolve] LEARNED correction', companyName, '->', learnedHit.domain);
+        gatheredCandidates = normalizeCandidates(
+          [{
+            domain: learnedHit.domain,
+            name: learnedHit.companyName || companyName,
+            snippet: `Learned correction · ${learnedHit.source || 'user'}`,
+            sources: ['learned']
+          }],
+          gatheredCandidates
+        );
+        return store({
+          domain: learnedHit.domain,
+          isUnsure: false,
+          confidenceScore: 100,
+          matchedName: learnedHit.companyName || companyName,
+          industrySnippet: `Learned correction (${learnedHit.source || 'user'})`,
+          candidates: gatheredCandidates,
+          alternativeDomains: gatheredCandidates.map(c => c.domain),
+          alternatives: gatheredCandidates.map(c => c.snippet || c.name || c.domain),
+          resolveMethod: 'learned',
+          fastPath: true
+        });
       }
 
       // Globally recognized firms: prefer the canonical domain, but still gather
@@ -4009,6 +4084,204 @@
     const ACCESS_SESSION_KEY = 'plum_site_unlocked';
     const PROJECTS_STORAGE_KEY = 'plum_local_projects_v1';
     const ACCURACY_STORAGE_KEY = 'plum_accuracy_feedback_v1';
+    const LEARNED_STORAGE_KEY = 'plum_learned_corrections_v1';
+
+    function emptyLearnedStore() {
+      return { version: 1, updatedAt: null, corrections: [] };
+    }
+
+    function normalizeLearnedDomain(domain) {
+      return String(domain || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^(https?:\/\/)?(www\.)?/, '')
+        .split('/')[0]
+        .replace(/[^a-z0-9.-]/g, '');
+    }
+
+    function readShippedLearnedCorrections() {
+      const shipped = window.PLUM_LEARNED_CORRECTIONS;
+      if (shipped && Array.isArray(shipped.corrections)) {
+        return {
+          version: 1,
+          updatedAt: shipped.updatedAt || null,
+          corrections: shipped.corrections.slice()
+        };
+      }
+      return emptyLearnedStore();
+    }
+
+    function readLocalLearnedCorrections() {
+      try {
+        const raw = localStorage.getItem(LEARNED_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (parsed && Array.isArray(parsed.corrections)) {
+          return {
+            version: 1,
+            updatedAt: parsed.updatedAt || null,
+            corrections: parsed.corrections.slice()
+          };
+        }
+      } catch (_) {}
+      return emptyLearnedStore();
+    }
+
+    function mergeLearnedStores(base, overlay) {
+      const byKey = new Map();
+      for (const c of (base.corrections || [])) {
+        if (!c?.companyKey || !c?.domain) continue;
+        byKey.set(c.companyKey, { ...c });
+      }
+      for (const c of (overlay.corrections || [])) {
+        if (!c?.companyKey || !c?.domain) continue;
+        const prev = byKey.get(c.companyKey);
+        if (!prev) {
+          byKey.set(c.companyKey, { ...c });
+          continue;
+        }
+        const prevTs = Date.parse(prev.updatedAt || prev.createdAt || 0) || 0;
+        const nextTs = Date.parse(c.updatedAt || c.createdAt || 0) || 0;
+        if (nextTs >= prevTs) byKey.set(c.companyKey, { ...c });
+      }
+      const corrections = [...byKey.values()].sort((a, b) =>
+        String(a.companyName || '').localeCompare(String(b.companyName || ''))
+      );
+      const updatedAt = [base.updatedAt, overlay.updatedAt].filter(Boolean).sort().slice(-1)[0] || null;
+      return { version: 1, updatedAt, corrections };
+    }
+
+    let learnedCorrectionsStore = mergeLearnedStores(
+      readShippedLearnedCorrections(),
+      readLocalLearnedCorrections()
+    );
+
+    function getLearnedCorrectionsSnapshot() {
+      return {
+        version: 1,
+        updatedAt: learnedCorrectionsStore.updatedAt,
+        corrections: (learnedCorrectionsStore.corrections || []).map(c => ({ ...c }))
+      };
+    }
+
+    function lookupLearnedCorrection(companyName) {
+      const key = companyKeyNorm(companyName);
+      if (!key) return null;
+      const hit = (learnedCorrectionsStore.corrections || []).find(c => c.companyKey === key);
+      if (!hit?.domain) return null;
+      return { ...hit };
+    }
+
+    async function persistLearnedCorrectionsToServer(store) {
+      try {
+        const res = await fetch('/api/learned-corrections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(store)
+        });
+        if (!res.ok) return { ok: false, reason: `HTTP ${res.status}` };
+        const json = await res.json().catch(() => ({}));
+        return { ok: true, ...json };
+      } catch (e) {
+        return { ok: false, reason: e.message || 'offline' };
+      }
+    }
+
+    async function commitLearnedCorrectionsStore(nextStore, { skipServer } = {}) {
+      learnedCorrectionsStore = {
+        version: 1,
+        updatedAt: nextStore.updatedAt || new Date().toISOString(),
+        corrections: (nextStore.corrections || []).slice()
+      };
+      try {
+        localStorage.setItem(LEARNED_STORAGE_KEY, JSON.stringify(learnedCorrectionsStore));
+      } catch (_) {}
+      // Bust resolve cache so learned hits apply immediately
+      try { resolveCache.clear(); } catch (_) {}
+      if (!skipServer) {
+        const remote = await persistLearnedCorrectionsToServer(learnedCorrectionsStore);
+        return { store: getLearnedCorrectionsSnapshot(), remote };
+      }
+      return { store: getLearnedCorrectionsSnapshot(), remote: { ok: false, reason: 'skipped' } };
+    }
+
+    async function upsertLearnedCorrection({ companyName, domain, source }) {
+      const name = String(companyName || '').trim();
+      const cleanDomain = normalizeLearnedDomain(domain);
+      const key = companyKeyNorm(name);
+      if (!name || !key || !cleanDomain || !cleanDomain.includes('.')) {
+        return { ok: false, reason: 'invalid' };
+      }
+      const now = new Date().toISOString();
+      const list = (learnedCorrectionsStore.corrections || []).slice();
+      const idx = list.findIndex(c => c.companyKey === key);
+      const entry = {
+        companyName: name,
+        companyKey: key,
+        domain: cleanDomain,
+        source: source || 'manual',
+        createdAt: idx >= 0 ? (list[idx].createdAt || now) : now,
+        updatedAt: now
+      };
+      if (idx >= 0) list[idx] = entry;
+      else list.push(entry);
+      list.sort((a, b) => String(a.companyName || '').localeCompare(String(b.companyName || '')));
+      const result = await commitLearnedCorrectionsStore({
+        version: 1,
+        updatedAt: now,
+        corrections: list
+      });
+      console.log('[learned] upsert', name, '->', cleanDomain, 'source=', source, 'remote=', result.remote?.ok);
+      return { ok: true, entry, ...result };
+    }
+
+    async function updateLearnedCorrection(companyKey, fields) {
+      const key = companyKeyNorm(companyKey) || String(companyKey || '').trim();
+      const list = (learnedCorrectionsStore.corrections || []).slice();
+      const idx = list.findIndex(c => c.companyKey === key);
+      if (idx < 0) return { ok: false, reason: 'missing' };
+      const now = new Date().toISOString();
+      const nextName = fields.companyName != null ? String(fields.companyName).trim() : list[idx].companyName;
+      const nextDomain = fields.domain != null ? normalizeLearnedDomain(fields.domain) : list[idx].domain;
+      if (!nextName || !nextDomain || !nextDomain.includes('.')) return { ok: false, reason: 'invalid' };
+      const nextKey = companyKeyNorm(nextName);
+      const deduped = list.filter((c, i) => i === idx || c.companyKey !== nextKey);
+      const at = deduped.findIndex(c => c.companyKey === key || c.companyKey === list[idx].companyKey);
+      const targetIdx = at >= 0 ? at : 0;
+      deduped[targetIdx] = {
+        ...list[idx],
+        companyName: nextName,
+        companyKey: nextKey,
+        domain: nextDomain,
+        source: fields.source || list[idx].source || 'edit',
+        updatedAt: now
+      };
+      deduped.sort((a, b) => String(a.companyName || '').localeCompare(String(b.companyName || '')));
+      const result = await commitLearnedCorrectionsStore({ version: 1, updatedAt: now, corrections: deduped });
+      return { ok: true, ...result };
+    }
+
+    async function removeLearnedCorrection(companyKey) {
+      const key = companyKeyNorm(companyKey) || String(companyKey || '').trim();
+      const list = (learnedCorrectionsStore.corrections || []).filter(c => c.companyKey !== key);
+      const result = await commitLearnedCorrectionsStore({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        corrections: list
+      });
+      return { ok: true, ...result };
+    }
+
+    function downloadLearnedCorrectionsJson() {
+      const blob = new Blob([JSON.stringify(getLearnedCorrectionsSnapshot(), null, 2) + '\n'], {
+        type: 'application/json'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'learned-corrections.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
 
     function readAccuracyLog() {
       try {
@@ -4151,6 +4424,21 @@
       const batchStartedAtRef = useRef(null);
       const [latencySpeed, setLatencySpeed] = useState('normal'); 
       const [showSettings, setShowSettings] = useState(false);
+      const [showLearned, setShowLearned] = useState(false);
+      const [learnedSearch, setLearnedSearch] = useState('');
+      const [learnedDrafts, setLearnedDrafts] = useState({});
+      const [learnedNotice, setLearnedNotice] = useState('');
+      const [learnedTick, setLearnedTick] = useState(0);
+      const learnedList = useMemo(() => {
+        const q = learnedSearch.trim().toLowerCase();
+        const all = getLearnedCorrectionsSnapshot().corrections || [];
+        if (!q) return all;
+        return all.filter(c =>
+          String(c.companyName || '').toLowerCase().includes(q) ||
+          String(c.domain || '').toLowerCase().includes(q) ||
+          String(c.source || '').toLowerCase().includes(q)
+        );
+      }, [learnedSearch, learnedTick]);
       const [financeFilterActive, setFinanceFilterActive] = useState(true);
       const [editingCell, setEditingCell] = useState(null);
       const [editingValue, setEditingValue] = useState('');
@@ -5315,8 +5603,9 @@
 
       /**
        * Propose a domain for confirmation (does not verify yet).
+       * @param {{ manual?: boolean }} opts — set manual when entered via "Enter manually"
        */
-      const handleProposeCandidate = (rowId, rawDomain) => {
+      const handleProposeCandidate = (rowId, rawDomain, opts = {}) => {
         if (!rawDomain || queue.includes(rowId) || activeIds.includes(rowId)) return;
         const clean = String(rawDomain)
           .trim()
@@ -5325,15 +5614,19 @@
           .split('/')[0]
           .replace(/[^a-z0-9.-]/g, '');
         if (!clean || !clean.includes('.')) return;
-        updateRow(rowId, { pendingConfirmDomain: clean });
+        updateRow(rowId, {
+          pendingConfirmDomain: clean,
+          pendingConfirmFromManual: !!opts.manual
+        });
       };
 
       const handleCancelProposeCandidate = (rowId) => {
-        updateRow(rowId, { pendingConfirmDomain: '', showManualDomain: false });
+        updateRow(rowId, { pendingConfirmDomain: '', showManualDomain: false, pendingConfirmFromManual: false });
       };
 
       /**
        * After Confirm: verify+enrich that specific domain (does not force Found).
+       * Also persists learned corrections for thumbs-down fixes and manual entries.
        */
       const handleConfirmCandidate = (rowId, rawDomain) => {
         if (!rawDomain || queue.includes(rowId) || activeIds.includes(rowId)) return;
@@ -5352,6 +5645,13 @@
         const locKey = getLocationColumnKey();
         const conKey = getContactsColumnKey();
         const genKey = getGenderColumnKey();
+        const compKey = getCompanyColumnKey();
+        const current = rowsRef.current.find(r => r.id === rowId) || rows.find(r => r.id === rowId);
+        const companyName = current?.[compKey] || '';
+        const shouldLearn = !!(current?.pendingLearnFromThumbsDown || current?.pendingConfirmFromManual);
+        const learnSource = current?.pendingConfirmFromManual
+          ? 'manual'
+          : (current?.pendingLearnFromThumbsDown ? 'thumbs-down' : '');
 
         setRows(prev => prev.map(row => {
           if (row.id !== rowId) return row;
@@ -5373,9 +5673,12 @@
             showManualDomain: false,
             manualDomainDraft: '',
             pendingConfirmDomain: '',
+            pendingConfirmFromManual: false,
+            pendingLearnFromThumbsDown: false,
             resolveMethod: 'user-confirmed',
             candidates: preserved,
-            savedCandidates: preserved
+            savedCandidates: preserved,
+            accuracyFeedback: null
           };
         }));
         // Drop stale enrich cache for this domain so dictionary founders re-apply on confirm
@@ -5385,6 +5688,15 @@
             if (String(key).toLowerCase().includes(needle)) enrichCache.delete(key);
           }
         } catch (_) {}
+
+        if (shouldLearn && companyName) {
+          upsertLearnedCorrection({
+            companyName,
+            domain: clean,
+            source: learnSource || 'manual'
+          }).then(() => setLearnedTick(t => t + 1));
+        }
+
         setQueue(prev => [...prev, rowId]);
       };
 
@@ -5418,9 +5730,11 @@
           sources: (row.candidates || []).find(c => c.domain === row[webKey])?.sources || []
         });
         setAccuracyStats(stats);
-        updateRow(rowId, { accuracyFeedback: correct ? 'up' : 'down' });
-        if (!correct) {
-          // Wrong website — reopen picker so the user can fix it
+        if (correct) {
+          updateRow(rowId, { accuracyFeedback: 'up', pendingLearnFromThumbsDown: false });
+        } else {
+          // Wrong website — reopen picker; next Confirm teaches a learned correction
+          updateRow(rowId, { accuracyFeedback: 'down', pendingLearnFromThumbsDown: true });
           handleChangeSelection(rowId);
         }
       };
@@ -5669,6 +5983,13 @@
               <button className="btn" title="Configure simulation parameters" onClick={() => setShowSettings(true)}>
                 <SlidersIcon size={15} />
                 <span>Settings</span>
+              </button>
+              <button
+                className="btn"
+                title="View and edit domains taught via thumbs-down or manual entry"
+                onClick={() => { setLearnedNotice(''); setShowLearned(true); setLearnedTick(t => t + 1); }}
+              >
+                <span>Learned ({getLearnedCorrectionsSnapshot().corrections.length})</span>
               </button>
               <div
                 className="accuracy-chip"
@@ -6102,12 +6423,12 @@
                                                         value={row.manualDomainDraft || ''}
                                                         onChange={(e) => updateRow(row.id, { manualDomainDraft: e.target.value })}
                                                         onKeyDown={(e) => {
-                                                          if (e.key === 'Enter') handleProposeCandidate(row.id, row.manualDomainDraft);
+                                                          if (e.key === 'Enter') handleProposeCandidate(row.id, row.manualDomainDraft, { manual: true });
                                                         }}
                                                       />
                                                       <button
                                                         type="button"
-                                                        onClick={() => handleProposeCandidate(row.id, row.manualDomainDraft)}
+                                                        onClick={() => handleProposeCandidate(row.id, row.manualDomainDraft, { manual: true })}
                                                       >
                                                         Use
                                                       </button>
@@ -6291,6 +6612,145 @@
                   onClick={() => setShowSettings(false)}
                 >
                   Save & Close
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Learned Corrections modal */}
+          {showLearned && (
+            <div className="settings-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowLearned(false); }}>
+              <div className="settings-modal" style={{ width: 'min(640px, 94vw)', maxHeight: '90vh', overflow: 'auto' }}>
+                <div className="settings-header">
+                  <h3 className="settings-title">Learned Corrections</h3>
+                  <button className="settings-close" onClick={() => setShowLearned(false)}>
+                    <XIcon size={18} />
+                  </button>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                  Domains taught via thumbs-down + confirm, or manual entry. Checked before search on future runs.
+                  Saved to this browser and to <code>data/learned-corrections.json</code> when using <code>npm run dev:local</code>.
+                </p>
+                <div className="learned-toolbar">
+                  <input
+                    type="search"
+                    placeholder="Search company or domain…"
+                    value={learnedSearch}
+                    onChange={(e) => setLearnedSearch(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      downloadLearnedCorrectionsJson();
+                      setLearnedNotice('Downloaded learned-corrections.json — replace data/learned-corrections.json and commit to share.');
+                    }}
+                  >
+                    Download JSON
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={async () => {
+                      const remote = await persistLearnedCorrectionsToServer(getLearnedCorrectionsSnapshot());
+                      setLearnedNotice(remote.ok
+                        ? `Synced to data/learned-corrections.json (${remote.count} entries).`
+                        : `Could not write file (${remote.reason || 'no local API'}). Use Download JSON + commit, or run npm run dev:local.`);
+                      setLearnedTick(t => t + 1);
+                    }}
+                  >
+                    Sync to repo file
+                  </button>
+                </div>
+                {learnedNotice ? (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--accent-color)', marginBottom: '0.6rem' }}>{learnedNotice}</div>
+                ) : null}
+                <div className="learned-list">
+                  {learnedList.length === 0 ? (
+                    <div style={{ padding: '1rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      No learned corrections yet. Thumbs-down a Found row and confirm the right domain, or enter a domain manually.
+                    </div>
+                  ) : learnedList.map((c) => {
+                    const draft = learnedDrafts[c.companyKey] || {
+                      companyName: c.companyName,
+                      domain: c.domain
+                    };
+                    return (
+                      <div key={c.companyKey} className="learned-row">
+                        <input
+                          value={draft.companyName}
+                          onChange={(e) => setLearnedDrafts(prev => ({
+                            ...prev,
+                            [c.companyKey]: { ...draft, companyName: e.target.value }
+                          }))}
+                          title="Company name"
+                        />
+                        <input
+                          value={draft.domain}
+                          onChange={(e) => setLearnedDrafts(prev => ({
+                            ...prev,
+                            [c.companyKey]: { ...draft, domain: e.target.value }
+                          }))}
+                          title="Domain"
+                          style={{ fontFamily: 'var(--font-mono)' }}
+                        />
+                        <div style={{ display: 'flex', gap: '0.25rem' }}>
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ padding: '0.25rem 0.45rem', fontSize: '0.72rem' }}
+                            onClick={async () => {
+                              const res = await updateLearnedCorrection(c.companyKey, {
+                                companyName: draft.companyName,
+                                domain: draft.domain,
+                                source: 'edit'
+                              });
+                              if (res.ok === false && res.reason) {
+                                setLearnedNotice(`Could not save: ${res.reason}`);
+                              } else {
+                                setLearnedDrafts(prev => {
+                                  const next = { ...prev };
+                                  delete next[c.companyKey];
+                                  return next;
+                                });
+                                setLearnedTick(t => t + 1);
+                                setLearnedNotice('Updated.');
+                              }
+                            }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            style={{ padding: '0.25rem 0.45rem', fontSize: '0.72rem' }}
+                            onClick={async () => {
+                              await removeLearnedCorrection(c.companyKey);
+                              setLearnedDrafts(prev => {
+                                const next = { ...prev };
+                                delete next[c.companyKey];
+                                return next;
+                              });
+                              setLearnedTick(t => t + 1);
+                              setLearnedNotice('Removed.');
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <div className="learned-meta">
+                          source={c.source || '—'} · updated {c.updatedAt ? formatSavedAt(c.updatedAt) : '—'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button
+                  className="btn btn-primary"
+                  style={{ alignSelf: 'flex-end', marginTop: '0.75rem' }}
+                  onClick={() => setShowLearned(false)}
+                >
+                  Close
                 </button>
               </div>
             </div>
