@@ -1961,7 +1961,8 @@
     const RESOLVE_AUTO_FOUND_THRESHOLD = 90; // auto-Found without Confirm
     const RESOLVE_AMBIGUITY_GAP = 12;
 
-    /** Auto-Found when score ≥ 90, or major-firm / dictionary / learned at confidence 100. */
+    /** Auto-Found when score ≥ 90, or major-firm / dictionary / learned at confidence 100.
+     *  With Finance Search Filter: sole finance-typed top candidate (≥ picker threshold) also auto-Founds. */
     function shouldAutoFoundResolve(resolved) {
       if (!resolved || !resolved.domain) return false;
       if (resolved.ambiguous) return false;
@@ -1970,7 +1971,64 @@
       if ((method === 'major-firm' || method === 'dictionary' || method === 'learned') && score >= 100) {
         return true;
       }
+      if (
+        resolved.financeFilterActive &&
+        resolved.soleFinanceMatch &&
+        score >= RESOLVE_CONFIDENCE_THRESHOLD &&
+        !resolved.isUnsure
+      ) {
+        return true;
+      }
       return score >= RESOLVE_AUTO_FOUND_THRESHOLD && !resolved.isUnsure;
+    }
+
+    const FINANCE_AFFINITY_PHRASES = [
+      'investment management', 'venture capital', 'private equity', 'asset management',
+      'financial advisory', 'financial advisor', 'wealth management', 'hedge fund',
+      'capital markets', 'family office', 'broker dealer', 'broker-dealer',
+      'investment bank', 'investment banking', 'fund services', 'fund administration',
+      'alternative asset', 'growth equity', 'private credit', 'credit fund',
+      'sovereign wealth', 'merchant bank', 'private bank', 'buyout', 'fintech'
+    ];
+    const FINANCE_AFFINITY_TOKENS = [
+      'capital', 'ventures', 'venture', 'investment', 'investments', 'investor', 'investors',
+      'equity', 'hedge', 'wealth', 'fintech', 'securities', 'banking', 'bank',
+      'asset', 'assets', 'advisory', 'advisor', 'advisors', 'fund', 'funds',
+      'holdings', 'credit', 'lending', 'brokerage', 'broker', 'pe', 'vc'
+    ];
+    const UNRELATED_INDUSTRY_PHRASES = [
+      'retail', 'grocery', 'supermarket', 'restaurant', 'restaurants', 'cafe', 'coffee shop',
+      'entertainment', 'media', 'publishing', 'newspaper', 'magazine', 'music',
+      'gaming', 'video game', 'cinema', 'film studio', 'movie', 'television',
+      'fashion', 'apparel', 'clothing', 'cosmetics', 'beauty',
+      'food & beverage', 'food and beverage', 'hotel', 'hospitality', 'travel agency',
+      'sports', 'nightlife', 'casino', 'e-commerce', 'ecommerce', 'marketplace',
+      'consumer goods', 'consumer electronics', 'cpg', 'toys', 'grocery store',
+      'fast food', 'supermarket', 'streaming entertainment'
+    ];
+
+    /** Classify candidate as finance / unrelated / neutral from name, domain, industry snippet. */
+    function classifyFinanceAffinity(candidate) {
+      const blob = `${candidate?.name || ''} ${candidate?.domain || ''} ${candidate?.snippet || ''} ${candidate?.industry || ''}`.toLowerCase();
+      if (!blob.trim()) return 'neutral';
+      if (UNRELATED_INDUSTRY_PHRASES.some(p => blob.includes(p)) && !FINANCE_AFFINITY_PHRASES.some(p => blob.includes(p))) {
+        // Domain cues can still mark finance even if industry text is noisy
+        const host = String(candidate?.domain || '').toLowerCase();
+        if (!/\b(capital|ventures|venture|invest|advisory|advisor|wealth|asset|fund|equity|fintech|bank|hedge)\b/.test(host.replace(/\./g, ' '))) {
+          return 'unrelated';
+        }
+      }
+      if (FINANCE_AFFINITY_PHRASES.some(p => blob.includes(p))) return 'finance';
+      const hostTokens = String(candidate?.domain || '').toLowerCase().replace(/\./g, ' ');
+      if (/\b(capital|ventures|venture|invest|advisory|advisor|wealth|assetmgmt|asset|fund|equity|fintech|bank|hedge)\b/.test(hostTokens)) {
+        return 'finance';
+      }
+      if (FINANCE_AFFINITY_TOKENS.some(t => new RegExp(`\\b${t}\\b`, 'i').test(blob))) return 'finance';
+      return 'neutral';
+    }
+
+    function isFinanceTypedCandidate(c) {
+      return classifyFinanceAffinity(c) === 'finance';
     }
 
     async function fetchWikiApiJson(url, { label = 'wiki' } = {}) {
@@ -2397,16 +2455,20 @@
 
     /**
      * Rank a pooled candidate list with multi-signal confidence scoring.
-     * Signals: domain/name similarity, Wikidata notability, DNS, page content mention.
+     * Signals: domain/name similarity, Wikidata notability, DNS, page content mention,
+     * and (when Finance Search Filter is on) strong finance affinity boost / unrelated penalty.
      */
     async function rankCandidatesWithSignals(companyName, pool, options = {}) {
       const skipped = new Set((options.skippedDomains || []).map(d => String(d).toLowerCase()));
+      const financeFilterActive = !!options.financeFilterActive;
       const base = normalizeCandidates(pool).filter(c => c.domain && !skipped.has(c.domain));
       if (!base.length) {
-        return { best: null, ambiguous: true, candidates: [], ranked: [] };
+        return { best: null, ambiguous: true, candidates: [], ranked: [], soleFinanceMatch: false };
       }
 
-      // Pass 1 — cheap signals
+      const anyFinanceInPool = base.some(isFinanceTypedCandidate);
+
+      // Pass 1 — cheap signals (+ finance affinity when filter on)
       let ranked = base.map(c => {
         const sim = scoreNameDomainSimilarity(companyName, c);
         const sources = c.sources || [];
@@ -2418,16 +2480,31 @@
         if (sources.includes('duckduckgo')) sourcePts += 5;
         if (sources.includes('wikipedia') || sources.includes('wikidata')) sourcePts += 6;
         if (sources.length >= 2) sourcePts += 6;
-        const total = sim.score + wikiPts + sourcePts;
+
+        let financePts = 0;
+        const financeAffinity = classifyFinanceAffinity(c);
+        if (financeFilterActive) {
+          if (financeAffinity === 'finance') {
+            // Strong enough that a clear finance best often clears auto-Found (90) alone
+            financePts = 34;
+          } else if (financeAffinity === 'unrelated' && anyFinanceInPool) {
+            // Deprioritize retail/grocery/entertainment/etc. when a finance option exists
+            financePts = -30;
+          }
+        }
+
+        const total = sim.score + wikiPts + sourcePts + financePts;
         return {
           ...c,
           exactName: sim.exactName,
+          financeAffinity,
           signals: {
             nameSimilarity: sim.score,
             wikiNotability: wikiPts,
             multiSource: sourcePts,
             dns: 0,
-            content: 0
+            content: 0,
+            finance: financePts
           },
           totalScore: total
         };
@@ -2516,16 +2593,46 @@
           best = runnerUp;
         }
       }
+
+      // Finance filter: sole finance-typed top among contenders → clear ambiguity & lift to auto-Found floor
+      let soleFinanceMatch = false;
+      if (financeFilterActive && best && isFinanceTypedCandidate(best)) {
+        const financePeers = contenders.filter(c => c.domain !== best.domain && isFinanceTypedCandidate(c));
+        const competingFinance = financePeers.filter(c =>
+          Math.abs(c.totalScore - best.totalScore) < RESOLVE_AMBIGUITY_GAP + 8 &&
+          c.totalScore >= RESOLVE_CONFIDENCE_THRESHOLD - 20
+        );
+        if (!competingFinance.length) {
+          soleFinanceMatch = true;
+          ambiguous = false;
+          // Ensure sole clear finance match clears auto-Found when it already clears picker band
+          if (best.totalScore >= RESOLVE_CONFIDENCE_THRESHOLD && best.totalScore < RESOLVE_AUTO_FOUND_THRESHOLD) {
+            const lift = RESOLVE_AUTO_FOUND_THRESHOLD - best.totalScore;
+            best = {
+              ...best,
+              signals: { ...best.signals, finance: (best.signals?.finance || 0) + lift, soleFinanceLift: lift },
+              totalScore: RESOLVE_AUTO_FOUND_THRESHOLD
+            };
+            // Keep ranked list in sync for UI confidence display
+            ranked = ranked.map(c => (c.domain === best.domain ? best : c));
+          }
+        } else if (runnerUp && classifyFinanceAffinity(runnerUp) === 'unrelated') {
+          // Don't treat finance-vs-unrelated as ambiguous even if scores were close pre-penalty
+          ambiguous = false;
+        }
+      }
+
       const candidates = ranked.slice(0, 8).map(c => ({
         domain: c.domain,
         name: c.name || c.domain,
         snippet: c.snippet || (c.sources || []).join(' · '),
         sources: c.sources || [],
         wikiProminence: c.wikiProminence || 0,
-        confidenceScore: c.totalScore
+        confidenceScore: c.totalScore,
+        financeAffinity: c.financeAffinity || classifyFinanceAffinity(c)
       }));
 
-      return { best, ambiguous, candidates, ranked: contenders };
+      return { best, ambiguous, candidates, ranked: contenders, soleFinanceMatch };
     }
 
     /**
@@ -3402,12 +3509,10 @@
         })));
       }
 
-      // Finance filter: soft re-rank snippets only (scoring still multi-signal)
+      // Finance filter: annotate finance-typed snippets for the picker
       if (financeFilterActive) {
-        const FINANCE_KW = ['capital', 'partner', 'venture', 'investment', 'fund', 'holding', 'wealth', 'finance', 'equity', 'fintech', 'bank', 'asset', 'credit', 'lend', 'hedge', 'advisory', 'advisors', 'securities', 'broker'];
         gatheredCandidates = gatheredCandidates.map(c => {
-          const blob = `${c.name || ''} ${c.domain || ''}`.toLowerCase();
-          if (FINANCE_KW.some(k => blob.includes(k))) {
+          if (isFinanceTypedCandidate(c)) {
             return { ...c, snippet: c.snippet || `${c.name || c.domain} · finance` };
           }
           return c;
@@ -3446,6 +3551,7 @@
       const clearsThreshold = score >= RESOLVE_CONFIDENCE_THRESHOLD && !ranked.ambiguous && credible;
       const methodSources = [...new Set(ranked.best.sources || [])];
       const resolveMethod = methodSources.length ? methodSources.join('+') : 'multi-source';
+      const soleFinanceMatch = !!ranked.soleFinanceMatch;
 
       console.log(
         '[resolve] ranked', companyName, '->', ranked.best.domain,
@@ -3453,6 +3559,8 @@
         'threshold=', RESOLVE_CONFIDENCE_THRESHOLD,
         'confident=', clearsThreshold,
         'ambiguous=', !!ranked.ambiguous,
+        'soleFinance=', soleFinanceMatch,
+        'financePts=', ranked.best.signals?.finance,
         'signals=', ranked.best.signals
       );
 
@@ -3470,7 +3578,10 @@
         alternativeDomains: gatheredCandidates.map(c => c.domain),
         candidates: gatheredCandidates,
         resolveMethod,
-        fastPath: clearsThreshold && (ranked.best.exactName || methodSources.includes('wikidata'))
+        financeFilterActive,
+        soleFinanceMatch,
+        ambiguous: !!ranked.ambiguous,
+        fastPath: clearsThreshold && (ranked.best.exactName || methodSources.includes('wikidata') || soleFinanceMatch)
       });
     }
 
@@ -5289,7 +5400,9 @@
                     isUnsure,
                     confidenceScore,
                     resolveMethod,
-                    ambiguous: !!resolvedObj.ambiguous
+                    ambiguous: !!resolvedObj.ambiguous,
+                    financeFilterActive,
+                    soleFinanceMatch: !!resolvedObj.soleFinanceMatch
                   });
 
                   updateRow(rowId, { status: 'verifying', [webKey]: domain, resolveMethod, candidates, confidenceScore, confidenceSignals });

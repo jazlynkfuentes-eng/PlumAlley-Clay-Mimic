@@ -1,11 +1,12 @@
 {
   "summary": {
     "total": 62,
-    "found": 55,
-    "potential": 2,
+    "found": 56,
+    "potential": 1,
     "unverified": 5,
     "autoFoundThreshold": 90,
-    "pickerThreshold": 70
+    "pickerThreshold": 70,
+    "financeFilterActive": true
   },
   "results": [
     {
@@ -18,6 +19,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Technology / AI",
       "location": "Pa,Qa",
       "founders": "Unknown"
@@ -32,6 +35,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Consumer Electronics",
       "location": "Apple Watch, Mac",
       "founders": "Unknown"
@@ -46,6 +51,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Software & Cloud",
       "location": "AI, Cloud",
       "founders": "Unknown"
@@ -60,6 +67,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Software / Productivity",
       "location": "Slack, Google Drive",
       "founders": "Unknown"
@@ -74,6 +83,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Financial Technology",
       "location": "Avenue, Suite",
       "founders": "Unknown"
@@ -88,6 +99,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Artificial Intelligence",
       "location": "Unknown",
       "founders": "Unknown"
@@ -102,6 +115,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Professional Networks",
       "location": "Diversity, Equity",
       "founders": "Unknown"
@@ -116,6 +131,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Higher Education",
       "location": "Web Communications, Cornell University",
       "founders": "Unknown"
@@ -139,6 +156,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Venture Capital",
       "location": "Raleigh, NC",
       "founders": "Unknown"
@@ -146,13 +165,15 @@
     {
       "name": "Plum Alley Ventures",
       "status": "found",
-      "reason": "dictionary@100 (auto-found ≥90 or trusted path)",
+      "reason": "dictionary@100 (auto-found ≥90 or trusted path, sole-finance)",
       "website": "plumalley.co",
       "candidates": 1,
       "score": 100,
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": true,
+      "financeFilterActive": true,
       "industry": "Venture Capital",
       "location": "Unknown",
       "founders": "Unknown"
@@ -167,6 +188,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "E-Commerce / Cloud",
       "location": "Unknown",
       "founders": "Unknown"
@@ -181,6 +204,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Social Media / VR",
       "location": "Ban Meta, Oakley Meta",
       "founders": "Unknown"
@@ -195,6 +220,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Entertainment",
       "location": "Shows Online, Watch Movies",
       "founders": "Unknown"
@@ -209,6 +236,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Automotive / Energy",
       "location": "Unknown",
       "founders": "Unknown"
@@ -223,6 +252,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Hospitality APIs",
       "location": "Washington Street, Suite",
       "founders": "Unknown"
@@ -237,6 +268,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Private Equity",
       "location": "Unknown",
       "founders": "Unknown"
@@ -251,6 +284,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Asset Management",
       "location": "BlackRock, Inc",
       "founders": "Unknown"
@@ -265,6 +300,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Education",
       "location": "Jesuit, Catholic",
       "founders": "Unknown"
@@ -279,6 +316,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Climate Tech",
       "location": "Unknown",
       "founders": "Unknown"
@@ -293,6 +332,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "AI & Retail",
       "location": "Inter,Inter Placeholder",
       "founders": "Unknown"
@@ -307,6 +348,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "AgTech & Food",
       "location": "Unknown",
       "founders": "Unknown"
@@ -321,6 +364,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Biotech & Health",
       "location": "Unknown",
       "founders": "Unknown"
@@ -335,6 +380,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Industrial & Robotics",
       "location": "Unknown",
       "founders": "Unknown"
@@ -367,6 +414,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Public Health Tech",
       "location": "AI, Biobot",
       "founders": "Unknown"
@@ -381,6 +430,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Biotech & Health",
       "location": "Proprietary Allogeneic, Off",
       "founders": "Unknown"
@@ -395,6 +446,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "AI & Robotics",
       "location": "Version, Sec",
       "founders": "Unknown"
@@ -409,6 +462,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Autonomous EV Logistics",
       "location": "Inter,Inter Placeholder",
       "founders": "Unknown"
@@ -423,6 +478,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Biotech & Health",
       "location": "Version, Sec",
       "founders": "Unknown"
@@ -437,6 +494,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Circular Textiles",
       "location": "Collect, Sort",
       "founders": "Unknown"
@@ -451,6 +510,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Biotech & Health",
       "location": "Unknown",
       "founders": "Unknown"
@@ -465,6 +526,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Climate Tech",
       "location": "Capital Markets, Insurance",
       "founders": "Unknown"
@@ -479,6 +542,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "FoodTech",
       "location": "Beyond Bovine, Changing",
       "founders": "Unknown"
@@ -493,6 +558,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "AgTech",
       "location": "Unknown",
       "founders": "Unknown"
@@ -507,6 +574,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Biotech & Health",
       "location": "CEO, Dr",
       "founders": "Unknown"
@@ -521,6 +590,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Water Tech & IoT",
       "location": "Agricultural, Industrial",
       "founders": "Unknown"
@@ -544,6 +615,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "AI Visual Commerce",
       "location": "Unknown",
       "founders": "Unknown"
@@ -558,6 +631,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Biotech & CRISPR",
       "location": "Mammoth Biosciences, Inc",
       "founders": "Unknown"
@@ -572,6 +647,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Veterinary Biotech",
       "location": "Bold, Georgia",
       "founders": "Unknown"
@@ -586,6 +663,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Biotech & Imaging",
       "location": "For Wearable, Steerable Ultrasound",
       "founders": "Unknown"
@@ -600,6 +679,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Climate Tech & Metals",
       "location": "Integrated, Ecosystem Enabling",
       "founders": "Unknown"
@@ -614,6 +695,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Biotech & AAV",
       "location": "First IND, Advancing Company",
       "founders": "Unknown"
@@ -628,6 +711,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "EdTech",
       "location": "Clever, Classlink",
       "founders": "Unknown"
@@ -642,6 +727,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "EdTech",
       "location": "Amanda, Flagstaff",
       "founders": "Unknown"
@@ -656,6 +743,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "CleanTech Sanitization",
       "location": "Home, Public",
       "founders": "Unknown"
@@ -663,13 +752,15 @@
     {
       "name": "Heard Capital",
       "status": "found",
-      "reason": "dictionary@100 (auto-found ≥90 or trusted path)",
+      "reason": "dictionary@100 (auto-found ≥90 or trusted path, sole-finance)",
       "website": "heardcapital.com",
       "candidates": 1,
       "score": 100,
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": true,
+      "financeFilterActive": true,
       "industry": "Asset Management",
       "location": "Unknown",
       "founders": "Unknown"
@@ -684,6 +775,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Think Tank & Economics",
       "location": "FinTech, Entrepreneurship",
       "founders": "Unknown"
@@ -691,13 +784,15 @@
     {
       "name": "Cara Advisory",
       "status": "found",
-      "reason": "dictionary@100 (auto-found ≥90 or trusted path)",
+      "reason": "dictionary@100 (auto-found ≥90 or trusted path, sole-finance)",
       "website": "caraadvisory.com",
       "candidates": 1,
       "score": 100,
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": true,
+      "financeFilterActive": true,
       "industry": "Software",
       "location": "Version, Sec",
       "founders": "Unknown"
@@ -712,6 +807,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Philanthropy & Fund",
       "location": "Campaigns, Litigation",
       "founders": "Unknown"
@@ -726,6 +823,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Financial Brokerage",
       "location": "Inter,Helvetica",
       "founders": "Unknown"
@@ -733,13 +832,15 @@
     {
       "name": "NAV Fund Services",
       "status": "found",
-      "reason": "dictionary@100 (auto-found ≥90 or trusted path)",
+      "reason": "dictionary@100 (auto-found ≥90 or trusted path, sole-finance)",
       "website": "navfundservices.com",
       "candidates": 1,
       "score": 100,
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": true,
+      "financeFilterActive": true,
       "industry": "Unknown",
       "location": "Efficiency, Accuracy",
       "founders": "Unknown"
@@ -747,13 +848,15 @@
     {
       "name": "Disciplina Capital Management",
       "status": "found",
-      "reason": "dictionary@100 (auto-found ≥90 or trusted path)",
+      "reason": "dictionary@100 (auto-found ≥90 or trusted path, sole-finance)",
       "website": "disciplina.com",
       "candidates": 1,
       "score": 100,
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": true,
+      "financeFilterActive": true,
       "industry": "Software",
       "location": "Arial,Helvetica",
       "founders": "Unknown"
@@ -768,6 +871,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Investment Management",
       "location": "Keble College, University",
       "founders": "Unknown"
@@ -775,13 +880,15 @@
     {
       "name": "PIMCO",
       "status": "found",
-      "reason": "clearbit@92 (auto-found ≥90 or trusted path)",
+      "reason": "clearbit@116 (auto-found ≥90 or trusted path)",
       "website": "pimco.com",
-      "candidates": 5,
-      "score": 92,
+      "candidates": 7,
+      "score": 116,
       "method": "clearbit",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Investment Management",
       "location": "Prerna Gupta, Fixed Income",
       "founders": "Unknown"
@@ -796,20 +903,24 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Unknown",
       "location": "Unknown",
       "founders": "Unknown"
     },
     {
       "name": "Trinity Church Wall Street",
-      "status": "potential",
-      "reason": "mid-band 86 (confirm required)",
+      "status": "found",
+      "reason": "clearbit@102 (auto-found ≥90 or trusted path)",
       "website": "trinitywallstreet.org",
       "candidates": 6,
-      "score": 86,
+      "score": 102,
       "method": "clearbit",
       "ambiguous": false,
-      "autoFound": false,
+      "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Nonprofit / Foundation",
       "location": "West Cornwall, Connecticut",
       "founders": "Unknown"
@@ -824,6 +935,8 @@
       "method": "major-firm",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Government",
       "location": "Microsoft Edge, Google Chrome",
       "founders": "Unknown"
@@ -838,6 +951,8 @@
       "method": "clearbit",
       "ambiguous": false,
       "autoFound": false,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Nonprofit / Foundation",
       "location": "BS, Environmental Microbiology",
       "founders": "Unknown"
@@ -861,6 +976,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Unknown",
       "location": "Unknown",
       "founders": "Unknown"
@@ -875,6 +992,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Education",
       "location": "Jesuit, Catholic",
       "founders": "Unknown"
@@ -882,13 +1001,15 @@
     {
       "name": "PIMCO",
       "status": "found",
-      "reason": "clearbit@92 (auto-found ≥90 or trusted path)",
+      "reason": "clearbit@116 (auto-found ≥90 or trusted path)",
       "website": "pimco.com",
-      "candidates": 5,
-      "score": 92,
+      "candidates": 7,
+      "score": 116,
       "method": "clearbit",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Investment Management",
       "location": "Prerna Gupta, Fixed Income",
       "founders": "Unknown"
@@ -903,6 +1024,8 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Technology / AI",
       "location": "Pa,Qa",
       "founders": "Unknown"
@@ -917,9 +1040,86 @@
       "method": "dictionary",
       "ambiguous": false,
       "autoFound": true,
+      "soleFinanceMatch": false,
+      "financeFilterActive": true,
       "industry": "Financial Technology",
       "location": "Avenue, Suite",
       "founders": "Unknown"
+    }
+  ],
+  "financeProbes": [
+    {
+      "name": "Cara Advisory",
+      "domain": "caraadvisory.com",
+      "score": 115,
+      "method": "clearbit",
+      "soleFinanceMatch": true,
+      "ambiguous": false,
+      "autoFound": true,
+      "status": "found",
+      "financePts": 34
+    },
+    {
+      "name": "PIMCO",
+      "domain": "pimco.com",
+      "score": 116,
+      "method": "clearbit",
+      "soleFinanceMatch": false,
+      "ambiguous": false,
+      "autoFound": true,
+      "status": "found",
+      "financePts": 0
+    },
+    {
+      "name": "Heard Capital",
+      "domain": "heardcapital.com",
+      "score": 115,
+      "method": "clearbit",
+      "soleFinanceMatch": true,
+      "ambiguous": false,
+      "autoFound": true,
+      "status": "found",
+      "financePts": 34
+    },
+    {
+      "name": "NAV Fund Services",
+      "domain": null,
+      "score": 0,
+      "soleFinanceMatch": false,
+      "ambiguous": false,
+      "autoFound": false,
+      "status": "unverified"
+    },
+    {
+      "name": "Disciplina Capital Management",
+      "domain": null,
+      "score": 0,
+      "soleFinanceMatch": false,
+      "ambiguous": false,
+      "autoFound": false,
+      "status": "unverified"
+    },
+    {
+      "name": "Stable",
+      "domain": "usestable.com",
+      "score": 81,
+      "method": "clearbit",
+      "soleFinanceMatch": false,
+      "ambiguous": false,
+      "autoFound": false,
+      "status": "potential",
+      "financePts": 0
+    },
+    {
+      "name": "Blackstone",
+      "domain": "blackstonecap.com",
+      "score": 101,
+      "method": "clearbit",
+      "soleFinanceMatch": false,
+      "ambiguous": true,
+      "autoFound": false,
+      "status": "potential",
+      "financePts": 34
     }
   ]
 }

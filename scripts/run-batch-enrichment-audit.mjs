@@ -216,9 +216,10 @@ function classifyStatus(resolved) {
   const method = resolved.resolveMethod || (resolved.sources || [])[0] || 'multi-source';
   const auto = shouldAutoFound(resolved);
   if (auto) {
+    const soleNote = resolved.soleFinanceMatch ? ', sole-finance' : '';
     return {
       status: 'found',
-      reason: `${method}@${score} (auto-found ≥${AUTO_FOUND_THRESHOLD} or trusted path)`
+      reason: `${method}@${score} (auto-found ≥${AUTO_FOUND_THRESHOLD} or trusted path${soleNote})`
     };
   }
   if (score >= CONFIDENCE_THRESHOLD || resolved.confidence === 'high' || (resolved.candidates || []).length) {
@@ -232,7 +233,7 @@ function classifyStatus(resolved) {
 
 console.log(
   `Running enrichment audit on ${batch.length} companies ` +
-  `(Found ≥${AUTO_FOUND_THRESHOLD} / Potential ${CONFIDENCE_THRESHOLD}–${AUTO_FOUND_THRESHOLD - 1}; concurrency 2)...\n`
+  `(Finance filter ON; Found ≥${AUTO_FOUND_THRESHOLD} / Potential ${CONFIDENCE_THRESHOLD}–${AUTO_FOUND_THRESHOLD - 1}; concurrency 2)...\n`
 );
 
 const results = await mapPool(batch, 2, async (name) => {
@@ -240,7 +241,7 @@ const results = await mapPool(batch, 2, async (name) => {
     return { name, status: 'unverified', reason: 'non-entity', candidates: 0, score: 0 };
   }
 
-  const resolved = await resolveHard(name);
+  const resolved = await resolveHard(name, { financeFilterActive: true });
   const score = Number(resolved.score) || 0;
   const method = resolved.resolveMethod || (resolved.sources || [])[0] || 'none';
   const candidates = resolved.candidates || [];
@@ -281,6 +282,8 @@ const results = await mapPool(batch, 2, async (name) => {
     method,
     ambiguous: !!resolved.ambiguous,
     autoFound: shouldAutoFound(resolved),
+    soleFinanceMatch: !!resolved.soleFinanceMatch,
+    financeFilterActive: true,
     ...details
   };
 });
@@ -306,7 +309,41 @@ for (const r of potential) {
 console.log('');
 console.log('--- Found (auto) ---');
 for (const r of found) {
-  console.log(`  ${r.name}  → ${r.website}  (${r.method}@${r.score})`);
+  console.log(`  ${r.name}  → ${r.website}  (${r.method}@${r.score}${r.soleFinanceMatch ? ', sole-finance' : ''})`);
+}
+console.log('');
+
+// Multi-source probe for key finance names (skip dictionary) to verify Finance filter scoring
+const financeProbeNames = [
+  'Cara Advisory',
+  'PIMCO',
+  'Heard Capital',
+  'NAV Fund Services',
+  'Disciplina Capital Management',
+  'Stable',
+  'Blackstone'
+];
+console.log('=== FINANCE FILTER PROBE (multi-source only, skip dictionary) ===');
+const probes = [];
+for (const name of financeProbeNames) {
+  const resolved = await resolveHard(name, { financeFilterActive: true, skipDictionary: true });
+  const auto = shouldAutoFound(resolved);
+  const row = {
+    name,
+    domain: resolved.domain,
+    score: resolved.score,
+    method: resolved.resolveMethod || (resolved.sources || [])[0],
+    soleFinanceMatch: !!resolved.soleFinanceMatch,
+    ambiguous: !!resolved.ambiguous,
+    autoFound: auto,
+    status: auto ? 'found' : (resolved.domain && (resolved.score || 0) >= CONFIDENCE_THRESHOLD ? 'potential' : 'unverified'),
+    financePts: resolved.signals?.finance
+  };
+  probes.push(row);
+  console.log(
+    `  ${name} → ${row.domain || '(none)'}  score=${row.score}  ` +
+    `${row.status}${row.soleFinanceMatch ? ' (sole-finance)' : ''}  financePts=${row.financePts ?? '-'}`
+  );
 }
 console.log('');
 
@@ -352,10 +389,12 @@ fs.writeFileSync(
       potential: potential.length,
       unverified: unverified.length,
       autoFoundThreshold: AUTO_FOUND_THRESHOLD,
-      pickerThreshold: CONFIDENCE_THRESHOLD
+      pickerThreshold: CONFIDENCE_THRESHOLD,
+      financeFilterActive: true
     },
     results,
-    samples
+    samples,
+    financeProbes: probes
   }, null, 2)
 );
 console.log('\nWrote scripts/last-batch-enrichment-audit.json');
