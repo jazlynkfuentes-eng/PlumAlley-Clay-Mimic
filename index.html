@@ -2011,6 +2011,11 @@
       if (isTrustedCatalogueMethod(method) && score >= 90) {
         return true;
       }
+      // One candidate is obviously right (clear name match / sole industry fit /
+      // only real site in the pool) — no value in asking the user to confirm.
+      if (resolved.decisiveMatch) {
+        return true;
+      }
       if (
         resolved.financeFilterActive &&
         resolved.soleFinanceMatch &&
@@ -2081,13 +2086,14 @@
     ]);
     const UNRELATED_INDUSTRY_PHRASES = [
       'retail', 'grocery', 'supermarket', 'restaurant', 'restaurants', 'cafe', 'coffee shop',
-      'entertainment', 'media', 'publishing', 'newspaper', 'magazine', 'music',
+      'bakery', 'entertainment', 'media', 'publishing', 'newspaper', 'magazine', 'music',
       'gaming', 'video game', 'cinema', 'film studio', 'movie', 'television',
       'fashion', 'apparel', 'clothing', 'cosmetics', 'beauty',
       'food & beverage', 'food and beverage', 'hotel', 'hospitality', 'travel agency',
       'sports', 'nightlife', 'casino', 'e-commerce', 'ecommerce', 'marketplace',
       'consumer goods', 'consumer electronics', 'cpg', 'toys', 'grocery store',
       'fast food', 'supermarket', 'streaming entertainment',
+      'hospital', 'healthcare', 'health care', 'clinic', 'medical center',
       'biotech', 'biotechnology', 'therapeutics', 'pharmaceutical', 'medical device',
       'robotics', 'aerospace', 'semiconductor'
     ];
@@ -2132,6 +2138,265 @@
 
     function isFinanceTypedCandidate(c, queryCompanyName = '') {
       return classifyFinanceAffinity(c, queryCompanyName) === 'finance';
+    }
+
+    // --- Decisive candidate detection ---------------------------------------
+    // A human looking at the picker often sees one obviously-right option. These
+    // helpers encode that judgement so obvious picks skip manual Confirm, while
+    // genuine two-plausible-companies cases stay in the picker.
+
+    const LEGAL_SUFFIX_RE = /\b(inc|incorporated|llc|l\.l\.c|llp|lp|plc|ltd|limited|co|corp|corporation|company|gmbh|ag|sa|nv|bv|pvt|pte|spa|srl)\b/gi;
+
+    // Tokens that describe the kind of firm rather than its brand. A token in here can
+    // never stand alone as the brand, which stops "State of Wisconsin …" → state.gov.
+    const GENERIC_ORG_TOKENS = new Set([
+      'capital', 'partners', 'partner', 'management', 'advisors', 'advisor', 'advisory',
+      'group', 'holdings', 'holding', 'associates', 'investments', 'investment', 'ventures',
+      'venture', 'fund', 'funds', 'asset', 'assets', 'wealth', 'securities', 'foundation',
+      'endowment', 'trust', 'system', 'systems', 'university', 'college', 'institute',
+      'office', 'board', 'retirement', 'global', 'international', 'financial', 'finance',
+      'equity', 'credit', 'services', 'service', 'solutions', 'company', 'llc', 'inc',
+      'ltd', 'limited', 'corp', 'corporation', 'llp', 'lp',
+      'state', 'city', 'county', 'public', 'employees', 'employee', 'teachers', 'teacher',
+      'municipal', 'federal', 'national', 'regional', 'department', 'authority', 'agency',
+      'commission', 'association', 'council', 'district'
+    ]);
+
+    // TLDs we trust enough to auto-select on. Deliberately excludes country domains
+    // like .in / .pl, where a same-brand foreign firm is a common false positive.
+    const DECISIVE_ALLOWED_TLDS = new Set([
+      'com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'ai', 'us', 'uk',
+      'capital', 'fund', 'finance', 'ventures', 'investments',
+      'com.au', 'co.uk', 'org.uk'
+    ]);
+
+    // Directories / social / data brokers — never a company's own website
+    const AGGREGATOR_DOMAINS = new Set([
+      'linkedin.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'youtube.com',
+      'tiktok.com', 'pinterest.com', 'reddit.com', 'crunchbase.com', 'pitchbook.com',
+      'zoominfo.com', 'dnb.com', 'bloomberg.com', 'reuters.com', 'forbes.com', 'glassdoor.com',
+      'indeed.com', 'yelp.com', 'wikipedia.org', 'wikidata.org', 'wikimedia.org', 'medium.com',
+      'owler.com', 'rocketreach.co', 'signalhire.com', 'zippia.com', 'trustpilot.com',
+      'mapquest.com', 'bbb.org', 'manta.com', 'bizapedia.com', 'opencorporates.com',
+      'apollo.io', 'leadiq.com', 'lusha.com', 'google.com', 'bing.com', 'duckduckgo.com'
+    ]);
+
+    // Site builders / blog hosts — a real firm rarely lives on the bare host
+    const FREE_HOST_SUFFIXES = [
+      'wordpress.com', 'blogspot.com', 'wixsite.com', 'weebly.com', 'squarespace.com',
+      'godaddysites.com', 'sites.google.com', 'tumblr.com', 'substack.com', 'notion.site',
+      'github.io', 'webflow.io', 'myshopify.com'
+    ];
+
+    // Domain-for-sale / parking services
+    const PARKED_DOMAINS = new Set([
+      'hugedomains.com', 'buydomains.com', 'afternic.com', 'sedo.com', 'dan.com',
+      'parkingcrew.net', 'bodis.com', 'domainmarket.com', 'squadhelp.com', 'brandbucket.com'
+    ]);
+
+    /** Company-name forms a human would accept as "the same company". */
+    function decisiveNameForms(companyName) {
+      const raw = String(companyName || '');
+      const aliases = [];
+      const parenRe = /\(([^)]{2,40})\)/g;
+      let m;
+      while ((m = parenRe.exec(raw))) aliases.push(m[1]);
+
+      const base = raw.replace(/\([^)]*\)/g, ' ');
+      const noLegal = base.replace(LEGAL_SUFFIX_RE, ' ').replace(/&/g, ' ');
+      const stop = new Set(['the', 'of', 'and', 'for', 'a', 'an', 'at', 'in', 'on', 'to']);
+      const tokens = noLegal
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(t => t && !stop.has(t));
+
+      const coreTokens = [];
+      for (const t of tokens) {
+        if (GENERIC_ORG_TOKENS.has(t)) break;
+        coreTokens.push(t);
+      }
+
+      return {
+        key: companyKeyNormLite(noLegal),
+        coreKey: companyKeyNormLite(coreTokens.join('')),
+        acronym: tokens.length >= 2 ? tokens.map(t => t[0]).join('') : '',
+        aliasKeys: aliases.map(a => companyKeyNormLite(a)).filter(a => a.length >= 3),
+        tokens
+      };
+    }
+
+    /**
+     * How close a candidate is to *being* the company by name alone (0-100).
+     * Deliberately independent of the noisy total score so it can arbitrate ties.
+     */
+    function candidateNameCloseness(companyName, candidate) {
+      const forms = decisiveNameForms(companyName);
+      if (!forms.key) return { score: 0, kind: 'none' };
+
+      const host = String(candidate?.domain || '').toLowerCase().replace(/^www\./, '');
+      const domBase = companyKeyNormLite((host.split('.')[0] || ''));
+      const entKey = companyKeyNormLite(String(candidate?.name || '').replace(LEGAL_SUFFIX_RE, ' '));
+
+      if (domBase && domBase === forms.key) return { score: 100, kind: 'exact-domain' };
+      if (entKey && entKey === forms.key) return { score: 95, kind: 'exact-name' };
+      // Explicit alias spelled out by the user, e.g. "… (CalPERS)" → calpers.*
+      if (domBase && forms.aliasKeys.includes(domBase)) return { score: 92, kind: 'alias-domain' };
+      if (domBase && forms.coreKey && domBase === forms.coreKey) return { score: 90, kind: 'brand-core' };
+      if (domBase && forms.acronym.length >= 3 && domBase === forms.acronym) return { score: 88, kind: 'acronym-domain' };
+      // "Willkie Farr & Gallagher" → willkie.com
+      if (domBase && forms.coreKey && forms.coreKey.startsWith(domBase) && domBase.length >= 5) {
+        return { score: 82, kind: 'brand-prefix' };
+      }
+      // Short brands (UBS, IBM, TIAA): the apex is exactly the leading brand token
+      if (domBase && forms.tokens.length > 1 && domBase.length >= 3
+        && domBase === companyKeyNormLite(forms.tokens[0])
+        && !GENERIC_ORG_TOKENS.has(forms.tokens[0])) {
+        return { score: 80, kind: 'brand-token' };
+      }
+      if (domBase && forms.key.startsWith(domBase) && domBase.length >= 6) {
+        return { score: 78, kind: 'name-prefix' };
+      }
+      if (entKey && (entKey.startsWith(forms.key) || forms.key.startsWith(entKey))
+        && Math.min(entKey.length, forms.key.length) >= 6) {
+        return { score: 70, kind: 'name-overlap' };
+      }
+
+      const hostBlob = host.replace(/[^a-z0-9]/g, '');
+      const contentTokens = forms.tokens.filter(t => t.length > 3 && !GENERIC_ORG_TOKENS.has(t));
+      if (contentTokens.length) {
+        const hits = contentTokens.filter(t => hostBlob.includes(t) || entKey.includes(t)).length;
+        const ratio = hits / contentTokens.length;
+        if (ratio >= 1) return { score: 66, kind: 'all-tokens' };
+        if (ratio >= 0.5) return { score: 40, kind: 'some-tokens' };
+        if (hits > 0) return { score: 25, kind: 'weak-tokens' };
+      }
+      return { score: 0, kind: 'none' };
+    }
+
+    /**
+     * Quality of a name match, coarser than the raw closeness number:
+     *   3 = the whole company name (exact domain/entity name, or a spelled-out alias)
+     *   2 = the company's brand, minus descriptive words
+     *   1 = some shared tokens only
+     * A tier-3 match beats a tier-2 rival, so "Helios & Partners" picks
+     * heliospartners.com over helios.pl without asking.
+     */
+    function closenessTier(score) {
+      if (score >= 92) return 3;
+      if (score >= 78) return 2;
+      if (score >= 40) return 1;
+      return 0;
+    }
+
+    /** Same brand, but a country-specific site (metlife.com.mx next to metlife.com). */
+    function isRegionalSibling(rival, best) {
+      const rivalHost = String(rival?.domain || '').toLowerCase().replace(/^www\./, '');
+      const bestHost = String(best?.domain || '').toLowerCase().replace(/^www\./, '');
+      const rivalBase = companyKeyNormLite(rivalHost.split('.')[0] || '');
+      const bestBase = companyKeyNormLite(bestHost.split('.')[0] || '');
+      if (!rivalBase || rivalBase !== bestBase) return false;
+      const rivalIsCountry = /\.[a-z]{2}$/i.test(rivalHost)
+        && !/\.(com|org|net|io|co|ai|us)$/i.test(rivalHost);
+      const bestIsGeneric = /\.(com|org|net|io|ai|edu|gov)$/i.test(bestHost);
+      return rivalIsCountry && bestIsGeneric;
+    }
+
+    /** Parked domain, directory listing, blog host, or a dead/off-topic page. */
+    function isJunkCandidate(candidate, closeness = 0) {
+      const host = String(candidate?.domain || '').toLowerCase().replace(/^www\./, '');
+      if (!host) return true;
+      // A whole-name match is the company, whatever else it looks like
+      if (closenessTier(closeness) >= 3) return false;
+      const registrable = host.split('.').slice(-2).join('.');
+      if (AGGREGATOR_DOMAINS.has(host) || AGGREGATOR_DOMAINS.has(registrable)) return true;
+      if (PARKED_DOMAINS.has(registrable)) return true;
+      if (FREE_HOST_SUFFIXES.some(s => host === s || host.endsWith('.' + s))) return true;
+      if (candidate?.dnsOk === false) return true;
+      if (candidate?.contentMention === false && closeness < 60) return true;
+      return false;
+    }
+
+    /**
+     * Decide whether one candidate is obviously correct. Returns null whenever two
+     * or more candidates are genuinely plausible — that stays a human decision.
+     *
+     * @param ranked ordered candidates, best first (with dnsOk / contentMention signals)
+     */
+    function evaluateDecisiveCandidate(companyName, ranked, options = {}) {
+      const financeFilterActive = !!options.financeFilterActive;
+      const list = (ranked || []).filter(c => c && c.domain);
+      if (!list.length) return null;
+
+      const enriched = list.map(c => {
+        const nm = candidateNameCloseness(companyName, c);
+        return { ...c, closeness: nm.score, closenessKind: nm.kind, junk: isJunkCandidate(c, nm.score) };
+      });
+
+      const best = enriched[0];
+      if (!best || best.junk || best.dnsOk === false) return null;
+      // Never auto-select a page that provably doesn't mention the company, unless the
+      // domain is the company's full name (then the scrape is the unreliable signal)
+      if (best.contentMention === false && closenessTier(best.closeness) < 3) return null;
+      // Country domains stay manual unless the user named the country
+      if (!DECISIVE_ALLOWED_TLDS.has(registrableTld(best.domain))
+        && !/\b(australia|austria|brazil|canada|china|france|germany|india|ireland|israel|italy|japan|korea|mexico|netherlands|poland|singapore|spain|sweden|switzerland|uk|britain|england)\b/i.test(companyName)) {
+        return null;
+      }
+
+      // A one-word name ("Tide", "Stable") collides with unrelated consumer brands.
+      // In a finance list, only trust it when the winner actually reads as finance.
+      const forms = decisiveNameForms(companyName);
+      if (forms.tokens.length <= 1 && financeFilterActive
+        && classifyFinanceAffinity(best, companyName) !== 'finance') {
+        return null;
+      }
+
+      const score = Number(best.totalScore) || 0;
+      const floor = RESOLVE_CONFIDENCE_THRESHOLD - 12;
+      const others = enriched.slice(1);
+      const liveOthers = others.filter(c => !c.junk);
+      const nextCloseness = liveOthers.length ? Math.max(...liveOthers.map(c => c.closeness)) : 0;
+
+      // 1) Clear name match and nothing else matches at the same quality
+      const bestTier = closenessTier(best.closeness);
+      if (bestTier >= 2 && score >= floor) {
+        const rivals = liveOthers.filter(c =>
+          closenessTier(c.closeness) >= bestTier && !isRegionalSibling(c, best)
+        );
+        if (!rivals.length) {
+          return {
+            domain: best.domain,
+            rule: 'name-match',
+            detail: `${best.closenessKind} ${best.closeness} (tier ${bestTier}) vs next ${nextCloseness}`
+          };
+        }
+      }
+
+      // 2) Exactly one candidate fits the industry context; the rest are clearly unrelated
+      if (financeFilterActive && liveOthers.length && best.closeness >= 40 && score >= floor
+        && classifyFinanceAffinity(best, companyName) === 'finance') {
+        const contextRivals = liveOthers.filter(c => classifyFinanceAffinity(c, companyName) !== 'unrelated');
+        if (!contextRivals.length) {
+          return {
+            domain: best.domain,
+            rule: 'context-match',
+            detail: `sole finance match, ${liveOthers.length} unrelated peer(s)`
+          };
+        }
+      }
+
+      // 3) Only one candidate is a real, reachable company site
+      if (others.length && !liveOthers.length && best.closeness >= 40
+        && score >= RESOLVE_CONFIDENCE_THRESHOLD - 15) {
+        return {
+          domain: best.domain,
+          rule: 'sole-legit',
+          detail: `${others.length} parked/dead/directory peer(s)`
+        };
+      }
+
+      return null;
     }
 
     async function fetchWikiApiJson(url, { label = 'wiki' } = {}) {
@@ -2754,8 +3019,11 @@
         Math.abs(best.totalScore - runnerUp.totalScore) < RESOLVE_AMBIGUITY_GAP &&
         runnerUp.totalScore >= RESOLVE_CONFIDENCE_THRESHOLD - 15
       );
+      // Same-name entities across jurisdictions are a real human decision — keep them ambiguous
+      let forcedAmbiguous = false;
       if (secFamily.length >= 2 && /securities and exchange|^\s*sec\s*$/i.test(companyName)) {
         ambiguous = true;
+        forcedAmbiguous = true;
         const usSec = contenders.find(c => c.domain === 'sec.gov');
         if (usSec) best = usSec;
         // Ensure foreign SEC peers stay in the candidate list for the picker
@@ -2768,6 +3036,7 @@
         const runnerUs = /\.gov$/i.test(runnerUp.domain) && !/\.gov\.[a-z]{2}$/i.test(runnerUp.domain);
         if (bestForeign && runnerUs && runnerUp.totalScore >= best.totalScore - 25) {
           ambiguous = true;
+          forcedAmbiguous = true;
           best = runnerUp;
         }
       }
@@ -2821,6 +3090,18 @@
         }
       }
 
+      // One obviously-correct option → auto-select instead of asking the user.
+      // Skipped when ambiguity was forced above (same-name entities in different jurisdictions).
+      let decisive = null;
+      if (best && !forcedAmbiguous) {
+        const orderedForDecisive = [best, ...contenders.filter(c => c.domain !== best.domain)];
+        decisive = evaluateDecisiveCandidate(companyName, orderedForDecisive, { financeFilterActive });
+        if (decisive) {
+          ambiguous = false;
+          console.log('[resolve] DECISIVE', companyName, '->', decisive.domain, `(${decisive.rule}: ${decisive.detail})`);
+        }
+      }
+
       const candidates = ranked.slice(0, 8).map(c => ({
         domain: c.domain,
         name: c.name || c.domain,
@@ -2831,7 +3112,7 @@
         financeAffinity: c.financeAffinity || classifyFinanceAffinity(c, companyName)
       }));
 
-      return { best, ambiguous, candidates, ranked: contenders, soleFinanceMatch, soleDominant };
+      return { best, ambiguous, candidates, ranked: contenders, soleFinanceMatch, soleDominant, decisive };
     }
 
     /**
@@ -3780,7 +4061,13 @@
         sourcesArr.includes('wikipedia') ||
         sourcesArr.includes('duckduckgo') ||
         sourcesArr.includes('dictionary');
-      const clearsThreshold = score >= RESOLVE_CONFIDENCE_THRESHOLD && !ranked.ambiguous && credible;
+      // A decisive candidate is a confident recommendation even when the raw score
+      // lands in the Potential band (e.g. willkie.com at 67).
+      const decisiveMatch = ranked.decisive && ranked.decisive.domain === ranked.best.domain
+        ? ranked.decisive
+        : null;
+      const clearsThreshold = (score >= RESOLVE_CONFIDENCE_THRESHOLD && !ranked.ambiguous && credible)
+        || !!decisiveMatch;
       const methodSources = [...new Set(ranked.best.sources || [])];
       const resolveMethod = methodSources.length ? methodSources.join('+') : 'multi-source';
       const soleFinanceMatch = !!ranked.soleFinanceMatch;
@@ -3813,6 +4100,7 @@
         resolveMethod,
         financeFilterActive,
         soleFinanceMatch,
+        decisiveMatch,
         ambiguous: !!ranked.ambiguous,
         fastPath: clearsThreshold && (ranked.best.exactName || methodSources.includes('wikidata') || soleFinanceMatch)
       });
@@ -5635,6 +5923,7 @@
               let candidates = rowToProcess.candidates || [];
               let resolveMethod = rowToProcess.resolveMethod || 'name-only';
               let fastPath = false;
+              let autoSelectNote = '';
               const userConfirmed = !!rowToProcess.userConfirmedDomain;
               const skippedDomains = rowToProcess.skippedDomains || [];
 
@@ -5680,6 +5969,14 @@
                     confidenceSignals: confidenceSignals || resolvedObj.confidenceSignals
                   });
                   const trustedCatalogue = isTrustedCatalogueMethod(resolveMethod);
+                  const decisive = resolvedObj.decisiveMatch || null;
+                  // Only annotate when the pick came out of the Potential band via decisiveness
+                  if (decisive && confidenceScore < RESOLVE_AUTO_FOUND_THRESHOLD) {
+                    const label = decisive.rule === 'name-match'
+                      ? 'clear name match'
+                      : (decisive.rule === 'context-match' ? 'only industry-matching option' : 'only real company site');
+                    autoSelectNote = `Auto-selected (${label})`;
+                  }
 
                   // Skip expensive option-gathering on trusted auto-Found (was delaying Enriched for minutes)
                   const baseCandidates = normalizeCandidates(
@@ -5876,7 +6173,7 @@
               const noteWithSnippet = industrySnippet && details.notes && !details.notes.includes(industrySnippet)
                 ? `${details.notes} [${industrySnippet}]`
                 : details.notes;
-              const mergedNotes = [priorNotes, noteWithSnippet].filter(Boolean).join(' · ');
+              const mergedNotes = [priorNotes, noteWithSnippet, autoSelectNote].filter(Boolean).join(' · ');
               const keepForLater = normalizeCandidates(
                 rowToProcess.savedCandidates,
                 rowToProcess.candidates,

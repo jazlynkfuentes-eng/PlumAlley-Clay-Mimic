@@ -1,0 +1,503 @@
+{
+  "labels": [
+    "Total Rows:63",
+    "Enriched:44",
+    "Potential:18",
+    "Unverified:1",
+    "Queue:0"
+  ],
+  "summary": {
+    "Found": 44,
+    "Unverified": 1,
+    "Potential Link": 18
+  },
+  "rows": [
+    {
+      "badge": "Found",
+      "company": "Cara Advisory",
+      "website": "caraadvisory.comChange selection",
+      "notes": "Independent investment advisory and wealth portal. [Financial Advisors]"
+    },
+    {
+      "badge": "Found",
+      "company": "Office of New York City Comptroller",
+      "website": "comptroller.nyc.govChange selection",
+      "notes": "Unknown [New York City Comptroller · Government]"
+    },
+    {
+      "badge": "Found",
+      "company": "West Virginia University Foundation",
+      "website": "wvu.eduChange selection",
+      "notes": "Unknown [public university in Morgantown, West Virginia, United States]"
+    },
+    {
+      "badge": "Found",
+      "company": "NAV Fund Services",
+      "website": "navfundservices.comChange selection",
+      "notes": "Global fund administrator providing back- and middle-office services. [Fund Admi"
+    },
+    {
+      "badge": "Found",
+      "company": "PIMCO",
+      "website": "pimco.comChange selection",
+      "notes": "Unknown [PIMCO · Investment Management]"
+    },
+    {
+      "badge": "Unverified",
+      "company": "Private Fund",
+      "website": "",
+      "notes": "Moderator · Skipped: not a searchable company entity"
+    },
+    {
+      "badge": "Found",
+      "company": "Stable",
+      "website": "stableam.comChange selection",
+      "notes": "Stable Asset Management — GP stakes and partnerships with emerging managers. [St"
+    },
+    {
+      "badge": "Found",
+      "company": "Albourne",
+      "website": "visionwebsites.co.ukChange selection",
+      "notes": "Unknown [Albourne is a village and civil parish in the Mid Sussex district of We"
+    },
+    {
+      "badge": "Found",
+      "company": "CANY Capital LLC",
+      "website": "chevychaseland.comChange selection",
+      "notes": "Unknown [American commercial real estate asset management firm; formerly named T"
+    },
+    {
+      "badge": "Found",
+      "company": "Stable Asset Management",
+      "website": "stableam.comChange selection",
+      "notes": "Stable Asset Management — GP stakes and partnerships with emerging managers. [St"
+    },
+    {
+      "badge": "Found",
+      "company": "SFG Asset Advisors",
+      "website": "sfgaa.comChange selection",
+      "notes": "Moderator · Unknown [SFG Asset Advisors · finance]"
+    },
+    {
+      "badge": "Found",
+      "company": "Marex Capital Markets",
+      "website": "marex.comChange selection",
+      "notes": "Global financial services and commodities broker. [Financial Brokerage]"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "Summit Rock Advisors",
+      "website": "Possible matches (unconfirmed)SRAMsram.c",
+      "notes": "Moderator · Could not fetch page to confirm company match · Pick a website below"
+    },
+    {
+      "badge": "Found",
+      "company": "State of Wisconsin Investment Board",
+      "website": "swib.state.wi.usChange selection",
+      "notes": "SWIB · Unknown [The State of Wisconsin Investment Board is an independent agency"
+    },
+    {
+      "badge": "Found",
+      "company": "Milken Institute",
+      "website": "milkeninstitute.orgChange selection",
+      "notes": "Economic think tank accelerating finance-driven global developments. [Think Tank"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "100WF",
+      "website": "Possible matches (unconfirmed)Wf Capital",
+      "notes": "Could not fetch page to confirm company match · Pick a website below"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "IH International Advisors",
+      "website": "iia.clSelect correct websiteIIAiia.clcle",
+      "notes": "Select the correct website below"
+    },
+    {
+      "badge": "Found",
+      "company": "Charles Stewart Mott Foundation",
+      "website": "mott.orgChange selection",
+      "notes": "Unknown [private foundation based in Flint, Michigan, United States]"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "Willkie Farr & Gallagher LLP",
+      "website": "willkie.comPossible matches (unconfirmed",
+      "notes": "Low confidence (score 67) — confirm a website"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "Children's Health System of Texas",
+      "website": "childrens.comPossible matches (unconfirm",
+      "notes": "Low confidence (score 67) — confirm a website"
+    },
+    {
+      "badge": "Found",
+      "company": "Salt Creek Capital",
+      "website": "saltcreekcap.comChange selection",
+      "notes": "Unknown [Salt Creek Capital · finance]"
+    },
+    {
+      "badge": "Found",
+      "company": "Marex Capital Markets",
+      "website": "marex.comChange selection",
+      "notes": "Global financial services and commodities broker. [Financial Brokerage]"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "Helios & Partners Limited",
+      "website": "heliospartners.comPossible matches (unco",
+      "notes": "Low confidence (score 67) — confirm a website"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "Archer Asia – Rockhampton Management Limited",
+      "website": "archer-asia.comPossible matches (unconfi",
+      "notes": "Low confidence (score 67) — confirm a website"
+    },
+    {
+      "badge": "Found",
+      "company": "Courage Small Business Partners",
+      "website": "csbp.com.auChange selection",
+      "notes": "Unknown [CSBP · score 87]"
+    },
+    {
+      "badge": "Found",
+      "company": "Los Angeles City Employees' Retirement System",
+      "website": "lacers.orgChange selection",
+      "notes": "Unknown [LACERS · score 81]"
+    },
+    {
+      "badge": "Found",
+      "company": "Heard Capital",
+      "website": "heardcapital.comChange selection",
+      "notes": "Long-short fundamental equity investing platform. [Asset Management]"
+    },
+    {
+      "badge": "Found",
+      "company": "Cara Advisory",
+      "website": "caraadvisory.comChange selection",
+      "notes": "Independent investment advisory and wealth portal. [Financial Advisors]"
+    },
+    {
+      "badge": "Found",
+      "company": "Strategic Investment Group",
+      "website": "strategicgroup.comChange selection",
+      "notes": "Unknown [American investment manager]"
+    },
+    {
+      "badge": "Found",
+      "company": "Mellon Foundation",
+      "website": "mellon.orgChange selection",
+      "notes": "Unknown [Mellon Foundation · score 87]"
+    },
+    {
+      "badge": "Found",
+      "company": "Disciplina Capital Management",
+      "website": "disciplina.comChange selection",
+      "notes": "Also: Disciplina Group LLC · Boutique OCIO firm (also dba Disciplina Group). [OC"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "UBS Hedge Fund Solutions",
+      "website": "Possible matches (unconfirmed)UHF Soluti",
+      "notes": "Could not fetch page to confirm company match · Pick a website below"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "The Kresge Foundation",
+      "website": "kresge.orgPossible matches (unconfirmed)",
+      "notes": "Low confidence (score 83) — confirm a website"
+    },
+    {
+      "badge": "Found",
+      "company": "Blackstone",
+      "website": "blackstone.comChange selection",
+      "notes": "Global alternative asset manager and private equity firm (The Blackstone Group)."
+    },
+    {
+      "badge": "Found",
+      "company": "Northside Capital Management LLC",
+      "website": "northsidecap.comChange selection",
+      "notes": "Unknown [Northside Capital Management · finance]"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "Illinois Municipal Retirement Fund",
+      "website": "Possible matches (unconfirmed)IMRFimrf.o",
+      "notes": "Could not fetch page to confirm company match · Pick a website below"
+    },
+    {
+      "badge": "Found",
+      "company": "Morgan Stanley Wealth Management",
+      "website": "morganstanley.comChange selection",
+      "notes": "Unknown [Morgan Stanley · finance]"
+    },
+    {
+      "badge": "Found",
+      "company": "Morgan Stanley Wealth Management",
+      "website": "morganstanley.comChange selection",
+      "notes": "Moderator · Unknown [Morgan Stanley · finance]"
+    },
+    {
+      "badge": "Found",
+      "company": "UBS",
+      "website": "ubs.comChange selection",
+      "notes": "Unknown [Swiss multinational investment bank and financial services company]"
+    },
+    {
+      "badge": "Found",
+      "company": "Fordham University",
+      "website": "fordham.eduChange selection",
+      "notes": "Private Jesuit research university in New York City. [Fordham University · Educa"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "TSWII Capital Advisors",
+      "website": "tswii.comPossible matches (unconfirmed)T",
+      "notes": "Low confidence (score 67) — confirm a website"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "Avala Global",
+      "website": "Possible matches (unconfirmed)Agatha Chr",
+      "notes": "Could not fetch page to confirm company match · Pick a website below"
+    },
+    {
+      "badge": "Found",
+      "company": "The Robert Wood Johnson Foundation",
+      "website": "rwjf.orgChange selection",
+      "notes": "Unknown [American philanthropic organization]"
+    },
+    {
+      "badge": "Found",
+      "company": "Lumen Global Investments LLC",
+      "website": "lumenglobalinv.comChange selection",
+      "notes": "Unknown [Lumen Global Investments · finance]"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "dakota Marketplace",
+      "website": "Possible matches (unconfirmed)DMXdmx-off",
+      "notes": "Could not fetch page to confirm company match · Pick a website below"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "MetLife Investment Management",
+      "website": "metlife.comPossible matches (unconfirmed",
+      "notes": "Low confidence (score 67) — confirm a website"
+    },
+    {
+      "badge": "Found",
+      "company": "University of Rochester",
+      "website": "rochester.eduChange selection",
+      "notes": "Unknown [private, nonsectarian, research university in Rochester, New York, Unit"
+    },
+    {
+      "badge": "Found",
+      "company": "TIDE",
+      "website": "tide.comChange selection",
+      "notes": "Unknown [Tide · score 81]"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "Impactus Partners",
+      "website": "Possible matches (unconfirmed)Impactus P",
+      "notes": "Moderator · Also: 100WF Board Member · Domain does not resolve (DNS) · Pick a we"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "Angeles Wealth Management LLC",
+      "website": "Possible matches (unconfirmed)Away (comp",
+      "notes": "Could not fetch page to confirm company match · Pick a website below"
+    },
+    {
+      "badge": "Found",
+      "company": "Mayar Capital",
+      "website": "mayarcapital.comChange selection",
+      "notes": "Moderator · Unknown [Mayar Capital® · finance]"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "Willkie Farr & Gallagher LLP",
+      "website": "willkie.comPossible matches (unconfirmed",
+      "notes": "Low confidence (score 67) — confirm a website"
+    },
+    {
+      "badge": "Found",
+      "company": "Milken Institute",
+      "website": "milkeninstitute.orgChange selection",
+      "notes": "Economic think tank accelerating finance-driven global developments. [Think Tank"
+    },
+    {
+      "badge": "Found",
+      "company": "Northern Trust",
+      "website": "northerntrust.comChange selection",
+      "notes": "Unknown [American financial services company]"
+    },
+    {
+      "badge": "Found",
+      "company": "California Public Employees' Retirement System",
+      "website": "cpers.com.brChange selection",
+      "notes": "CalPERS · Unknown [CPERS · score 81]"
+    },
+    {
+      "badge": "Found",
+      "company": "Teachers Retirement System of Texas",
+      "website": "trs.texas.govChange selection",
+      "notes": "TRS · Unknown [teacher retirement investment fund of Texas]"
+    },
+    {
+      "badge": "Found",
+      "company": "Milken Institute",
+      "website": "milkeninstitute.orgChange selection",
+      "notes": "Economic think tank accelerating finance-driven global developments. [Think Tank"
+    },
+    {
+      "badge": "Found",
+      "company": "Lakeview Capital Management",
+      "website": "lakeview.capitalChange selection",
+      "notes": "Unknown [Lakeview Capital · finance]"
+    },
+    {
+      "badge": "Found",
+      "company": "Trinity Church Wall Street",
+      "website": "trinitywallstreet.orgChange selection",
+      "notes": "Unknown [Trinity Church Wall Street · score 81]"
+    },
+    {
+      "badge": "Found",
+      "company": "Power100",
+      "website": "power100.com.auChange selection",
+      "notes": "Unknown [Australian radio station]"
+    },
+    {
+      "badge": "Found",
+      "company": "CPP Investments",
+      "website": "cppib.comChange selection",
+      "notes": "Unknown [Canada Pension Plan Investment Board]"
+    },
+    {
+      "badge": "Potential Link",
+      "company": "Gilder Office for Growth",
+      "website": "Possible matches (unconfirmed)GOG.comgog",
+      "notes": "Could not fetch page to confirm company match · Pick a website below"
+    },
+    {
+      "badge": "Found",
+      "company": "Inatai Foundation",
+      "website": "inatai.orgChange selection",
+      "notes": "FKA Group Health Foundation · Grantmaking foundation promoting equity and commun"
+    }
+  ],
+  "logs": [
+    "[batch] starting with concurrency=6; enrichment uniqueness registry cleared",
+    "[resolve] FAST PATH dictionary Cara Advisory -> caraadvisory.com",
+    "[resolve] MAJOR FIRM canonical Office of New York City Comptroller -> comptroller.nyc.gov",
+    "[resolve] multi-source gather for West Virginia University Foundation",
+    "[resolve] FAST PATH dictionary NAV Fund Services -> navfundservices.com",
+    "[resolve] MAJOR FIRM canonical PIMCO -> pimco.com",
+    "[resolve] MAJOR FIRM canonical Stable -> stableam.com",
+    "[resolve] ranked West Virginia University Foundation -> wvu.edu score= 99 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 46, wikiNotability: 12, multiSource: 12, dns: 23, content: 0}",
+    "[resolve] multi-source gather for Albourne",
+    "[resolve] multi-source gather for CANY Capital LLC",
+    "[resolve] MAJOR FIRM canonical Stable Asset Management -> stableam.com",
+    "[resolve] multi-source gather for SFG Asset Advisors",
+    "[resolve] FAST PATH dictionary fuzzy Marex Capital Markets -> marex.com",
+    "[resolve] multi-source gather for Summit Rock Advisors",
+    "[resolve] ranked Albourne -> visionwebsites.co.uk score= 96 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 44, wikiNotability: 12, multiSource: 17, dns: 23, content: 0}",
+    "[resolve] ranked CANY Capital LLC -> chevychaseland.com score= 86 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 37 signals= {nameSimilarity: 4, wikiNotability: 12, multiSource: 12, dns: 15, content: 0}",
+    "[resolve] ranked SFG Asset Advisors -> sfgaa.com score= 115 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 8, dns: 23, content: 0}",
+    "[resolve] ranked Summit Rock Advisors -> sram.com score= 63 threshold= 70 confident= false ambiguous= true soleFinance= false financePts= 0 signals= {nameSimilarity: 24, wikiNotability: 12, multiSource: 12, dns: 15, content: 0}",
+    "[resolve] multi-source gather for State of Wisconsin Investment Board",
+    "[resolve] ranked State of Wisconsin Investment Board -> swib.state.wi.us score= 142 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 50, wikiNotability: 12, multiSource: 17, dns: 23, content: 0}",
+    "[resolve] FAST PATH dictionary Milken Institute -> milkeninstitute.org",
+    "[resolve] multi-source gather for 100WF",
+    "[resolve] multi-source gather for IH International Advisors",
+    "[resolve] ranked 100WF -> wfcapital.com.br score= 49 threshold= 70 confident= false ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 0, wikiNotability: 0, multiSource: 0, dns: 15, content: 0}",
+    "[resolve] multi-source gather for Charles Stewart Mott Foundation",
+    "[resolve] ranked IH International Advisors -> iia.cl score= 81 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 50, wikiNotability: 0, multiSource: 8, dns: 23, content: 0}",
+    "[resolve] multi-source gather for Willkie Farr & Gallagher LLP",
+    "[resolve] multi-source gather for Children's Health System of Texas",
+    "[resolve] ranked Willkie Farr & Gallagher LLP -> willkie.com score= 67 threshold= 70 confident= false ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 0, dns: 23, content: 0}",
+    "[resolve] multi-source gather for Salt Creek Capital",
+    "[resolve] ranked Charles Stewart Mott Foundation -> mott.org score= 103 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 50, wikiNotability: 12, multiSource: 12, dns: 23, content: 0}",
+    "[resolve] ranked Children's Health System of Texas -> childrens.com score= 67 threshold= 70 confident= false ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 0, dns: 23, content: 0}",
+    "[resolve] CACHE HIT Marex Capital Markets -> marex.com",
+    "[resolve] multi-source gather for Helios & Partners Limited",
+    "[resolve] multi-source gather for Archer Asia – Rockhampton Management Limited",
+    "[resolve] ranked Salt Creek Capital -> saltcreekcap.com score= 121 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 50, wikiNotability: 0, multiSource: 8, dns: 23, content: 0}",
+    "[resolve] ranked Helios & Partners Limited -> heliospartners.com score= 67 threshold= 70 confident= false ambiguous= true soleFinance= false financePts= 0 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 0, dns: 23, content: 0}",
+    "[resolve] multi-source gather for Courage Small Business Partners",
+    "[resolve] ranked Archer Asia – Rockhampton Management Limited -> archer-asia.com score= 67 threshold= 70 confident= false ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 0, dns: 23, content: 0}",
+    "[resolve] multi-source gather for Los Angeles City Employees' Retirement System",
+    "[resolve] ranked Los Angeles City Employees' Retirement System -> lacers.org score= 81 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 50, wikiNotability: 0, multiSource: 8, dns: 23, content: 0}",
+    "[resolve] ranked Courage Small Business Partners -> csbp.com.au score= 87 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 50, wikiNotability: 0, multiSource: 8, dns: 23, content: 0}",
+    "[resolve] FAST PATH dictionary Heard Capital -> heardcapital.com",
+    "[resolve] CACHE HIT Cara Advisory -> caraadvisory.com",
+    "[resolve] multi-source gather for Strategic Investment Group",
+    "[resolve] multi-source gather for Mellon Foundation",
+    "[resolve] ranked Strategic Investment Group -> strategicgroup.com score= 139 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 44, wikiNotability: 12, multiSource: 20, dns: 23, content: 0}",
+    "[resolve] FAST PATH dictionary Disciplina Capital Management -> disciplina.com",
+    "[resolve] ranked Mellon Foundation -> mellon.org score= 87 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 50, wikiNotability: 0, multiSource: 8, dns: 23, content: 0}",
+    "[resolve] multi-source gather for UBS Hedge Fund Solutions",
+    "[resolve] multi-source gather for The Kresge Foundation",
+    "[resolve] ranked UBS Hedge Fund Solutions -> uhfsolutions.com score= 45 threshold= 70 confident= false ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 30, wikiNotability: 0, multiSource: 0, dns: 15, content: 0}",
+    "[resolve] ranked The Kresge Foundation -> kresge.org score= 83 threshold= 70 confident= false ambiguous= true soleFinance= false financePts= 0 signals= {nameSimilarity: 36, wikiNotability: 12, multiSource: 12, dns: 23, content: 0}",
+    "[resolve] MAJOR FIRM canonical Blackstone -> blackstone.com",
+    "[resolve] multi-source gather for Northside Capital Management LLC",
+    "[resolve] ranked Northside Capital Management LLC -> northsidecap.com score= 107 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 0, dns: 23, content: 0}",
+    "[resolve] multi-source gather for Illinois Municipal Retirement Fund",
+    "[resolve] multi-source gather for Morgan Stanley Wealth Management",
+    "[resolve] multi-source gather for Morgan Stanley Wealth Management",
+    "[resolve] multi-source gather for UBS",
+    "[resolve] MAJOR FIRM canonical Fordham University -> fordham.edu",
+    "[resolve] ranked Illinois Municipal Retirement Fund -> imgworld.com score= 43 threshold= 70 confident= false ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 4, wikiNotability: 12, multiSource: 12, dns: 15, content: 0}",
+    "[resolve] multi-source gather for TSWII Capital Advisors",
+    "[resolve] multi-source gather for Avala Global",
+    "[resolve] ranked Morgan Stanley Wealth Management -> morganstanley.com score= 107 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 0, dns: 23, content: 0}",
+    "[resolve] ranked UBS -> ubs.com score= 145 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 50, wikiNotability: 12, multiSource: 20, dns: 23, content: 0}",
+    "[resolve] ranked Morgan Stanley Wealth Management -> morganstanley.com score= 107 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 0, dns: 23, content: 0}",
+    "[resolve] multi-source gather for The Robert Wood Johnson Foundation",
+    "[resolve] multi-source gather for Lumen Global Investments LLC",
+    "[resolve] ranked TSWII Capital Advisors -> tswii.com score= 67 threshold= 70 confident= false ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 0, dns: 23, content: 0}",
+    "[resolve] multi-source gather for dakota Marketplace",
+    "[resolve] multi-source gather for MetLife Investment Management",
+    "[resolve] ranked Avala Global -> agathachristie.com score= 63 threshold= 70 confident= false ambiguous= true soleFinance= false financePts= 0 signals= {nameSimilarity: 24, wikiNotability: 12, multiSource: 12, dns: 15, content: 0}",
+    "[resolve] multi-source gather for University of Rochester",
+    "[resolve] multi-source gather for TIDE",
+    "[resolve] ranked dakota Marketplace -> dmx-official.com score= 63 threshold= 70 confident= false ambiguous= true soleFinance= false financePts= 0 signals= {nameSimilarity: 24, wikiNotability: 12, multiSource: 12, dns: 15, content: 0}",
+    "[resolve] ranked MetLife Investment Management -> metlife.com score= 67 threshold= 70 confident= false ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 0, dns: 23, content: 0}",
+    "[resolve] FAST PATH dictionary Impactus Partners -> impactus-partners.com",
+    "[resolve] ranked TIDE -> tide.com score= 81 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 50, wikiNotability: 0, multiSource: 8, dns: 23, content: 0}",
+    "[resolve] multi-source gather for Angeles Wealth Management LLC",
+    "[resolve] ranked The Robert Wood Johnson Foundation -> rwjf.org score= 103 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 50, wikiNotability: 12, multiSource: 12, dns: 23, content: 0}",
+    "[resolve] ranked Lumen Global Investments LLC -> lumenglobalinv.com score= 107 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 0, dns: 23, content: 0}",
+    "[resolve] ranked University of Rochester -> rochester.edu score= 111 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 50, wikiNotability: 12, multiSource: 20, dns: 23, content: 0}",
+    "[resolve] multi-source gather for Mayar Capital",
+    "[resolve] CACHE HIT Willkie Farr & Gallagher LLP -> willkie.com",
+    "[resolve] CACHE HIT Milken Institute -> milkeninstitute.org",
+    "[resolve] multi-source gather for Northern Trust",
+    "[resolve] multi-source gather for California Public Employees' Retirement System",
+    "[resolve] multi-source gather for Teachers Retirement System of Texas",
+    "[resolve] CACHE HIT Milken Institute -> milkeninstitute.org",
+    "[resolve] ranked Mayar Capital -> mayarcapital.com score= 121 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 50, wikiNotability: 0, multiSource: 8, dns: 23, content: 0}",
+    "[resolve] ranked Angeles Wealth Management LLC -> awaytravel.com score= 43 threshold= 70 confident= false ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 4, wikiNotability: 12, multiSource: 12, dns: 15, content: 0}",
+    "[resolve] ranked Northern Trust -> northerntrust.com score= 145 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 50, wikiNotability: 12, multiSource: 20, dns: 23, content: 0}",
+    "[resolve] ranked California Public Employees' Retirement System -> cpers.com.br score= 81 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 50, wikiNotability: 0, multiSource: 8, dns: 23, content: 0}",
+    "[resolve] ranked Teachers Retirement System of Texas -> trs.texas.gov score= 135 threshold= 70 confident= true ambiguous= false soleFinance= true financePts= 34 signals= {nameSimilarity: 48, wikiNotability: 12, multiSource: 12, dns: 23, content: 0}",
+    "[resolve] multi-source gather for Lakeview Capital Management",
+    "[resolve] multi-source gather for Trinity Church Wall Street",
+    "[resolve] multi-source gather for Power100",
+    "[resolve] multi-source gather for CPP Investments",
+    "[resolve] multi-source gather for Gilder Office for Growth",
+    "[resolve] FAST PATH dictionary Inatai Foundation -> inatai.org",
+    "[resolve] ranked Lakeview Capital Management -> lakeview.capital score= 81 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 34 signals= {nameSimilarity: 32, wikiNotability: 0, multiSource: 0, dns: 15, content: 0}",
+    "[resolve] ranked Trinity Church Wall Street -> trinitywallstreet.org score= 81 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 44, wikiNotability: 0, multiSource: 8, dns: 23, content: 0}",
+    "[resolve] ranked Power100 -> power100.com.au score= 103 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 50, wikiNotability: 12, multiSource: 12, dns: 23, content: 0}",
+    "[resolve] ranked CPP Investments -> cppib.com score= 125 threshold= 70 confident= true ambiguous= false soleFinance= false financePts= 34 signals= {nameSimilarity: 44, wikiNotability: 12, multiSource: 12, dns: 23, content: 0}",
+    "[resolve] ranked Gilder Office for Growth -> gog.com score= 62 threshold= 70 confident= false ambiguous= false soleFinance= false financePts= 0 signals= {nameSimilarity: 39, wikiNotability: 0, multiSource: 0, dns: 23, content: 0}",
+    "[batch] complete in 579.0s"
+  ]
+}

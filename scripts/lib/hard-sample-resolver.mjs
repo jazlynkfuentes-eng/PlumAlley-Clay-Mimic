@@ -44,13 +44,14 @@ const FINANCE_KNOWN_DOMAINS = new Set([
 ]);
 const UNRELATED_INDUSTRY_PHRASES = [
   'retail', 'grocery', 'supermarket', 'restaurant', 'restaurants', 'cafe', 'coffee shop',
-  'entertainment', 'media', 'publishing', 'newspaper', 'magazine', 'music',
+  'bakery', 'entertainment', 'media', 'publishing', 'newspaper', 'magazine', 'music',
   'gaming', 'video game', 'cinema', 'film studio', 'movie', 'television',
   'fashion', 'apparel', 'clothing', 'cosmetics', 'beauty',
   'food & beverage', 'food and beverage', 'hotel', 'hospitality', 'travel agency',
   'sports', 'nightlife', 'casino', 'e-commerce', 'ecommerce', 'marketplace',
   'consumer goods', 'consumer electronics', 'cpg', 'toys', 'grocery store',
   'fast food', 'streaming entertainment',
+  'hospital', 'healthcare', 'health care', 'clinic', 'medical center',
   'biotech', 'biotechnology', 'therapeutics', 'pharmaceutical', 'medical device',
   'robotics', 'aerospace', 'semiconductor'
 ];
@@ -87,6 +88,227 @@ export function classifyFinanceAffinity(candidate, queryCompanyName = '') {
 
 export function isFinanceTypedCandidate(c, queryCompanyName = '') {
   return classifyFinanceAffinity(c, queryCompanyName) === 'finance';
+}
+
+// --- Decisive candidate detection (mirrors index.html) ---------------------
+const LEGAL_SUFFIX_RE = /\b(inc|incorporated|llc|l\.l\.c|llp|lp|plc|ltd|limited|co|corp|corporation|company|gmbh|ag|sa|nv|bv|pvt|pte|spa|srl)\b/gi;
+
+const GENERIC_ORG_TOKENS = new Set([
+  'capital', 'partners', 'partner', 'management', 'advisors', 'advisor', 'advisory',
+  'group', 'holdings', 'holding', 'associates', 'investments', 'investment', 'ventures',
+  'venture', 'fund', 'funds', 'asset', 'assets', 'wealth', 'securities', 'foundation',
+  'endowment', 'trust', 'system', 'systems', 'university', 'college', 'institute',
+  'office', 'board', 'retirement', 'global', 'international', 'financial', 'finance',
+  'equity', 'credit', 'services', 'service', 'solutions', 'company', 'llc', 'inc',
+  'ltd', 'limited', 'corp', 'corporation', 'llp', 'lp',
+  'state', 'city', 'county', 'public', 'employees', 'employee', 'teachers', 'teacher',
+  'municipal', 'federal', 'national', 'regional', 'department', 'authority', 'agency',
+  'commission', 'association', 'council', 'district'
+]);
+
+const DECISIVE_ALLOWED_TLDS = new Set([
+  'com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'ai', 'us', 'uk',
+  'capital', 'fund', 'finance', 'ventures', 'investments',
+  'com.au', 'co.uk', 'org.uk'
+]);
+
+function decisiveRegistrableTld(host) {
+  const h = String(host || '').toLowerCase().replace(/^www\./, '');
+  const m = h.match(/\.(co\.uk|com\.au|co\.nz|com\.br|co\.za|org\.uk|com\.mx)$/i);
+  if (m) return m[1].toLowerCase();
+  return (h.split('.').pop() || '').toLowerCase();
+}
+
+function closenessTier(score) {
+  if (score >= 92) return 3;
+  if (score >= 78) return 2;
+  if (score >= 40) return 1;
+  return 0;
+}
+
+function isRegionalSibling(rival, best) {
+  const rivalHost = String(rival?.domain || '').toLowerCase().replace(/^www\./, '');
+  const bestHost = String(best?.domain || '').toLowerCase().replace(/^www\./, '');
+  const rivalBase = companyKeyNorm(rivalHost.split('.')[0] || '');
+  const bestBase = companyKeyNorm(bestHost.split('.')[0] || '');
+  if (!rivalBase || rivalBase !== bestBase) return false;
+  const rivalIsCountry = /\.[a-z]{2}$/i.test(rivalHost) && !/\.(com|org|net|io|co|ai|us)$/i.test(rivalHost);
+  const bestIsGeneric = /\.(com|org|net|io|ai|edu|gov)$/i.test(bestHost);
+  return rivalIsCountry && bestIsGeneric;
+}
+
+const AGGREGATOR_DOMAINS = new Set([
+  'linkedin.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'youtube.com',
+  'tiktok.com', 'pinterest.com', 'reddit.com', 'crunchbase.com', 'pitchbook.com',
+  'zoominfo.com', 'dnb.com', 'bloomberg.com', 'reuters.com', 'forbes.com', 'glassdoor.com',
+  'indeed.com', 'yelp.com', 'wikipedia.org', 'wikidata.org', 'wikimedia.org', 'medium.com',
+  'owler.com', 'rocketreach.co', 'signalhire.com', 'zippia.com', 'trustpilot.com',
+  'mapquest.com', 'bbb.org', 'manta.com', 'bizapedia.com', 'opencorporates.com',
+  'apollo.io', 'leadiq.com', 'lusha.com', 'google.com', 'bing.com', 'duckduckgo.com'
+]);
+
+const FREE_HOST_SUFFIXES = [
+  'wordpress.com', 'blogspot.com', 'wixsite.com', 'weebly.com', 'squarespace.com',
+  'godaddysites.com', 'sites.google.com', 'tumblr.com', 'substack.com', 'notion.site',
+  'github.io', 'webflow.io', 'myshopify.com'
+];
+
+const PARKED_DOMAINS = new Set([
+  'hugedomains.com', 'buydomains.com', 'afternic.com', 'sedo.com', 'dan.com',
+  'parkingcrew.net', 'bodis.com', 'domainmarket.com', 'squadhelp.com', 'brandbucket.com'
+]);
+
+function decisiveNameForms(companyName) {
+  const raw = String(companyName || '');
+  const aliases = [];
+  const parenRe = /\(([^)]{2,40})\)/g;
+  let m;
+  while ((m = parenRe.exec(raw))) aliases.push(m[1]);
+
+  const base = raw.replace(/\([^)]*\)/g, ' ');
+  const noLegal = base.replace(LEGAL_SUFFIX_RE, ' ').replace(/&/g, ' ');
+  const stop = new Set(['the', 'of', 'and', 'for', 'a', 'an', 'at', 'in', 'on', 'to']);
+  const tokens = noLegal
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t && !stop.has(t));
+
+  const coreTokens = [];
+  for (const t of tokens) {
+    if (GENERIC_ORG_TOKENS.has(t)) break;
+    coreTokens.push(t);
+  }
+
+  return {
+    key: companyKeyNorm(noLegal),
+    coreKey: companyKeyNorm(coreTokens.join('')),
+    acronym: tokens.length >= 2 ? tokens.map(t => t[0]).join('') : '',
+    aliasKeys: aliases.map(a => companyKeyNorm(a)).filter(a => a.length >= 3),
+    tokens
+  };
+}
+
+export function candidateNameCloseness(companyName, candidate) {
+  const forms = decisiveNameForms(companyName);
+  if (!forms.key) return { score: 0, kind: 'none' };
+
+  const host = String(candidate?.domain || '').toLowerCase().replace(/^www\./, '');
+  const domBase = companyKeyNorm((host.split('.')[0] || ''));
+  const entKey = companyKeyNorm(String(candidate?.name || '').replace(LEGAL_SUFFIX_RE, ' '));
+
+  if (domBase && domBase === forms.key) return { score: 100, kind: 'exact-domain' };
+  if (entKey && entKey === forms.key) return { score: 95, kind: 'exact-name' };
+  if (domBase && forms.aliasKeys.includes(domBase)) return { score: 92, kind: 'alias-domain' };
+  if (domBase && forms.coreKey && domBase === forms.coreKey) return { score: 90, kind: 'brand-core' };
+  if (domBase && forms.acronym.length >= 3 && domBase === forms.acronym) return { score: 88, kind: 'acronym-domain' };
+  if (domBase && forms.coreKey && forms.coreKey.startsWith(domBase) && domBase.length >= 5) {
+    return { score: 82, kind: 'brand-prefix' };
+  }
+  if (domBase && forms.tokens.length > 1 && domBase.length >= 3
+    && domBase === companyKeyNorm(forms.tokens[0])
+    && !GENERIC_ORG_TOKENS.has(forms.tokens[0])) {
+    return { score: 80, kind: 'brand-token' };
+  }
+  if (domBase && forms.key.startsWith(domBase) && domBase.length >= 6) {
+    return { score: 78, kind: 'name-prefix' };
+  }
+  if (entKey && (entKey.startsWith(forms.key) || forms.key.startsWith(entKey))
+    && Math.min(entKey.length, forms.key.length) >= 6) {
+    return { score: 70, kind: 'name-overlap' };
+  }
+
+  const hostBlob = host.replace(/[^a-z0-9]/g, '');
+  const contentTokens = forms.tokens.filter(t => t.length > 3 && !GENERIC_ORG_TOKENS.has(t));
+  if (contentTokens.length) {
+    const hits = contentTokens.filter(t => hostBlob.includes(t) || entKey.includes(t)).length;
+    const ratio = hits / contentTokens.length;
+    if (ratio >= 1) return { score: 66, kind: 'all-tokens' };
+    if (ratio >= 0.5) return { score: 40, kind: 'some-tokens' };
+    if (hits > 0) return { score: 25, kind: 'weak-tokens' };
+  }
+  return { score: 0, kind: 'none' };
+}
+
+export function isJunkCandidate(candidate, closeness = 0) {
+  const host = String(candidate?.domain || '').toLowerCase().replace(/^www\./, '');
+  if (!host) return true;
+  if (closenessTier(closeness) >= 3) return false;
+  const registrable = host.split('.').slice(-2).join('.');
+  if (AGGREGATOR_DOMAINS.has(host) || AGGREGATOR_DOMAINS.has(registrable)) return true;
+  if (PARKED_DOMAINS.has(registrable)) return true;
+  if (FREE_HOST_SUFFIXES.some(s => host === s || host.endsWith('.' + s))) return true;
+  if (candidate?.dnsOk === false) return true;
+  if (candidate?.contentMention === false && closeness < 60) return true;
+  return false;
+}
+
+export function evaluateDecisiveCandidate(companyName, ranked, options = {}) {
+  const financeFilterActive = !!options.financeFilterActive;
+  const list = (ranked || []).filter(c => c && c.domain);
+  if (!list.length) return null;
+
+  const enriched = list.map(c => {
+    const nm = candidateNameCloseness(companyName, c);
+    return { ...c, closeness: nm.score, closenessKind: nm.kind, junk: isJunkCandidate(c, nm.score) };
+  });
+
+  const best = enriched[0];
+  if (!best || best.junk || best.dnsOk === false) return null;
+  if (best.contentMention === false && closenessTier(best.closeness) < 3) return null;
+  if (!DECISIVE_ALLOWED_TLDS.has(decisiveRegistrableTld(best.domain))
+    && !/\b(australia|austria|brazil|canada|china|france|germany|india|ireland|israel|italy|japan|korea|mexico|netherlands|poland|singapore|spain|sweden|switzerland|uk|britain|england)\b/i.test(companyName)) {
+    return null;
+  }
+
+  const forms = decisiveNameForms(companyName);
+  if (forms.tokens.length <= 1 && financeFilterActive
+    && classifyFinanceAffinity(best, companyName) !== 'finance') {
+    return null;
+  }
+
+  const score = Number(best.totalScore) || 0;
+  const floor = CONFIDENCE_THRESHOLD - 12;
+  const others = enriched.slice(1);
+  const liveOthers = others.filter(c => !c.junk);
+  const nextCloseness = liveOthers.length ? Math.max(...liveOthers.map(c => c.closeness)) : 0;
+
+  const bestTier = closenessTier(best.closeness);
+  if (bestTier >= 2 && score >= floor) {
+    const rivals = liveOthers.filter(c =>
+      closenessTier(c.closeness) >= bestTier && !isRegionalSibling(c, best)
+    );
+    if (!rivals.length) {
+      return {
+        domain: best.domain,
+        rule: 'name-match',
+        detail: `${best.closenessKind} ${best.closeness} (tier ${bestTier}) vs next ${nextCloseness}`
+      };
+    }
+  }
+
+  if (financeFilterActive && liveOthers.length && best.closeness >= 40 && score >= floor
+    && classifyFinanceAffinity(best, companyName) === 'finance') {
+    const contextRivals = liveOthers.filter(c => classifyFinanceAffinity(c, companyName) !== 'unrelated');
+    if (!contextRivals.length) {
+      return {
+        domain: best.domain,
+        rule: 'context-match',
+        detail: `sole finance match, ${liveOthers.length} unrelated peer(s)`
+      };
+    }
+  }
+
+  if (others.length && !liveOthers.length && best.closeness >= 40
+    && score >= CONFIDENCE_THRESHOLD - 15) {
+    return {
+      domain: best.domain,
+      rule: 'sole-legit',
+      detail: `${others.length} parked/dead/directory peer(s)`
+    };
+  }
+
+  return null;
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -244,6 +466,9 @@ export function shouldAutoFound(resolved) {
       method === 'major-firm' || method === 'dictionary' || method === 'learned') &&
     score >= 90
   ) {
+    return true;
+  }
+  if (resolved.decisiveMatch) {
     return true;
   }
   if (
@@ -649,7 +874,14 @@ async function rankPool(companyName, pool, options = {}) {
     }
   }
 
-  return { best, ambiguous, candidates: ranked.slice(0, 8), ranked: contenders, soleFinanceMatch };
+  let decisive = null;
+  if (best) {
+    const orderedForDecisive = [best, ...contenders.filter(c => c.domain !== best.domain)];
+    decisive = evaluateDecisiveCandidate(companyName, orderedForDecisive, { financeFilterActive });
+    if (decisive) ambiguous = false;
+  }
+
+  return { best, ambiguous, candidates: ranked.slice(0, 8), ranked: contenders, soleFinanceMatch, decisive };
 }
 
 export function domainMatches(got, expected, aliases = []) {
@@ -810,13 +1042,15 @@ export async function resolveHard(name, options = {}) {
     /^sec\.gov(\.[a-z]{2})?$/i.test(c.domain) ||
     (/securities and exchange/i.test(c.name || '') && /\.gov/i.test(c.domain || ''))
   );
+  let decisiveMatch = ranked.decisive && ranked.decisive.domain === best.domain ? ranked.decisive : null;
   if (secFamily.length >= 2 && /securities and exchange/i.test(name)) {
     ambiguous = true;
+    decisiveMatch = null;
     const us = secFamily.find(c => c.domain === 'sec.gov') || best;
     best = us;
   }
   const score = best.totalScore || 0;
-  const clears = score >= CONFIDENCE_THRESHOLD && !ambiguous;
+  const clears = (score >= CONFIDENCE_THRESHOLD && !ambiguous) || !!decisiveMatch;
   return {
     domain: best.domain,
     confidence: clears ? 'high' : 'low',
@@ -825,11 +1059,13 @@ export async function resolveHard(name, options = {}) {
     exactName: !!best.exactName,
     matchedName: best.name || name,
     candidates: ranked.candidates,
+    rankedPool: ranked.ranked || [],
     sources: best.sources || [],
     signals: best.signals,
     resolveMethod: (best.sources || [])[0] || 'multi-source',
     financeFilterActive,
     soleFinanceMatch: !!ranked.soleFinanceMatch,
+    decisiveMatch,
     dnsOk: best.dnsOk
   };
 }

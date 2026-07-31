@@ -1,0 +1,1616 @@
+{
+  "summary": {
+    "autoByDecisive": 11,
+    "autoByScore": 3,
+    "picker": 14,
+    "total": 28
+  },
+  "results": [
+    {
+      "name": "Willkie Farr & Gallagher LLP",
+      "domain": "willkie.com",
+      "score": 67,
+      "band": "<70",
+      "status": "auto-resolved",
+      "via": "name-match",
+      "detail": "exact-name 95 (tier 3) vs next 25",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "willkie.com",
+          "label": "Willkie Farr & Gallagher",
+          "score": 67,
+          "closeness": 95,
+          "kind": "exact-name",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "willkiehouse.org",
+          "label": "Willkie House",
+          "score": 25,
+          "closeness": 25,
+          "kind": "weak-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Children's Health System of Texas",
+      "domain": "childrens.com",
+      "score": 84,
+      "band": "80+",
+      "status": "auto-resolved",
+      "via": "name-match",
+      "detail": "brand-prefix 82 (tier 2) vs next 40",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "childrens.com",
+          "label": "Children's Health",
+          "score": 78,
+          "closeness": 82,
+          "kind": "brand-prefix",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "childrenshealthdefense.org",
+          "label": "Children's Health Defense",
+          "score": 31,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "choa.org",
+          "label": "Children's Healthcare of Atlanta",
+          "score": 25,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "chconline.org",
+          "label": "Children's Health Council",
+          "score": 25,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "childrensplace.com",
+          "label": "The Children's Place",
+          "score": 25,
+          "closeness": 25,
+          "kind": "weak-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "The Kresge Foundation",
+      "domain": "kresgecontracting.com",
+      "score": 25,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "kresgecontracting.com",
+          "label": "Kresge Contracting",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "kresgeeye.org",
+          "label": "Kresge Eye Institute",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "kresgeartsindetroit.org",
+          "label": "Kresge Arts in Detroit",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "kresgeshop.com",
+          "label": "KRESGE'S ALIGNMENT SERVICE",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "kresgeconsulting.com",
+          "label": "Kresge Consulting",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "MetLife Investment Management",
+      "domain": "metlife.com",
+      "score": 67,
+      "band": "<70",
+      "status": "auto-resolved",
+      "via": "name-match",
+      "detail": "brand-core 90 (tier 2) vs next 90",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "metlife.com",
+          "label": "MetLife",
+          "score": 67,
+          "closeness": 90,
+          "kind": "brand-core",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "metlife.com.mx",
+          "label": "MetLife México",
+          "score": 31,
+          "closeness": 90,
+          "kind": "brand-core",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "legalplans.com",
+          "label": "MetLife Legal Plans",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "metlifestadium.com",
+          "label": "MetLife Stadium",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "metlifepetinsurance.com",
+          "label": "MetLife Pet Insurance",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Illinois Municipal Retirement Fund",
+      "domain": "imrf.org",
+      "score": 118,
+      "band": "80+",
+      "status": "auto-resolved",
+      "via": "name-match",
+      "detail": "exact-name 95 (tier 3) vs next 90",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "imrf.org",
+          "label": "Illinois Municipal Retirement Fund",
+          "score": 112,
+          "closeness": 95,
+          "kind": "exact-name",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "illinois.gov",
+          "label": "Governor of Illinois",
+          "score": 49,
+          "closeness": 90,
+          "kind": "brand-core",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "illinois.edu",
+          "label": "University of Illinois Urbana-Champaign",
+          "score": 43,
+          "closeness": 90,
+          "kind": "brand-core",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "ilsos.gov",
+          "label": "Illinois Secretary of State",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "illinoislottery.com",
+          "label": "Illinois Lottery",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Northside Capital Management LLC",
+      "domain": "northsidecap.com",
+      "score": 107,
+      "band": "80+",
+      "status": "auto-resolved",
+      "via": "name-match",
+      "detail": "exact-name 95 (tier 3) vs next 90",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "northsidecap.com",
+          "label": "Northside Capital Management",
+          "score": 101,
+          "closeness": 95,
+          "kind": "exact-name",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "northside.com",
+          "label": "Northside Hospital",
+          "score": 43,
+          "closeness": 90,
+          "kind": "brand-core",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "nisd.net",
+          "label": "Northside ISD",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "northsidebound.com",
+          "label": "North Side Bound",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "northsidetoolrental.com",
+          "label": "Atlanta Tool Rental - Northside Tool Rental",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Angeles Wealth Management LLC",
+      "domain": "angelesband.com",
+      "score": 41,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "angelesband.com",
+          "label": "Angeles",
+          "score": 41,
+          "closeness": 70,
+          "kind": "name-overlap",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "angelesdesanrafael.com",
+          "label": "ANGELES DE SAN RAFAEL",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "angelescorts.co.uk",
+          "label": "Angel Escorts Agency",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Lakeview Capital Management",
+      "domain": "lakeview.capital",
+      "score": 81,
+      "band": "80+",
+      "status": "auto-resolved",
+      "via": "score/threshold",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "lakeview.capital",
+          "label": "Lakeview Capital",
+          "score": 81,
+          "closeness": 90,
+          "kind": "brand-core",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "lakeview.com",
+          "label": "Lakeview",
+          "score": 67,
+          "closeness": 90,
+          "kind": "brand-core",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "lakeviewcappartners.com",
+          "label": "Lakeview Capital Partners",
+          "score": 65,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "lakeviewfcu.com",
+          "label": "Lakeview Federal Credit Union",
+          "score": 59,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "lakeviewhs.com",
+          "label": "Lake View High School",
+          "score": 10,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Summit Rock Advisors",
+      "domain": "summitcreditunion.com",
+      "score": 59,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "summitcreditunion.com",
+          "label": "Summit Credit Union",
+          "score": 59,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "summitrock.co.za",
+          "label": "Summit Rock",
+          "score": 47,
+          "closeness": 90,
+          "kind": "brand-core",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "summitrockwall.com",
+          "label": "SUMMIT ROCK WALL ADVENTURES",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "summitrockstrategyconsulting.com",
+          "label": "Summit Rock Strategy Consulting",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "summitracing.com",
+          "label": "Summit Racing Equipment",
+          "score": 10,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Gilder Office for Growth",
+      "domain": "gilder.in",
+      "score": 31,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "gilder.in",
+          "label": "Gilder & Howell",
+          "score": 31,
+          "closeness": 90,
+          "kind": "brand-core",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "degilder.nl",
+          "label": "Gilder",
+          "score": 29,
+          "closeness": 70,
+          "kind": "name-overlap",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "gilderlehrman.org",
+          "label": "The Gilder Lehrman Institute of American History",
+          "score": 25,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "gghc.com",
+          "label": "Gilder Gagnon Howe & Co",
+          "score": 25,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "gilderotterdam.nl",
+          "label": "Gilde Rotterdam",
+          "score": 15,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "dakota Marketplace",
+      "domain": "k12.sd.us",
+      "score": 25,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "k12.sd.us",
+          "label": "Dakota Valley School District",
+          "score": 25,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "dakotalithium.com",
+          "label": "Dakota Lithium Batteries",
+          "score": 25,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "dakotanewsnow.com",
+          "label": "Dakota News Now",
+          "score": 25,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "dsu.edu",
+          "label": "Dakota State University",
+          "score": 25,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "dakotadigital.com",
+          "label": "Dakota Digital",
+          "score": 25,
+          "closeness": 40,
+          "kind": "some-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "UBS Hedge Fund Solutions",
+      "domain": "ubs.com",
+      "score": 79,
+      "band": "70-79",
+      "status": "auto-resolved",
+      "via": "name-match",
+      "detail": "brand-token 80 (tier 2) vs next 0",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "ubs.com",
+          "label": "UBS",
+          "score": 73,
+          "closeness": 80,
+          "kind": "brand-token",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "ubsapp.com",
+          "label": "The Ultimate Business System",
+          "score": 31,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "ubsarena.com",
+          "label": "UBS Arena",
+          "score": 31,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "ubslifestyle.com",
+          "label": "UBS Lifestyle",
+          "score": 31,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "ubsbolig.dk",
+          "label": "UBSBOLIG",
+          "score": 21,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "IH International Advisors",
+      "domain": "ihinternational.com",
+      "score": 67,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "ambiguous: rivals too close",
+      "ambiguous": true,
+      "pool": [
+        {
+          "domain": "ihinternational.com",
+          "label": "IH International",
+          "score": 67,
+          "closeness": 78,
+          "kind": "name-prefix",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "ihinternational.org",
+          "label": "IHI",
+          "score": 67,
+          "closeness": 78,
+          "kind": "name-prefix",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "ih-systemes.net",
+          "label": "IH International Hydraulique Systèmes",
+          "score": 25,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "TSWII Capital Advisors",
+      "domain": "tswii.com",
+      "score": 67,
+      "band": "<70",
+      "status": "auto-resolved",
+      "via": "name-match",
+      "detail": "brand-core 90 (tier 2) vs next 0",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "tswii.com",
+          "label": "TSWII",
+          "score": 67,
+          "closeness": 90,
+          "kind": "brand-core",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Helios & Partners Limited",
+      "domain": "heliospartners.com",
+      "score": 67,
+      "band": "<70",
+      "status": "auto-resolved",
+      "via": "name-match",
+      "detail": "exact-domain 100 (tier 3) vs next 90",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "heliospartners.com",
+          "label": "Helios Partners",
+          "score": 67,
+          "closeness": 100,
+          "kind": "exact-domain",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "helios.pl",
+          "label": "Helios",
+          "score": 47,
+          "closeness": 90,
+          "kind": "brand-core",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "helioswatchstore.com",
+          "label": "Helios-TheWatchStore",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "heliostattoo.com",
+          "label": "Helios Tattoo",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "heliossolutions.co",
+          "label": "Helios Solutions",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Archer Asia – Rockhampton Management Limited",
+      "domain": "archer-asia.com",
+      "score": 67,
+      "band": "<70",
+      "status": "auto-resolved",
+      "via": "name-match",
+      "detail": "brand-prefix 82 (tier 2) vs next 25",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "archer-asia.com",
+          "label": "Archer Asia",
+          "score": 67,
+          "closeness": 82,
+          "kind": "brand-prefix",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "archerreview.com",
+          "label": "ArcherReview",
+          "score": 25,
+          "closeness": 25,
+          "kind": "weak-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "archertravel.com",
+          "label": "Archer Travel Group",
+          "score": 25,
+          "closeness": 25,
+          "kind": "weak-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "archerytalk.com",
+          "label": "Archery Talk",
+          "score": 25,
+          "closeness": 25,
+          "kind": "weak-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "archerandolive.com",
+          "label": "Archer and Olive",
+          "score": 25,
+          "closeness": 25,
+          "kind": "weak-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Avala Global",
+      "domain": "avalara.com",
+      "score": 25,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "avalara.com",
+          "label": "Avalara",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "avalanchestudios.com",
+          "label": "Avalanche Studios Group",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "avalabs.org",
+          "label": "Ava Labs",
+          "score": 25,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "avax.network",
+          "label": "Avalanche",
+          "score": 15,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "avalaunch.app",
+          "label": "Avalaunch",
+          "score": 15,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "CANY Capital LLC",
+      "domain": "cannycapital.com",
+      "score": 101,
+      "band": "80+",
+      "status": "auto-resolved",
+      "via": "score/threshold",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "cannycapital.com",
+          "label": "CANY Capital LLC",
+          "score": 101,
+          "closeness": 95,
+          "kind": "exact-name",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "canary.capital",
+          "label": "CANY Capital LLC",
+          "score": 89,
+          "closeness": 95,
+          "kind": "exact-name",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "altss.com",
+          "label": "CANY Capital LLC",
+          "score": 59,
+          "closeness": 95,
+          "kind": "exact-name",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "canyons.edu",
+          "label": "College of the Canyons",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "canyon.com",
+          "label": "Canyon Bicycles",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "100WF",
+      "domain": "wfcapital.com.br",
+      "score": 49,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "wfcapital.com.br",
+          "label": "Wf Capital Securitizadora",
+          "score": 49,
+          "closeness": 0,
+          "kind": "none",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "wfla.com",
+          "label": "WFLA",
+          "score": 19,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "wfaa.com",
+          "label": "WFAA",
+          "score": 19,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "wfmz.com",
+          "label": "WFMZ",
+          "score": 19,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "wfsb.com",
+          "label": "WFSB Channel 3",
+          "score": 19,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "TIDE",
+      "domain": "tide.com",
+      "score": 81,
+      "band": "80+",
+      "status": "auto-resolved",
+      "via": "score/threshold",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "tide.com",
+          "label": "Tide",
+          "score": 81,
+          "closeness": 100,
+          "kind": "exact-domain",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "tidex.com",
+          "label": "Tidex Global",
+          "score": 67,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "tideschart.com",
+          "label": "Tideschart.com",
+          "score": 67,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "tide-forecast.com",
+          "label": "Snow-Forecast.com",
+          "score": 43,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "tcc.edu",
+          "label": "Tidewater Community College",
+          "score": 41,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "California Public Employees' Retirement System (CalPERS)",
+      "domain": "californiapublicbankingalliance.org",
+      "score": 65,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "californiapublicbankingalliance.org",
+          "label": "California Public Banking Alliance",
+          "score": 65,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "ustax1.com",
+          "label": "California Public Accountancy",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "cppaparking.org",
+          "label": "California Public Parking Association",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "cphan.org",
+          "label": "California Public Health Association - North",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "crmls.org",
+          "label": "California Regional Multiple Listing Service",
+          "score": 10,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Teachers Retirement System of Texas (TRS)",
+      "domain": "teachersfcu.org",
+      "score": 59,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "teachersfcu.org",
+          "label": "Teachers Federal Credit Union",
+          "score": 59,
+          "closeness": 0,
+          "kind": "none",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "trsnyc.org",
+          "label": "Teachers' Retirement System of the City of New York",
+          "score": 37,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "trsil.org",
+          "label": "Teachers' Retirement System of the State of Illinois",
+          "score": 37,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "trsga.com",
+          "label": "Teachers Retirement System of Georgia",
+          "score": 37,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "trsl.org",
+          "label": "Teachers' Retirement System of Louisiana",
+          "score": 37,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "State of Wisconsin Investment Board (SWIB)",
+      "domain": "state.gov",
+      "score": 49,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "state.gov",
+          "label": "United States Department of State",
+          "score": 49,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "nv.gov",
+          "label": "State of Nevada",
+          "score": 41,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "sc.gov",
+          "label": "State of South Carolina",
+          "score": 41,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "ca.gov",
+          "label": "State of California",
+          "score": 31,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "nj.gov",
+          "label": "State of New Jersey Department of Law and Public Safety",
+          "score": 31,
+          "closeness": 0,
+          "kind": "none",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Los Angeles City Employees' Retirement System",
+      "domain": "lacounty.gov",
+      "score": 37,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "lacounty.gov",
+          "label": "Los Angeles County Fire Department",
+          "score": 37,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "laceca.org",
+          "label": "Los Angeles City Employees Chicano Association",
+          "score": 37,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "latimes.com",
+          "label": "Los Angeles Times",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "laccd.edu",
+          "label": "Los Angeles Community College District",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "lausd.net",
+          "label": "Los Angeles Unified School District",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Securities and Exchange Commission",
+      "domain": "sec.gov",
+      "score": 100,
+      "band": "80+",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "ambiguous: rivals too close",
+      "ambiguous": true,
+      "pool": [
+        {
+          "domain": "sec.gov",
+          "label": "U.S. Securities and Exchange Commission",
+          "score": null,
+          "closeness": 88,
+          "kind": "acronym-domain",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "sec.gov.ph",
+          "label": "Securities and Exchange Commission (Philippines)",
+          "score": null,
+          "closeness": 88,
+          "kind": "acronym-domain",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "sec.or.th",
+          "label": "Securities and Exchange Commission (Thailand)",
+          "score": null,
+          "closeness": 88,
+          "kind": "acronym-domain",
+          "context": "finance",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Trinity Church Wall Street",
+      "domain": "trinitywallstreet.org",
+      "score": 92,
+      "band": "80+",
+      "status": "auto-resolved",
+      "via": "name-match",
+      "detail": "exact-name 95 (tier 3) vs next 82",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "trinitywallstreet.org",
+          "label": "Trinity Church Wall Street",
+          "score": 86,
+          "closeness": 95,
+          "kind": "exact-name",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "trinitychurch.org.nz",
+          "label": "Trinity Church",
+          "score": 47,
+          "closeness": 82,
+          "kind": "brand-prefix",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "trinity.edu",
+          "label": "Trinity University",
+          "score": 43,
+          "closeness": 82,
+          "kind": "brand-prefix",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "trinitychurchmorton.org",
+          "label": "Trinity Church",
+          "score": 41,
+          "closeness": 70,
+          "kind": "name-overlap",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "trinityfree.com",
+          "label": "Trinity Church",
+          "score": 41,
+          "closeness": 70,
+          "kind": "name-overlap",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "West Virginia University Foundation",
+      "domain": "wvu.edu",
+      "score": 69,
+      "band": "<70",
+      "status": "picker",
+      "via": "needs confirm",
+      "detail": "",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "wvu.edu",
+          "label": "West Virginia University",
+          "score": 69,
+          "closeness": 70,
+          "kind": "name-overlap",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "wvusports.com",
+          "label": "West Virginia University Athletics",
+          "score": 37,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "unrelated",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "wvsom.edu",
+          "label": "West Virginia School of Osteopathic Medicine",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "wvnet.edu",
+          "label": "West Virginia Network",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "wvstateparks.com",
+          "label": "West Virginia State Parks",
+          "score": 31,
+          "closeness": 66,
+          "kind": "all-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    },
+    {
+      "name": "Charles Stewart Mott Foundation",
+      "domain": "mott.org",
+      "score": 84,
+      "band": "80+",
+      "status": "auto-resolved",
+      "via": "name-match",
+      "detail": "exact-name 95 (tier 3) vs next 82",
+      "ambiguous": false,
+      "pool": [
+        {
+          "domain": "mott.org",
+          "label": "Charles Stewart Mott Foundation",
+          "score": 78,
+          "closeness": 95,
+          "kind": "exact-name",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "charles-stewart.co.uk",
+          "label": "Stewart & Co Limited",
+          "score": 49,
+          "closeness": 82,
+          "kind": "brand-prefix",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "charlesstewartcompany.com",
+          "label": "Charles Stewart",
+          "score": 41,
+          "closeness": 70,
+          "kind": "name-overlap",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "charlesstewart.com.au",
+          "label": "Charles Stewart & Co",
+          "score": 37,
+          "closeness": 82,
+          "kind": "brand-prefix",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        },
+        {
+          "domain": "schwab.com",
+          "label": "Charles Schwab",
+          "score": 25,
+          "closeness": 25,
+          "kind": "weak-tokens",
+          "context": "neutral",
+          "dns": "live",
+          "junk": false
+        }
+      ]
+    }
+  ]
+}
