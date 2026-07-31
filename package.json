@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test:hard-sample": "node scripts/test-hard-sample-resolution.mjs",
     "test:learned": "node scripts/test-learned-corrections.mjs",
-    "write:learned": "node scripts/write-learned-corrections-config.mjs"
+    "write:learned": "node scripts/write-learned-corrections-config.mjs",
+    "export:learned": "node scripts/export-learned-corrections.mjs",
+    "test:kv-sync": "node scripts/test-kv-cross-device-sync.mjs"
   },
   "dependencies": {
     "canvas-confetti": "^1.6.0",

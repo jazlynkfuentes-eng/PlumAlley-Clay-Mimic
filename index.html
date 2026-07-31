@@ -4897,6 +4897,38 @@
       }
     }
 
+    async function fetchLearnedCorrectionsFromServer() {
+      try {
+        const res = await fetch('/api/learned-corrections', { cache: 'no-store' });
+        if (!res.ok) return { ok: false, reason: `HTTP ${res.status}` };
+        const json = await res.json();
+        if (!json || !Array.isArray(json.corrections)) return { ok: false, reason: 'bad payload' };
+        return {
+          ok: true,
+          kv: !!json.kv,
+          reason: json.reason || '',
+          store: { version: 1, updatedAt: json.updatedAt || null, corrections: json.corrections }
+        };
+      } catch (e) {
+        return { ok: false, reason: e.message || 'offline' };
+      }
+    }
+
+    // Shared-store status, surfaced in the Learned Corrections modal.
+    let learnedSyncState = { status: 'idle', kv: false, reason: '', count: 0, at: null };
+    const learnedSyncListeners = new Set();
+    function subscribeLearnedSync(fn) {
+      learnedSyncListeners.add(fn);
+      return () => learnedSyncListeners.delete(fn);
+    }
+    function getLearnedSyncState() {
+      return { ...learnedSyncState };
+    }
+    function setLearnedSyncState(patch) {
+      learnedSyncState = { ...learnedSyncState, ...patch };
+      learnedSyncListeners.forEach(fn => { try { fn(getLearnedSyncState()); } catch (_) {} });
+    }
+
     async function commitLearnedCorrectionsStore(nextStore, { skipServer } = {}) {
       learnedCorrectionsStore = {
         version: 1,
@@ -4910,9 +4942,75 @@
       try { resolveCache.clear(); } catch (_) {}
       if (!skipServer) {
         const remote = await persistLearnedCorrectionsToServer(learnedCorrectionsStore);
+        // Adopt the server's merged result so entries taught on other devices
+        // land here on the very next write, without waiting for a reload.
+        if (remote.ok && Array.isArray(remote.corrections)) {
+          learnedCorrectionsStore = {
+            version: 1,
+            updatedAt: remote.updatedAt || learnedCorrectionsStore.updatedAt,
+            corrections: remote.corrections.slice()
+          };
+          try {
+            localStorage.setItem(LEARNED_STORAGE_KEY, JSON.stringify(learnedCorrectionsStore));
+          } catch (_) {}
+        }
+        setLearnedSyncState(remote.ok
+          ? { status: 'synced', kv: true, reason: '', count: learnedCorrectionsStore.corrections.length, at: new Date().toISOString() }
+          : { status: 'local-only', kv: false, reason: remote.reason || 'shared store unavailable' });
         return { store: getLearnedCorrectionsSnapshot(), remote };
       }
       return { store: getLearnedCorrectionsSnapshot(), remote: { ok: false, reason: 'skipped' } };
+    }
+
+    /**
+     * Pull the shared store on load and reconcile it with what this browser knows.
+     * Anything only this browser has is pushed up, so corrections taught before KV
+     * existed (or while offline) still reach everyone else.
+     */
+    let learnedBootstrapPromise = null;
+    function bootstrapLearnedCorrections() {
+      if (learnedBootstrapPromise) return learnedBootstrapPromise;
+      learnedBootstrapPromise = (async () => {
+        setLearnedSyncState({ status: 'syncing' });
+        const remote = await fetchLearnedCorrectionsFromServer();
+        if (!remote.ok) {
+          setLearnedSyncState({
+            status: 'local-only',
+            kv: false,
+            reason: remote.reason || 'shared store unreachable',
+            count: (learnedCorrectionsStore.corrections || []).length
+          });
+          console.warn('[learned] shared store unavailable —', remote.reason);
+          return getLearnedCorrectionsSnapshot();
+        }
+
+        const local = getLearnedCorrectionsSnapshot();
+        const merged = mergeLearnedStores(remote.store, local);
+        await commitLearnedCorrectionsStore(merged, { skipServer: true });
+
+        const remoteKeys = new Set(remote.store.corrections.map(c => c.companyKey));
+        const missing = merged.corrections.filter(c => !remoteKeys.has(c.companyKey));
+        if (remote.kv && missing.length) {
+          await persistLearnedCorrectionsToServer({
+            version: 1,
+            updatedAt: new Date().toISOString(),
+            corrections: missing
+          });
+          console.log('[learned] seeded shared store with', missing.length, 'local-only correction(s)');
+        }
+
+        setLearnedSyncState({
+          status: remote.kv ? 'synced' : 'local-only',
+          kv: remote.kv,
+          reason: remote.kv ? '' : (remote.reason || 'shared store not configured'),
+          count: merged.corrections.length,
+          at: new Date().toISOString()
+        });
+        console.log('[learned] synced from shared store —', remote.store.corrections.length,
+          'remote,', merged.corrections.length, 'total, kv=', remote.kv);
+        return getLearnedCorrectionsSnapshot();
+      })();
+      return learnedBootstrapPromise;
     }
 
     async function upsertLearnedCorrection({ companyName, domain, source }) {
@@ -4980,18 +5078,6 @@
         corrections: list
       });
       return { ok: true, ...result };
-    }
-
-    function downloadLearnedCorrectionsJson() {
-      const blob = new Blob([JSON.stringify(getLearnedCorrectionsSnapshot(), null, 2) + '\n'], {
-        type: 'application/json'
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'learned-corrections.json';
-      a.click();
-      URL.revokeObjectURL(url);
     }
 
     function readAccuracyLog() {
@@ -5164,6 +5250,18 @@
       const [learnedDrafts, setLearnedDrafts] = useState({});
       const [learnedNotice, setLearnedNotice] = useState('');
       const [learnedTick, setLearnedTick] = useState(0);
+      const [learnedSync, setLearnedSync] = useState(() => getLearnedSyncState());
+
+      // Pull the shared learned-corrections store once per load, then keep the
+      // badge in sync as writes go out.
+      useEffect(() => {
+        const unsubscribe = subscribeLearnedSync((next) => {
+          setLearnedSync(next);
+          setLearnedTick(t => t + 1);
+        });
+        bootstrapLearnedCorrections().then(() => setLearnedTick(t => t + 1));
+        return unsubscribe;
+      }, []);
       const learnedList = useMemo(() => {
         const q = learnedSearch.trim().toLowerCase();
         const all = getLearnedCorrectionsSnapshot().corrections || [];
@@ -7495,8 +7593,14 @@
                 </div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
                   Domains taught via thumbs-down + confirm, or manual entry. Checked before search on future runs.
-                  Saved to this browser and to <code>data/learned-corrections.json</code> when using <code>npm run dev:local</code>.
+                  Shared automatically with every browser and device — no export step.
                 </p>
+                <div style={{ fontSize: '0.75rem', marginBottom: '0.6rem', color: learnedSync.kv ? 'var(--accent-color)' : '#B45309' }}>
+                  {learnedSync.status === 'syncing' && 'Syncing with shared store…'}
+                  {learnedSync.status === 'synced' && `Synced across devices · ${learnedSync.count} correction${learnedSync.count === 1 ? '' : 's'}`}
+                  {learnedSync.status === 'local-only' && `This browser only — shared store unavailable (${learnedSync.reason || 'offline'})`}
+                  {learnedSync.status === 'idle' && 'Checking shared store…'}
+                </div>
                 <div className="learned-toolbar">
                   <input
                     type="search"
@@ -7504,29 +7608,6 @@
                     value={learnedSearch}
                     onChange={(e) => setLearnedSearch(e.target.value)}
                   />
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => {
-                      downloadLearnedCorrectionsJson();
-                      setLearnedNotice('Downloaded learned-corrections.json — replace data/learned-corrections.json and commit to share.');
-                    }}
-                  >
-                    Download JSON
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={async () => {
-                      const remote = await persistLearnedCorrectionsToServer(getLearnedCorrectionsSnapshot());
-                      setLearnedNotice(remote.ok
-                        ? `Synced to data/learned-corrections.json (${remote.count} entries).`
-                        : `Could not write file (${remote.reason || 'no local API'}). Use Download JSON + commit, or run npm run dev:local.`);
-                      setLearnedTick(t => t + 1);
-                    }}
-                  >
-                    Sync to repo file
-                  </button>
                 </div>
                 {learnedNotice ? (
                   <div style={{ fontSize: '0.75rem', color: 'var(--accent-color)', marginBottom: '0.6rem' }}>{learnedNotice}</div>
