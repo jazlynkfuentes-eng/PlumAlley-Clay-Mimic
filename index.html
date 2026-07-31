@@ -4798,7 +4798,42 @@
     const LEARNED_STORAGE_KEY = 'plum_learned_corrections_v1';
 
     function emptyLearnedStore() {
-      return { version: 1, updatedAt: null, corrections: [] };
+      return { version: 1, updatedAt: null, corrections: [], deletions: [] };
+    }
+
+    /**
+     * Removing a correction can't just drop it from a list. Every browser keeps
+     * its own copy and pushes anything the shared store lacks, and the shipped
+     * data/learned-corrections.json backup is re-read on every load, so a plain
+     * removal comes straight back. Deletes are therefore tombstones carrying the
+     * time of the delete, and a later re-teach of the same company wins on
+     * timestamp and revives the entry.
+     */
+    function reconcileLearnedStore(corrections, deletions) {
+      const tombs = new Map();
+      for (const d of (deletions || [])) {
+        if (!d?.companyKey) continue;
+        const prev = tombs.get(d.companyKey);
+        const prevTs = Date.parse(prev?.deletedAt || 0) || 0;
+        const nextTs = Date.parse(d.deletedAt || 0) || 0;
+        if (!prev || nextTs > prevTs) tombs.set(d.companyKey, { companyKey: d.companyKey, deletedAt: d.deletedAt });
+      }
+      const kept = [];
+      for (const c of (corrections || [])) {
+        const tomb = tombs.get(c.companyKey);
+        if (!tomb) {
+          kept.push(c);
+          continue;
+        }
+        const cTs = Date.parse(c.updatedAt || c.createdAt || 0) || 0;
+        const dTs = Date.parse(tomb.deletedAt || 0) || 0;
+        if (cTs > dTs) {
+          tombs.delete(c.companyKey);
+          kept.push(c);
+        }
+      }
+      kept.sort((a, b) => String(a.companyName || '').localeCompare(String(b.companyName || '')));
+      return { corrections: kept, deletions: [...tombs.values()] };
     }
 
     function normalizeLearnedDomain(domain) {
@@ -4816,7 +4851,8 @@
         return {
           version: 1,
           updatedAt: shipped.updatedAt || null,
-          corrections: shipped.corrections.slice()
+          corrections: shipped.corrections.slice(),
+          deletions: Array.isArray(shipped.deletions) ? shipped.deletions.slice() : []
         };
       }
       return emptyLearnedStore();
@@ -4830,7 +4866,8 @@
           return {
             version: 1,
             updatedAt: parsed.updatedAt || null,
-            corrections: parsed.corrections.slice()
+            corrections: parsed.corrections.slice(),
+            deletions: Array.isArray(parsed.deletions) ? parsed.deletions.slice() : []
           };
         }
       } catch (_) {}
@@ -4854,11 +4891,12 @@
         const nextTs = Date.parse(c.updatedAt || c.createdAt || 0) || 0;
         if (nextTs >= prevTs) byKey.set(c.companyKey, { ...c });
       }
-      const corrections = [...byKey.values()].sort((a, b) =>
-        String(a.companyName || '').localeCompare(String(b.companyName || ''))
+      const settled = reconcileLearnedStore(
+        [...byKey.values()],
+        [...(base.deletions || []), ...(overlay.deletions || [])]
       );
       const updatedAt = [base.updatedAt, overlay.updatedAt].filter(Boolean).sort().slice(-1)[0] || null;
-      return { version: 1, updatedAt, corrections };
+      return { version: 1, updatedAt, ...settled };
     }
 
     let learnedCorrectionsStore = mergeLearnedStores(
@@ -4870,7 +4908,8 @@
       return {
         version: 1,
         updatedAt: learnedCorrectionsStore.updatedAt,
-        corrections: (learnedCorrectionsStore.corrections || []).map(c => ({ ...c }))
+        corrections: (learnedCorrectionsStore.corrections || []).map(c => ({ ...c })),
+        deletions: (learnedCorrectionsStore.deletions || []).map(d => ({ ...d }))
       };
     }
 
@@ -4907,7 +4946,12 @@
           ok: true,
           kv: !!json.kv,
           reason: json.reason || '',
-          store: { version: 1, updatedAt: json.updatedAt || null, corrections: json.corrections }
+          store: {
+            version: 1,
+            updatedAt: json.updatedAt || null,
+            corrections: json.corrections,
+            deletions: Array.isArray(json.deletions) ? json.deletions : []
+          }
         };
       } catch (e) {
         return { ok: false, reason: e.message || 'offline' };
@@ -4933,7 +4977,7 @@
       learnedCorrectionsStore = {
         version: 1,
         updatedAt: nextStore.updatedAt || new Date().toISOString(),
-        corrections: (nextStore.corrections || []).slice()
+        ...reconcileLearnedStore(nextStore.corrections, nextStore.deletions)
       };
       try {
         localStorage.setItem(LEARNED_STORAGE_KEY, JSON.stringify(learnedCorrectionsStore));
@@ -4948,7 +4992,8 @@
           learnedCorrectionsStore = {
             version: 1,
             updatedAt: remote.updatedAt || learnedCorrectionsStore.updatedAt,
-            corrections: remote.corrections.slice()
+            corrections: remote.corrections.slice(),
+            deletions: Array.isArray(remote.deletions) ? remote.deletions.slice() : []
           };
           try {
             localStorage.setItem(LEARNED_STORAGE_KEY, JSON.stringify(learnedCorrectionsStore));
@@ -4989,14 +5034,20 @@
         await commitLearnedCorrectionsStore(merged, { skipServer: true });
 
         const remoteKeys = new Set(remote.store.corrections.map(c => c.companyKey));
+        const remoteTombs = new Set(remote.store.deletions.map(d => d.companyKey));
         const missing = merged.corrections.filter(c => !remoteKeys.has(c.companyKey));
-        if (remote.kv && missing.length) {
+        // A delete made while the shared store was unreachable still has to reach
+        // it, or the next device to load will push the entry back up.
+        const missingDeletions = merged.deletions.filter(d => !remoteTombs.has(d.companyKey));
+        if (remote.kv && (missing.length || missingDeletions.length)) {
           await persistLearnedCorrectionsToServer({
             version: 1,
             updatedAt: new Date().toISOString(),
-            corrections: missing
+            corrections: missing,
+            deletions: missingDeletions
           });
-          console.log('[learned] seeded shared store with', missing.length, 'local-only correction(s)');
+          console.log('[learned] seeded shared store with', missing.length,
+            'local-only correction(s) and', missingDeletions.length, 'deletion(s)');
         }
 
         setLearnedSyncState({
@@ -5069,15 +5120,51 @@
       return { ok: true, ...result };
     }
 
+    async function deleteLearnedCorrectionOnServer(companyKey) {
+      try {
+        const res = await fetch(`/api/learned-corrections?companyKey=${encodeURIComponent(companyKey)}`, {
+          method: 'DELETE'
+        });
+        if (!res.ok) return { ok: false, reason: `HTTP ${res.status}` };
+        const json = await res.json().catch(() => ({}));
+        return { ok: true, ...json };
+      } catch (e) {
+        return { ok: false, reason: e.message || 'offline' };
+      }
+    }
+
     async function removeLearnedCorrection(companyKey) {
       const key = companyKeyNorm(companyKey) || String(companyKey || '').trim();
-      const list = (learnedCorrectionsStore.corrections || []).filter(c => c.companyKey !== key);
-      const result = await commitLearnedCorrectionsStore({
-        version: 1,
-        updatedAt: new Date().toISOString(),
-        corrections: list
-      });
-      return { ok: true, ...result };
+      if (!key) return { ok: false, reason: 'invalid' };
+      const now = new Date().toISOString();
+      const corrections = (learnedCorrectionsStore.corrections || []).filter(c => c.companyKey !== key);
+      const deletions = [...(learnedCorrectionsStore.deletions || []), { companyKey: key, deletedAt: now }];
+
+      // Local tombstone first so the row disappears even if the shared store is
+      // down, then tell the server. Skip the store-wide POST: it would only
+      // re-send what the DELETE response already returns.
+      await commitLearnedCorrectionsStore(
+        { version: 1, updatedAt: now, corrections, deletions },
+        { skipServer: true }
+      );
+
+      const remote = await deleteLearnedCorrectionOnServer(key);
+      if (remote.ok && Array.isArray(remote.corrections)) {
+        learnedCorrectionsStore = {
+          version: 1,
+          updatedAt: remote.updatedAt || now,
+          corrections: remote.corrections.slice(),
+          deletions: Array.isArray(remote.deletions) ? remote.deletions.slice() : deletions
+        };
+        try {
+          localStorage.setItem(LEARNED_STORAGE_KEY, JSON.stringify(learnedCorrectionsStore));
+        } catch (_) {}
+      }
+      setLearnedSyncState(remote.ok
+        ? { status: 'synced', kv: true, reason: '', count: learnedCorrectionsStore.corrections.length, at: new Date().toISOString() }
+        : { status: 'local-only', kv: false, reason: remote.reason || 'shared store unavailable' });
+      console.log('[learned] removed', key, 'remote=', remote.ok);
+      return { ok: true, remote, store: getLearnedCorrectionsSnapshot() };
     }
 
     function readAccuracyLog() {
@@ -7672,14 +7759,16 @@
                             className="btn btn-danger"
                             style={{ padding: '0.25rem 0.45rem', fontSize: '0.72rem' }}
                             onClick={async () => {
-                              await removeLearnedCorrection(c.companyKey);
+                              const res = await removeLearnedCorrection(c.companyKey);
                               setLearnedDrafts(prev => {
                                 const next = { ...prev };
                                 delete next[c.companyKey];
                                 return next;
                               });
                               setLearnedTick(t => t + 1);
-                              setLearnedNotice('Removed.');
+                              setLearnedNotice(res.remote?.ok
+                                ? 'Removed everywhere.'
+                                : `Removed here, but the shared store did not confirm (${res.remote?.reason || 'offline'}).`);
                             }}
                           >
                             Remove

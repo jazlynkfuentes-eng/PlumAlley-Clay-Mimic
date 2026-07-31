@@ -1,21 +1,33 @@
 /**
  * Shared learned-corrections store backed by Vercel KV (Upstash Redis).
  *
- *   GET  /api/learned-corrections  -> { version, updatedAt, corrections[], kv }
- *   POST /api/learned-corrections  -> merges and returns the updated store
+ *   GET    /api/learned-corrections  -> { version, updatedAt, corrections[], deletions[], kv }
+ *   POST   /api/learned-corrections  -> merges and returns the updated store
+ *   DELETE /api/learned-corrections?companyKey=acme  -> tombstones and returns the store
  *
  * POST accepts either shape:
  *   { companyName, domain, source }        a single correction
  *   { corrections: [...], updatedAt }      a whole store (client push / migration)
  *
- * Merging happens server-side, keyed by companyKey with newest updatedAt winning,
+ * Merging happens server-side, keyed by companyKey with newest write winning,
  * so two browsers writing at once can't clobber each other's entries.
+ *
+ * Deletes are tombstones, not plain removals. Every browser keeps its own
+ * localStorage copy and pushes anything the shared store is missing, so a
+ * removed row would otherwise be resurrected by the next device to load. A
+ * tombstone records *when* the delete happened, which lets a later re-teach of
+ * the same company win on timestamp and revive the entry.
  *
  * Intentionally dependency-free: the project builds with a no-op install step,
  * so this talks to the Upstash REST API with plain fetch.
  */
 
 const KV_KEY = 'plum:learned-corrections:v1';
+
+// Tombstones are tiny, but keeping them forever grows the payload every browser
+// downloads on load. A year is far longer than any realistic gap between a
+// device's last sync and its next one.
+const TOMBSTONE_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 
 function kvConfig() {
   const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '';
@@ -41,7 +53,7 @@ async function kvCommand(cfg, command) {
 }
 
 function emptyStore() {
-  return { version: 1, updatedAt: null, corrections: [] };
+  return { version: 1, updatedAt: null, corrections: [], deletions: [] };
 }
 
 function companyKeyNorm(name) {
@@ -73,6 +85,12 @@ function sanitizeCorrection(raw) {
   };
 }
 
+function sanitizeDeletion(raw) {
+  const companyKey = companyKeyNorm(raw?.companyKey || raw?.companyName);
+  if (!companyKey) return null;
+  return { companyKey, deletedAt: raw?.deletedAt || new Date().toISOString() };
+}
+
 function mergeCorrections(base, incoming) {
   const byKey = new Map();
   for (const c of base) byKey.set(c.companyKey, c);
@@ -86,9 +104,48 @@ function mergeCorrections(base, incoming) {
     const nextTs = Date.parse(c.updatedAt || c.createdAt || 0) || 0;
     if (nextTs >= prevTs) byKey.set(c.companyKey, { ...c, createdAt: prev.createdAt || c.createdAt });
   }
-  return [...byKey.values()].sort((a, b) =>
-    String(a.companyName).localeCompare(String(b.companyName))
+  return [...byKey.values()];
+}
+
+function mergeDeletions(base, incoming) {
+  const byKey = new Map();
+  for (const d of [...base, ...incoming]) {
+    const prev = byKey.get(d.companyKey);
+    const prevTs = Date.parse(prev?.deletedAt || 0) || 0;
+    const nextTs = Date.parse(d.deletedAt || 0) || 0;
+    if (!prev || nextTs > prevTs) byKey.set(d.companyKey, d);
+  }
+  return [...byKey.values()];
+}
+
+/**
+ * Settle corrections against tombstones. Newest write wins per company, so
+ * re-teaching a company after someone deleted it revives the entry and clears
+ * the tombstone, while deleting after a teach keeps it gone.
+ */
+function reconcile(corrections, deletions) {
+  const cutoff = Date.now() - TOMBSTONE_TTL_MS;
+  const tombs = new Map(
+    deletions
+      .filter(d => (Date.parse(d.deletedAt || 0) || 0) >= cutoff)
+      .map(d => [d.companyKey, d])
   );
+  const kept = [];
+  for (const c of corrections) {
+    const tomb = tombs.get(c.companyKey);
+    if (!tomb) {
+      kept.push(c);
+      continue;
+    }
+    const cTs = Date.parse(c.updatedAt || c.createdAt || 0) || 0;
+    const dTs = Date.parse(tomb.deletedAt || 0) || 0;
+    if (cTs > dTs) {
+      tombs.delete(c.companyKey);
+      kept.push(c);
+    }
+  }
+  kept.sort((a, b) => String(a.companyName).localeCompare(String(b.companyName)));
+  return { corrections: kept, deletions: [...tombs.values()] };
 }
 
 async function readStore(cfg) {
@@ -97,14 +154,24 @@ async function readStore(cfg) {
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (parsed && Array.isArray(parsed.corrections)) {
-      return {
-        version: 1,
-        updatedAt: parsed.updatedAt || null,
-        corrections: parsed.corrections.map(sanitizeCorrection).filter(Boolean)
-      };
+      const settled = reconcile(
+        parsed.corrections.map(sanitizeCorrection).filter(Boolean),
+        (Array.isArray(parsed.deletions) ? parsed.deletions : []).map(sanitizeDeletion).filter(Boolean)
+      );
+      return { version: 1, updatedAt: parsed.updatedAt || null, ...settled };
     }
   } catch (_) { /* corrupt value — start clean rather than 500 */ }
   return emptyStore();
+}
+
+async function writeStore(cfg, { corrections, deletions }) {
+  const store = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    ...reconcile(corrections, deletions)
+  };
+  await kvCommand(cfg, ['SET', KV_KEY, JSON.stringify(store)]);
+  return store;
 }
 
 async function readJsonBody(req) {
@@ -120,7 +187,7 @@ async function readJsonBody(req) {
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Cache-Control', 'no-store');
 
@@ -162,24 +229,73 @@ export default async function handler(req, res) {
     const incoming = (Array.isArray(body.corrections) ? body.corrections : [body])
       .map(sanitizeCorrection)
       .filter(Boolean);
-    if (!incoming.length) {
+    // A client pushing its whole store also forwards tombstones it knows about,
+    // so a delete made while offline still propagates on the next sync.
+    const incomingDeletions = (Array.isArray(body.deletions) ? body.deletions : [])
+      .map(sanitizeDeletion)
+      .filter(Boolean);
+    if (!incoming.length && !incomingDeletions.length) {
       res.status(400).json({ ok: false, reason: 'No valid corrections in request' });
       return;
     }
 
     try {
       const existing = await readStore(cfg);
-      const merged = mergeCorrections(existing.corrections, incoming);
-      const store = {
-        version: 1,
-        updatedAt: new Date().toISOString(),
-        corrections: merged
-      };
-      await kvCommand(cfg, ['SET', KV_KEY, JSON.stringify(store)]);
-      res.status(200).json({ ok: true, kv: true, count: merged.length, ...store });
+      const store = await writeStore(cfg, {
+        corrections: mergeCorrections(existing.corrections, incoming),
+        deletions: mergeDeletions(existing.deletions, incomingDeletions)
+      });
+      res.status(200).json({ ok: true, kv: true, count: store.corrections.length, ...store });
     } catch (err) {
       console.error('[learned-corrections] POST failed', err);
       res.status(500).json({ ok: false, kv: true, reason: err.message || 'KV write failed' });
+    }
+    return;
+  }
+
+  if (req.method === 'DELETE') {
+    if (!cfg) {
+      res.status(503).json({ ok: false, kv: false, reason: 'KV not configured for this deployment' });
+      return;
+    }
+
+    // Accept the key from the query string or a JSON body — DELETE bodies are
+    // awkward enough that callers reasonably reach for either.
+    const body = await readJsonBody(req).catch(() => null);
+    const fromQuery = (() => {
+      try {
+        const url = new URL(req.url, 'http://localhost');
+        return url.searchParams.get('companyKey') || url.searchParams.get('companyName') || '';
+      } catch (_) {
+        return '';
+      }
+    })();
+    const keys = [
+      ...(Array.isArray(body?.companyKeys) ? body.companyKeys : []),
+      body?.companyKey,
+      body?.companyName,
+      fromQuery
+    ]
+      .map(companyKeyNorm)
+      .filter(Boolean);
+
+    if (!keys.length) {
+      res.status(400).json({ ok: false, reason: 'Missing companyKey' });
+      return;
+    }
+
+    try {
+      const existing = await readStore(cfg);
+      const now = new Date().toISOString();
+      const removed = existing.corrections.filter(c => keys.includes(c.companyKey)).length;
+      const store = await writeStore(cfg, {
+        corrections: existing.corrections.filter(c => !keys.includes(c.companyKey)),
+        deletions: mergeDeletions(existing.deletions, keys.map(companyKey => ({ companyKey, deletedAt: now })))
+      });
+      res.status(200).json({ ok: true, kv: true, removed, count: store.corrections.length, ...store });
+    } catch (err) {
+      console.error('[learned-corrections] DELETE failed', err);
+      res.status(500).json({ ok: false, kv: true, reason: err.message || 'KV delete failed' });
     }
     return;
   }

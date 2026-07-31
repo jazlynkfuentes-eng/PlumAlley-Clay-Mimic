@@ -37,13 +37,16 @@ if (json.kv === false) {
   console.warn('[export] warning: endpoint reports KV not configured —', json.reason || 'unknown');
 }
 
+// Tombstones ship alongside the corrections. This file is re-read by every
+// browser on load, so without them a deleted correction would come back.
 const store = {
   version: 1,
   updatedAt: json.updatedAt || new Date().toISOString(),
-  corrections: json.corrections
+  corrections: json.corrections,
+  deletions: Array.isArray(json.deletions) ? json.deletions : []
 };
 fs.writeFileSync(OUT, JSON.stringify(store, null, 2) + '\n', 'utf8');
-console.log(`[export] wrote ${store.corrections.length} correction(s) to data/learned-corrections.json`);
+console.log(`[export] wrote ${store.corrections.length} correction(s) and ${store.deletions.length} deletion(s) to data/learned-corrections.json`);
 
 spawnSync(process.execPath, [path.join(__dirname, 'write-learned-corrections-config.mjs')], {
   cwd: ROOT,

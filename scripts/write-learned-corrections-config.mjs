@@ -11,7 +11,7 @@ const root = path.join(__dirname, '..');
 const jsonPath = path.join(root, 'data', 'learned-corrections.json');
 const outFile = path.join(root, 'learned-corrections-config.js');
 
-let data = { version: 1, updatedAt: null, corrections: [] };
+let data = { version: 1, updatedAt: null, corrections: [], deletions: [] };
 try {
   data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
 } catch (e) {

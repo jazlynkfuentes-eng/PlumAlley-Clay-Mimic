@@ -4,15 +4,6 @@
  */
 window.PLUM_LEARNED_CORRECTIONS = {
   "version": 1,
-  "updatedAt": "2026-07-30T14:37:54.946Z",
-  "corrections": [
-    {
-      "companyName": "Huntington Bancshares",
-      "companyKey": "huntingtonbancshares",
-      "domain": "huntington.com",
-      "source": "thumbs-down",
-      "createdAt": "2026-07-30T14:37:54.944Z",
-      "updatedAt": "2026-07-30T14:37:54.944Z"
-    }
-  ]
+  "updatedAt": null,
+  "corrections": []
 };
