@@ -4793,6 +4793,7 @@
     // --- SITE ACCESS CODE + LOCAL PROJECTS ---
     const ACCESS_SESSION_KEY = 'plum_site_unlocked';
     const PROJECTS_STORAGE_KEY = 'plum_local_projects_v1';
+    const ACTIVE_PROJECT_KEY = 'plum_active_project_v1';
     const ACCURACY_STORAGE_KEY = 'plum_accuracy_feedback_v1';
     const LEARNED_STORAGE_KEY = 'plum_learned_corrections_v1';
 
@@ -5067,7 +5068,31 @@
     }
 
     function writeLocalProjects(list) {
-      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(list || []));
+      try {
+        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(list || []));
+      } catch (err) {
+        const quota = err && (err.name === 'QuotaExceededError' || /quota/i.test(err.message || ''));
+        throw new Error(quota
+          ? 'Browser storage is full — delete an old project and try again'
+          : (err.message || 'Could not write to browser storage'));
+      }
+    }
+
+    // Pointer to the project currently open in the tab, so a reload can restore it
+    // instead of coming back to an empty table flagged as unsaved.
+    function readActiveProjectId() {
+      try {
+        return localStorage.getItem(ACTIVE_PROJECT_KEY) || null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function writeActiveProjectId(id) {
+      try {
+        if (id) localStorage.setItem(ACTIVE_PROJECT_KEY, id);
+        else localStorage.removeItem(ACTIVE_PROJECT_KEY);
+      } catch (_) { /* non-fatal */ }
     }
 
     function newProjectId() {
@@ -5255,6 +5280,7 @@
       }, [editingHeader]);
 
       // Access + local projects
+      const restoredActiveRef = useRef(false);
       useEffect(() => {
         if (unlocked) {
           const list = readLocalProjects()
@@ -5266,12 +5292,29 @@
             created_at: p.created_at,
             updated_at: p.updated_at
           })));
+
+          // Reopen whatever project this tab had loaded before the reload. Without this
+          // the table comes back empty with no saved snapshot, which reads as "unsaved".
+          if (!restoredActiveRef.current) {
+            restoredActiveRef.current = true;
+            const activeId = readActiveProjectId();
+            if (activeId) {
+              const active = list.find(p => p.id === activeId);
+              if (active) {
+                applyProjectData(active.data, active);
+                console.log('[projects] restored active project —', active.name, '| id:', active.id);
+              } else {
+                writeActiveProjectId(null);
+              }
+            }
+          }
         } else {
           setProjects([]);
           setCurrentProjectId(null);
           setCurrentProjectName('');
           setLastSavedAt(null);
           setSavedSnapshot('');
+          restoredActiveRef.current = false;
         }
       }, [unlocked]);
 
@@ -5285,7 +5328,35 @@
         parsePreview
       });
 
-      const snapshotOf = (payload) => JSON.stringify(payload);
+      // Resolver bookkeeping that churns while enrichment runs without changing any
+      // value the user sees. Saved with the project, but excluded from the dirty
+      // comparison so a saved project doesn't flip straight back to "Unsaved changes".
+      const SNAPSHOT_IGNORED_ROW_FIELDS = new Set([
+        'candidates', 'savedCandidates', 'alternatives', 'alternativeDomains',
+        'confidenceSignals', 'confidenceScore', 'decisiveMatch', 'industrySnippet',
+        'skippedDomains', 'pickerOpen', 'candidatesUnconfirmed', 'selectionLocked',
+        'linkVerified', 'userConfirmedDomain', 'matchedName'
+      ]);
+
+      // Column widths persist separately in colWidths_v3, so resizing a column
+      // should not count as an unsaved project change.
+      const snapshotOf = (payload) => {
+        const p = payload || {};
+        return JSON.stringify({
+          rows: (p.rows || []).map(row => {
+            const out = {};
+            Object.keys(row).sort().forEach(k => {
+              if (!SNAPSHOT_IGNORED_ROW_FIELDS.has(k)) out[k] = row[k];
+            });
+            return out;
+          }),
+          headers: p.headers || [],
+          inputText: p.inputText || '',
+          financeFilterActive: !!p.financeFilterActive,
+          latencySpeed: p.latencySpeed,
+          parsePreview: p.parsePreview || null
+        });
+      };
       const currentSnapshot = snapshotOf(buildProjectPayload());
       const hasContent = rows.length > 0 || !!(inputText && inputText.trim()) || !!(parsePreview && parsePreview.length);
       const isDirty = hasContent && (
@@ -5317,27 +5388,36 @@
 
       const applyProjectData = (data, meta = {}) => {
         const d = data || {};
-        setRows(Array.isArray(d.rows) ? d.rows : []);
+        // Resolve the values the table will actually hold, then snapshot exactly those,
+        // so the restored project starts clean rather than instantly "unsaved".
+        const nextRows = Array.isArray(d.rows) ? d.rows : [];
+        const nextHeaders = Array.isArray(d.headers) && d.headers.length ? d.headers : headers;
+        const nextInputText = d.inputText || '';
+        const nextFinance = typeof d.financeFilterActive === 'boolean' ? d.financeFilterActive : financeFilterActive;
+        const nextLatency = d.latencySpeed || latencySpeed;
+        const nextPreview = d.parsePreview || null;
+
+        setRows(nextRows);
         if (Array.isArray(d.headers) && d.headers.length) setHeaders(d.headers);
-        setInputText(d.inputText || '');
+        setInputText(nextInputText);
         if (typeof d.financeFilterActive === 'boolean') setFinanceFilterActive(d.financeFilterActive);
         if (d.latencySpeed) setLatencySpeed(d.latencySpeed);
         if (d.colWidths && typeof d.colWidths === 'object') setColWidths({ ...DEFAULT_COL_WIDTHS, ...d.colWidths });
-        setParsePreview(d.parsePreview || null);
+        setParsePreview(nextPreview);
         setQueue([]);
         setActiveIds([]);
         setCurrentProjectId(meta.id || null);
         setCurrentProjectName(meta.name || '');
         setLastSavedAt(meta.updated_at || null);
         setSavedSnapshot(snapshotOf({
-          rows: Array.isArray(d.rows) ? d.rows : [],
-          headers: Array.isArray(d.headers) && d.headers.length ? d.headers : headers,
-          inputText: d.inputText || '',
-          financeFilterActive: typeof d.financeFilterActive === 'boolean' ? d.financeFilterActive : financeFilterActive,
-          latencySpeed: d.latencySpeed || latencySpeed,
-          colWidths: d.colWidths ? { ...DEFAULT_COL_WIDTHS, ...d.colWidths } : colWidths,
-          parsePreview: d.parsePreview || null
+          rows: nextRows,
+          headers: nextHeaders,
+          inputText: nextInputText,
+          financeFilterActive: nextFinance,
+          latencySpeed: nextLatency,
+          parsePreview: nextPreview
         }));
+        writeActiveProjectId(meta.id || null);
         setProjectsOpen(false);
       };
 
@@ -5359,6 +5439,8 @@
         const now = new Date().toISOString();
         try {
           const list = readLocalProjects();
+          let savedId = currentProjectId;
+          let msg = 'Saved';
           if (!saveAs && currentProjectId) {
             const idx = list.findIndex(p => p.id === currentProjectId);
             if (idx < 0) throw new Error('Project not found');
@@ -5369,27 +5451,36 @@
               updated_at: now
             };
             writeLocalProjects(list);
-            setCurrentProjectName(name);
-            setLastSavedAt(now);
-            setSavedSnapshot(snapshotOf(payload));
-            setProjectMsg('Saved');
           } else {
-            const id = newProjectId();
+            savedId = newProjectId();
             list.push({
-              id,
+              id: savedId,
               name,
               data: payload,
               created_at: now,
               updated_at: now
             });
             writeLocalProjects(list);
-            setCurrentProjectId(id);
-            setCurrentProjectName(name);
-            setLastSavedAt(now);
-            setSavedSnapshot(snapshotOf(payload));
-            setProjectMsg('Saved as new project');
+            setCurrentProjectId(savedId);
+            msg = 'Saved as new project';
           }
+
+          // Verify the write landed before telling the user (and the flag) it's saved
+          const persisted = readLocalProjects().find(p => p.id === savedId);
+          if (!persisted) throw new Error('Save did not persist to browser storage');
+
+          setCurrentProjectName(name);
+          setLastSavedAt(now);
+          setSavedSnapshot(snapshotOf(payload));
+          writeActiveProjectId(savedId);
           refreshProjects();
+          setProjectMsg(msg);
+          console.log(
+            '[projects] save OK —', name, '| id:', savedId,
+            '| rows:', (payload.rows || []).length,
+            '| bytes:', JSON.stringify(persisted).length,
+            '| verified in localStorage'
+          );
         } catch (err) {
           console.error('[projects] save failed', err);
           setProjectMsg(err.message || 'Save failed');
@@ -5447,6 +5538,7 @@
         try {
           const list = readLocalProjects().filter(p => p.id !== currentProjectId);
           writeLocalProjects(list);
+          writeActiveProjectId(null);
           setCurrentProjectId(null);
           setCurrentProjectName('');
           setLastSavedAt(null);
