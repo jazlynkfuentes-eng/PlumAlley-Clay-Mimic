@@ -83,6 +83,10 @@ async function lookupWikidataCompanyFacts() {
 }
 function lookupMajorKnownFirm() { return null; }
 async function fetchPageHtml() { return null; }
+async function fetchPageHtmlFast() { return null; }
+async function scrapeFounderPages() { return UNKNOWN; }
+async function fetchWikipediaFounders() { return UNKNOWN; }
+function extractJsonLdFounders() { return UNKNOWN; }
 function extractEnrichmentFromHtml() {
   return { industry: UNKNOWN, headcount: UNKNOWN, location: UNKNOWN, contacts: UNKNOWN, gender: UNKNOWN, notes: UNKNOWN, source: 'none' };
 }

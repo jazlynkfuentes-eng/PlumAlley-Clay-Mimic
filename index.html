@@ -4767,8 +4767,8 @@ LIMIT 24`.trim();
       return String(raw).trim();
     }
 
-    function unionFounderNames(a, b) {
-      return normalizeFoundersLabel([a, b].filter((v) => !isBlankOrUnknown(v)).join('; '));
+    function unionFounderNames(...vals) {
+      return normalizeFoundersLabel(vals.filter((v) => !isBlankOrUnknown(v)).join('; '));
     }
 
     function applyWikidataFoundersAndGender(target, wikiFacts, dictFields = {}) {
@@ -5037,6 +5037,114 @@ LIMIT 24`.trim();
       return null;
     }
 
+    /** Race the two fastest proxies so extra founder pages stay inside ~2s. */
+    async function fetchPageHtmlFast(absoluteUrl, timeoutMs = 2000) {
+      const proxyBuilders = [
+        (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+        (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`
+      ];
+      const tryProxy = async (builder) => {
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const res = await fetch(builder(absoluteUrl), { signal: controller.signal });
+          clearTimeout(t);
+          if (!res.ok) throw new Error('proxy-http');
+          let html = await res.text();
+          if (html.trim().startsWith('{') && html.includes('"contents"')) {
+            try { html = JSON.parse(html).contents || ''; } catch (_) {}
+          }
+          if (html && html.length >= 40) return html;
+          throw new Error('empty');
+        } catch (e) {
+          clearTimeout(t);
+          throw e;
+        }
+      };
+      try {
+        return await Promise.any(proxyBuilders.map((b) => tryProxy(b)));
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function extractJsonLdFounders(html) {
+      const blocks = String(html || '').match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
+      const names = [];
+      for (const block of blocks) {
+        try {
+          const raw = block.replace(/<\/?script[^>]*>/gi, '');
+          const data = JSON.parse(raw);
+          const nodes = Array.isArray(data) ? data : data['@graph'] ? data['@graph'] : [data];
+          for (const n of nodes) {
+            const types = [].concat(n['@type'] || []).map(String);
+            if (!types.some((t) => /Organization|Corporation|LocalBusiness/i.test(t))) continue;
+            const founders = n.founder == null ? [] : Array.isArray(n.founder) ? n.founder : [n.founder];
+            for (const f of founders) {
+              const name = typeof f === 'string' ? f : f?.name;
+              if (name) names.push(name);
+            }
+          }
+        } catch (_) { /* ignore bad JSON-LD */ }
+      }
+      return normalizeFoundersLabel(names.join('; '));
+    }
+
+    /**
+     * Pull founder names from common official paths in parallel (wall-clock ~2s).
+     */
+    async function scrapeFounderPages(host, _companyName) {
+      if (!host) return UNKNOWN;
+      const paths = ['/about', '/about-us', '/team', '/people', '/leadership', '/founders', '/our-team'];
+      const pages = await Promise.all(paths.map((path) => fetchPageHtmlFast(`https://${host}${path}`, 2000)));
+      const names = [];
+      for (const html of pages) {
+        if (!html) continue;
+        names.push(extractJsonLdFounders(html));
+        const text = stripHtmlToText(html).slice(0, 12000);
+        names.push(extractFounderNamesFromText(text, { includeTeamLabels: true }));
+      }
+      return unionFounderNames(...names);
+    }
+
+    async function fetchWikipediaFounders(companyName) {
+      const name = String(companyName || '').trim();
+      if (!name) return UNKNOWN;
+      try {
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 2500);
+        const res = await fetch(
+          `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(`${name} company`)}&srlimit=5&format=json&origin=*`,
+          { signal: controller.signal }
+        );
+        clearTimeout(t);
+        if (!res.ok) return UNKNOWN;
+        const json = await res.json();
+        const hits = json?.query?.search || [];
+        const nameLower = name.toLowerCase();
+        const tokens = nameLower.split(/\s+/).filter((tok) => tok.length > 2);
+        const hit = hits.find((h) => {
+          const title = String(h.title || '').toLowerCase();
+          if (/disambiguation/i.test(title) || /disambiguation/i.test(h.snippet || '')) return false;
+          return title.includes(nameLower) || (tokens.length > 0 && tokens.every((tok) => title.includes(tok)));
+        });
+        if (!hit?.title) return UNKNOWN;
+        const s2 = new AbortController();
+        const t2 = setTimeout(() => s2.abort(), 2500);
+        const sumRes = await fetch(
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit.title)}`,
+          { signal: s2.signal, headers: { Accept: 'application/json' } }
+        );
+        clearTimeout(t2);
+        if (!sumRes.ok) return UNKNOWN;
+        const wiki = await sumRes.json();
+        if (wiki?.type === 'disambiguation') return UNKNOWN;
+        return extractFounderNamesFromText(`${wiki.extract || ''} ${wiki.description || ''}`, { includeTeamLabels: false });
+      } catch (_) {
+        return UNKNOWN;
+      }
+    }
+
     /**
      * Targeted DuckDuckGo Instant Answer + RelatedTopics corpus for a missing field.
      */
@@ -5047,39 +5155,45 @@ LIMIT 24`.trim();
         industry: [`"${name}" venture capital firm`, `"${name}" industry`, `"${name}" about`],
         location: [`"${name}" headquarters`, `"${name}" based in`, `"${name}" location`],
         headcount: [`"${name}" employees`, `"${name}" team size`, `"${name}" headcount`],
-        contacts: [`"${name}" founder`, `"${name}" founded by`, `"${name}" co-founder`],
+        contacts: [`"${name}" founded by`, `"${name}" co-founded by`, `"${name}" co-founder`, `site:en.wikipedia.org "${name}" founded`],
         notes: [`"${name}" about`, `"${name}" ${host || ''}`.trim()]
       };
-      const queries = (fieldQueries[field] || [`"${name}" ${field}`]).slice(0, 2);
-      if (host) queries.push(`site:${host} ${field === 'contacts' ? 'founder' : field}`);
+      const queries = (fieldQueries[field] || [`"${name}" ${field}`]).slice(0, field === 'contacts' ? 4 : 2);
+      if (host) queries.push(`site:${host} ${field === 'contacts' ? 'founder OR "founded by"' : field}`);
       let corpus = '';
-      for (const q of queries) {
+      const runQuery = async (q) => {
         try {
           const controller = new AbortController();
-          const t = setTimeout(() => controller.abort(), 3500);
+          const t = setTimeout(() => controller.abort(), 2800);
           const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1`, { signal: controller.signal });
           clearTimeout(t);
-          if (!response.ok) continue;
+          if (!response.ok) return '';
           const json = await response.json();
-          if (json.AbstractText) corpus += ` ${json.AbstractText}`;
-          if (json.Heading) corpus += ` ${json.Heading}`;
+          let chunk = '';
+          if (json.AbstractText) chunk += ` ${json.AbstractText}`;
+          if (json.Heading) chunk += ` ${json.Heading}`;
           if (Array.isArray(json.RelatedTopics)) {
             for (const topic of json.RelatedTopics.slice(0, 6)) {
-              if (topic?.Text) corpus += ` ${topic.Text}`;
+              if (topic?.Text) chunk += ` ${topic.Text}`;
               if (Array.isArray(topic?.Topics)) {
                 for (const sub of topic.Topics.slice(0, 4)) {
-                  if (sub?.Text) corpus += ` ${sub.Text}`;
+                  if (sub?.Text) chunk += ` ${sub.Text}`;
                 }
               }
             }
           }
           if (json.Infobox && Array.isArray(json.Infobox.content)) {
             for (const item of json.Infobox.content) {
-              if (item?.label && item?.value) corpus += ` ${item.label}: ${item.value}`;
+              if (item?.label && item?.value) chunk += ` ${item.label}: ${item.value}`;
             }
           }
-        } catch (_) { /* next query */ }
-      }
+          return chunk;
+        } catch (_) {
+          return '';
+        }
+      };
+      const chunks = await Promise.all(queries.map(runQuery));
+      corpus = chunks.join(' ');
       // Wikipedia REST summary as secondary structured source
       try {
         const titleGuess = name.replace(/\s+/g, '_');
@@ -5207,15 +5321,20 @@ LIMIT 24`.trim();
       // One combined corpus pass covering the first missing fields (limit API calls)
       const primaryField = missing[0];
       const corpus = await fetchTargetedSearchCorpus(companyName, domain, primaryField);
-      // Also fetch a founders-specific query when founders missing
       let foundersCorpus = '';
-      if (missing.includes('contacts') && primaryField !== 'contacts') {
-        foundersCorpus = await fetchTargetedSearchCorpus(companyName, domain, 'contacts');
-      }
       let locationCorpus = '';
-      if (missing.includes('location') && primaryField !== 'location') {
-        locationCorpus = await fetchTargetedSearchCorpus(companyName, domain, 'location');
+      let wikiFounders = UNKNOWN;
+      const extra = [];
+      if (missing.includes('contacts') && primaryField !== 'contacts') {
+        extra.push(fetchTargetedSearchCorpus(companyName, domain, 'contacts').then((c) => { foundersCorpus = c; }));
       }
+      if (missing.includes('location') && primaryField !== 'location') {
+        extra.push(fetchTargetedSearchCorpus(companyName, domain, 'location').then((c) => { locationCorpus = c; }));
+      }
+      if (missing.includes('contacts')) {
+        extra.push(fetchWikipediaFounders(companyName).then((v) => { wikiFounders = v; }));
+      }
+      if (extra.length) await Promise.all(extra);
 
       const mined = extractFieldsFromSearchCorpus([corpus, foundersCorpus, locationCorpus].filter(Boolean).join(' '), companyName);
       for (const key of ['industry', 'headcount', 'location', 'contacts', 'notes']) {
@@ -5225,6 +5344,10 @@ LIMIT 24`.trim();
         } else if (isBlankOrUnknown(next[key])) {
           unknownReason[key] = unknownReason[key] || 'no_reliable_source_found';
         }
+      }
+      if (isBlankOrUnknown(next.contacts) && !isBlankOrUnknown(wikiFounders)) {
+        next.contacts = wikiFounders;
+        provenance.contacts = fieldProvenance(next.contacts, 'wikipedia', 'medium');
       }
 
       return { ...next, provenance, unknownReason };
@@ -5349,7 +5472,10 @@ LIMIT 24`.trim();
       if (hc) headcount = hc[1].replace(/\s+/g, ' ').trim();
 
       // Founders — collect every explicit founder attribution, never current-CEO lines
-      let contacts = extractFounderNamesFromText(corpus, { includeTeamLabels: true });
+      let contacts = unionFounderNames(
+        extractFounderNamesFromText(corpus, { includeTeamLabels: true }),
+        extractJsonLdFounders(html)
+      );
 
       // Notes — prefer meta description if present and non-generic
       let notes = UNKNOWN;
@@ -5423,7 +5549,7 @@ LIMIT 24`.trim();
     }
 
     async function enrichCompanyDetails(domain, originalName, apiData = null) {
-      const enrichKey = `v6|founders-gender|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
+      const enrichKey = `v7|founders-pages|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
       if (enrichCache.has(enrichKey)) {
         console.log('[enrich] CACHE HIT', domain);
         return applyBatchUniquenessGuard(domain, { ...enrichCache.get(enrichKey), fromCache: true });
@@ -5513,31 +5639,39 @@ LIMIT 24`.trim();
         return guardedQuick;
       }
 
-      // 2) Live scrape only to fill gaps the dictionary doesn't cover
+      // 2) Live scrape — home page, then parallel founder pages if names are still missing
       let scraped = { ...blank };
       try {
         const homeHtml = await fetchPageHtml(`https://${host}/`, 4500);
         scraped = extractEnrichmentFromHtml(homeHtml, originalName);
+        const contactsMissing = isBlankOrUnknown(scraped.contacts);
         const needsMore = [scraped.industry, scraped.headcount, scraped.location, scraped.contacts]
           .filter(v => isBlankOrUnknown(v)).length >= 2;
-        if (needsMore) {
-          const aboutHtml = await fetchPageHtml(`https://${host}/about`, 4000)
-            || await fetchPageHtml(`https://${host}/about-us`, 4000)
-            || await fetchPageHtml(`https://${host}/company`, 4000)
-            || await fetchPageHtml(`https://${host}/team`, 4000);
-          if (aboutHtml) {
-            const aboutFields = extractEnrichmentFromHtml(aboutHtml, originalName);
-            scraped = {
-              industry: !isBlankOrUnknown(scraped.industry) ? scraped.industry : aboutFields.industry,
-              headcount: !isBlankOrUnknown(scraped.headcount) ? scraped.headcount : aboutFields.headcount,
-              location: !isBlankOrUnknown(sanitizeLocationValue(scraped.location))
-                ? sanitizeLocationValue(scraped.location)
-                : sanitizeLocationValue(aboutFields.location),
-              contacts: !isBlankOrUnknown(scraped.contacts) ? scraped.contacts : aboutFields.contacts,
-              gender: UNKNOWN,
-              notes: !isBlankOrUnknown(scraped.notes) ? scraped.notes : aboutFields.notes,
-              enrichSource: 'scrape'
-            };
+        if (contactsMissing || needsMore) {
+          const extraFounders = contactsMissing ? await scrapeFounderPages(host, originalName) : UNKNOWN;
+          if (!isBlankOrUnknown(extraFounders)) {
+            scraped.contacts = unionFounderNames(scraped.contacts, extraFounders);
+          }
+          if (needsMore && !contactsMissing) {
+            const aboutHtml = await fetchPageHtmlFast(`https://${host}/about`, 2000)
+              || await fetchPageHtmlFast(`https://${host}/about-us`, 2000)
+              || await fetchPageHtmlFast(`https://${host}/company`, 2000);
+            if (aboutHtml) {
+              const aboutFields = extractEnrichmentFromHtml(aboutHtml, originalName);
+              scraped = {
+                industry: !isBlankOrUnknown(scraped.industry) ? scraped.industry : aboutFields.industry,
+                headcount: !isBlankOrUnknown(scraped.headcount) ? scraped.headcount : aboutFields.headcount,
+                location: !isBlankOrUnknown(sanitizeLocationValue(scraped.location))
+                  ? sanitizeLocationValue(scraped.location)
+                  : sanitizeLocationValue(aboutFields.location),
+                contacts: unionFounderNames(scraped.contacts, aboutFields.contacts),
+                gender: UNKNOWN,
+                notes: !isBlankOrUnknown(scraped.notes) ? scraped.notes : aboutFields.notes,
+                enrichSource: 'scrape'
+              };
+            }
+          } else if (!isBlankOrUnknown(scraped.industry) || !isBlankOrUnknown(scraped.contacts) || !isBlankOrUnknown(scraped.location)) {
+            scraped = { ...scraped, enrichSource: 'scrape' };
           }
         } else if (!isBlankOrUnknown(scraped.industry) || !isBlankOrUnknown(scraped.contacts) || !isBlankOrUnknown(scraped.location)) {
           scraped = { ...scraped, enrichSource: 'scrape' };
@@ -7332,6 +7466,32 @@ LIMIT 24`.trim();
               const userConfirmed = !!rowToProcess.userConfirmedDomain;
               const skippedDomains = rowToProcess.skippedDomains || [];
 
+              // Refresh all / per-row refresh: keep the website, skip identity, re-enrich fields only.
+              if (rowToProcess.refreshFieldsOnly && isDomainPrepopulated) {
+                updateRow(rowId, { status: 'enriching', refreshFieldsOnly: false });
+                const details = await enrichCompanyDetails(domain, companyName, null);
+                const keepNotes = rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Refreshing fields...' && rowToProcess[noteKey] !== '-'
+                  && !/Re-running enrichment|Queueing|Select the correct website|Pick a candidate/i.test(rowToProcess[noteKey])
+                  ? sanitizeUserFacingNotes(rowToProcess[noteKey])
+                  : '';
+                const freshNotes = sanitizeUserFacingNotes(details.notes);
+                updateRow(rowId, {
+                  [indKey]: details.industry,
+                  [hcKey]: details.headcount,
+                  [locKey]: details.location,
+                  [conKey]: details.contacts,
+                  [genKey]: details.gender,
+                  [noteKey]: sanitizeUserFacingNotes([keepNotes, freshNotes].filter(Boolean).join(' · ')) || '-',
+                  status: 'found',
+                  linkVerified: true,
+                  refreshFieldsOnly: false,
+                  enrichProvenance: details.provenance || null,
+                  enrichUnknownReason: details.unknownReason || details._unknownReason || null
+                });
+                release(rowId);
+                return;
+              }
+
               if (!isDomainPrepopulated) {
                 updateRow(rowId, { status: 'searching' });
                 const delayStart = Date.now();
@@ -7761,30 +7921,46 @@ LIMIT 24`.trim();
       };
 
       const triggerRowReRun = (rowId) => {
-        if (queue.includes(rowId) || activeIds.includes(rowId)) return;
+        queueFieldRefresh([rowId]);
+      };
 
-        const noteKey = getNotesColumnKey();
+      const queueFieldRefresh = (rowIds) => {
         const webKey = getWebsiteColumnKey();
-        
-        setRows(prev => prev.map(row => {
-          if (row.id === rowId) {
-            const currentWebsite = row[webKey] ? row[webKey].trim().toLowerCase() : '';
-            const prevSkipped = row.skippedDomains || [];
-            const newSkipped = currentWebsite && !prevSkipped.includes(currentWebsite)
-              ? [...prevSkipped, currentWebsite]
-              : prevSkipped;
-
-            return { 
-              ...row, 
-              status: 'pending',
-              [webKey]: '', // Clear old website to trigger re-lookup
-              [noteKey]: 'Re-running enrichment...',
-              skippedDomains: newSkipped
-            };
+        const noteKey = getNotesColumnKey();
+        const compKey = getCompanyColumnKey();
+        const ids = (rowIds || []).filter((id) => id && !queue.includes(id) && !activeIds.includes(id));
+        if (!ids.length) return;
+        const idSet = new Set(ids);
+        setRows((prev) => prev.map((row) => {
+          if (!idSet.has(row.id)) return row;
+          const domain = String(row[webKey] || '').trim();
+          const hasDomain = domain.includes('.') && domain !== '-';
+          const companyName = String(row[compKey] || '').trim();
+          for (const key of [...enrichCache.keys()]) {
+            const k = String(key).toLowerCase();
+            if (hasDomain && k.includes(domain.toLowerCase())) enrichCache.delete(key);
+            else if (companyName.length >= 3 && k.includes(companyName.toLowerCase())) enrichCache.delete(key);
           }
-          return row;
+          return {
+            ...row,
+            status: 'pending',
+            refreshFieldsOnly: hasDomain,
+            [noteKey]: hasDomain ? 'Refreshing fields...' : 'Re-running enrichment...'
+          };
         }));
-        setQueue(prev => [...prev, rowId]);
+        setQueue((prev) => [...prev, ...ids]);
+      };
+
+      const handleRefreshAll = () => {
+        const webKey = getWebsiteColumnKey();
+        const ids = rows
+          .filter((r) => {
+            if (queue.includes(r.id) || activeIds.includes(r.id)) return false;
+            const domain = String(r[webKey] || '').trim();
+            return domain.includes('.') && domain !== '-';
+          })
+          .map((r) => r.id);
+        queueFieldRefresh(ids);
       };
 
       /**
@@ -8199,6 +8375,15 @@ LIMIT 24`.trim();
                     : '—'}
                 </strong>
               </div>
+              <button
+                className="btn btn-primary"
+                disabled={rows.length === 0 || isProcessingActive}
+                onClick={handleRefreshAll}
+                title="Re-enrich founders and fields for every row that already has a website. Does not change identity."
+              >
+                <RefreshIcon size={15} />
+                <span>Refresh all</span>
+              </button>
               <button className="btn btn-danger" disabled={rows.length === 0} onClick={handleClearTable}>
                 <TrashIcon size={15} />
                 <span>Clear Table</span>
@@ -8416,6 +8601,14 @@ LIMIT 24`.trim();
                 </button>
                 <button
                   className="btn btn-primary"
+                  onClick={handleRefreshAll}
+                  disabled={isProcessingActive}
+                  title="Re-enrich founders and fields for every row that already has a website"
+                >
+                  <span style={{ fontSize: '0.75rem' }}>Refresh all</span>
+                </button>
+                <button
+                  className="btn btn-primary"
                   onClick={() => setTableExpanded((v) => !v)}
                   title={tableExpanded ? 'Exit full-screen table (Esc)' : 'Make the table fill the window'}
                 >
@@ -8552,7 +8745,7 @@ LIMIT 24`.trim();
                                   <button 
                                     className="btn" 
                                     style={{ padding: '0.15rem 0.3rem', fontSize: '0.7rem', borderRadius: '4px', height: 'auto', border: 'none', background: 'transparent' }}
-                                    title="Re-run enrichment"
+                                    title="Refresh founders and fields (keeps this website)"
                                     onClick={() => triggerRowReRun(row.id)}
                                   >
                                     <RefreshIcon size={11} style={{ color: 'var(--text-secondary)' }} />
