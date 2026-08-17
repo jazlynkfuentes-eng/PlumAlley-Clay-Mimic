@@ -384,6 +384,449 @@ export function scoreWikipediaTitleForCompany(title, companyName) {
   return s;
 }
 
+/**
+ * Founder-fill cache / rule version. Bump this string when founder-resolution
+ * rules change so stale enrichCache rows are not reused.
+ * v10: weighted Wikipedia mismatch scores (industry 2 / HQ 1.5 / founded 1, skip at >= 3),
+ * completenessReason on founderDebug, partial-male guard counter, learned gender short-circuit.
+ * v9: wiki disambiguation guard, infobox↔P112 completeness, team-bio fallback,
+ * nameVariants search, Unknown: no data vs pipeline error.
+ */
+export const FOUNDERS_PIPELINE_VERSION = 'founders-v10';
+
+export const FOUNDERS_UNKNOWN_LABELS = {
+  unknown_no_data: 'Unknown: no data',
+  unknown_pipeline_error: 'Unknown: pipeline error'
+};
+
+export function companyNameCore(raw) {
+  return String(raw || '')
+    .toLowerCase()
+    .replace(/[.,]/g, ' ')
+    .replace(LEGAL_SUFFIX_RE, ' ')
+    .replace(/\s*\(.*?\)\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Parenthetical aliases plus identity-lock aka / former / matched names. Current name is not included. */
+export function collectNameVariants(companyName, extras = []) {
+  const out = [];
+  const seen = new Set();
+  const push = (n) => {
+    const s = String(n || '').replace(/\s+/g, ' ').trim();
+    if (!s || s.length < 2) return;
+    const k = s.toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(s);
+  };
+  const raw = String(companyName || '');
+  const parenRe = /\(([^)]{2,60})\)/g;
+  let m;
+  while ((m = parenRe.exec(raw))) push(m[1]);
+  const withoutParen = raw.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  if (withoutParen && withoutParen.toLowerCase() !== raw.trim().toLowerCase()) push(withoutParen);
+  for (const extra of extras || []) push(extra);
+  const current = raw.trim().toLowerCase();
+  return out.filter((v) => v.toLowerCase() !== current);
+}
+
+function cleanInfoboxValue(raw) {
+  return String(raw || '')
+    .replace(/\{\{[^}]*\}\}/g, ' ')
+    .replace(/\[\[(?:[^|\]]+\|)?([^\]]+)\]\]/g, '$1')
+    .replace(/<ref[\s\S]*?<\/ref>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, ', ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/'{2,}/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function extractInfoboxField(wikitext, keys) {
+  const t = String(wikitext || '');
+  for (const key of keys) {
+    const re = new RegExp(
+      String.raw`\|\s*${key}\s*=\s*([\s\S]*?)(?=\n\s*\|\s*[a-zA-Z_][a-zA-Z0-9_]*\s*=|\n\}\}|$)`,
+      'i'
+    );
+    const m = t.match(re);
+    if (m && String(m[1]).trim()) return cleanInfoboxValue(m[1]);
+  }
+  return '';
+}
+
+export function extractYearFromText(raw) {
+  const m = String(raw || '').match(/\b(1[89]\d{2}|20[0-2]\d)\b/);
+  return m ? Number(m[1]) : null;
+}
+
+export function extractInfoboxMeta(wikitext) {
+      const industry = extractInfoboxField(wikitext, ['industry', 'industries']);
+  const founded = extractInfoboxField(wikitext, ['founded', 'established', 'foundation']);
+  const hq = extractInfoboxField(wikitext, [
+    'headquarters',
+    'hq',
+    'hq_location',
+    'hq_location_city',
+    'location',
+    'location_city'
+  ]);
+  const former = extractInfoboxField(wikitext, [
+    'former_name',
+    'former_names',
+    'native_name',
+    'aka',
+    'also_known_as',
+    'traded_as'
+  ]);
+  return {
+    industry,
+    founded,
+    foundedYear: extractYearFromText(founded),
+    hq,
+    formerNames: former
+  };
+}
+
+export function classifyNameMatchKind(title, companyName, extraAliases = []) {
+  const coreName = companyNameCore(companyName);
+  const coreTitle = companyNameCore(title);
+  if (!coreName || !coreTitle) return 'none';
+  const titleScore = scoreWikipediaTitleForCompany(title, companyName);
+  if (titleScore < 0) return 'none';
+  if (coreTitle === coreName) return 'exact';
+  const aliases = [companyName, ...(extraAliases || [])].map(companyNameCore).filter(Boolean);
+  if (aliases.some((a) => a === coreTitle)) return 'exact';
+  if (
+    coreTitle.startsWith(`${coreName} `) ||
+    coreName.startsWith(`${coreTitle} `) ||
+    titleScore >= 50 ||
+    /\((?:company|firm|business|bank|organization|organisation)\)/i.test(String(title || ''))
+  ) {
+    return 'near-exact';
+  }
+  if (titleScore >= 25) return 'weak';
+  return 'none';
+}
+
+export function industryFieldsCompatible(resolvedIndustry, infoboxIndustry) {
+  if (isBlankOrUnknown(resolvedIndustry) || !infoboxIndustry) return true;
+  const na = normalizeIndustry(resolvedIndustry);
+  const nb = normalizeIndustry(infoboxIndustry);
+  if (!isBlankOrUnknown(na) && !isBlankOrUnknown(nb) && na.toLowerCase() === nb.toLowerCase()) return true;
+  const tokens = (s) =>
+    String(s)
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length > 3);
+  const a = tokens(resolvedIndustry);
+  const b = tokens(infoboxIndustry);
+  if (a.some((t) => b.includes(t))) return true;
+  const families = [
+    /software|saas|technology|internet|computer|electronics|semiconductor|gpu/,
+    /venture|capital|private.?equity|investment|asset management/,
+    /health|bio|pharma|medical|therapeutics/,
+    /energy|oil|gas|renewable|climate/,
+    /bank|fintech|payment|financial/
+  ];
+  const blobA = String(resolvedIndustry);
+  const blobB = String(infoboxIndustry);
+  return families.some((re) => re.test(blobA) && re.test(blobB));
+}
+
+export function locationFieldsCompatible(resolvedLocation, infoboxHq) {
+  if (isBlankOrUnknown(resolvedLocation) || !infoboxHq) return true;
+  const na = normalizeLocation(resolvedLocation).toLowerCase();
+  const nb = normalizeLocation(infoboxHq).toLowerCase();
+  if (na && nb && (na === nb || na.includes(nb) || nb.includes(na))) return true;
+  const tokens = (s) =>
+    String(s)
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length > 2 && !['the', 'and', 'united', 'states', 'usa', 'city'].includes(t));
+  const a = new Set(tokens(resolvedLocation));
+  const b = new Set(tokens(infoboxHq));
+  for (const t of a) {
+    if (b.has(t)) return true;
+  }
+  return false;
+}
+
+/**
+ * Reject a Wikipedia page for founders unless the title is exact/near-exact
+ * AND the weighted infobox mismatch score is below 3.
+ * Weights: industry 2, HQ 1.5, founded-year 1. Missing fields are not mismatches.
+ */
+export const WIKI_MISMATCH_WEIGHTS = { industry: 2, location: 1.5, founded: 1 };
+export const WIKI_MISMATCH_WEIGHT_THRESHOLD = 3;
+
+export function weightedWikiMismatchScore(mismatches = []) {
+  const contributed = [];
+  let weightedScore = 0;
+  for (const field of mismatches) {
+    const weight = WIKI_MISMATCH_WEIGHTS[field];
+    if (!weight) continue;
+    weightedScore += weight;
+    contributed.push({ field, weight });
+  }
+  return {
+    weightedScore,
+    contributed,
+    overThreshold: weightedScore >= WIKI_MISMATCH_WEIGHT_THRESHOLD
+  };
+}
+
+export function scoreWikipediaPageAgainstResolved(page, resolved = {}) {
+  const title = page?.title || '';
+  const wikitext = page?.wikitext || '';
+  const pageAliases = page?.aliases || [];
+  const companyName = String(resolved.companyName || '').trim();
+  const variants = collectNameVariants(companyName, resolved.nameVariants);
+  const searchNames = [companyName, ...variants].filter(Boolean);
+  const meta = extractInfoboxMeta(wikitext);
+  const infoboxAliases = String(meta.formerNames || '')
+    .split(/[,;]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  let nameMatchKind = 'none';
+  let titleScore = 0;
+  let matchedVariant = companyName;
+  const rank = { exact: 3, 'near-exact': 2, weak: 1, none: 0 };
+  for (const n of searchNames) {
+    const kind = classifyNameMatchKind(title, n, [...pageAliases, ...infoboxAliases]);
+    const sc = scoreWikipediaTitleForCompany(title, n);
+    if (rank[kind] > rank[nameMatchKind] || (kind === nameMatchKind && sc > titleScore)) {
+      nameMatchKind = kind;
+      titleScore = sc;
+      matchedVariant = n;
+    }
+  }
+  if (nameMatchKind !== 'exact' && nameMatchKind !== 'near-exact' && meta.formerNames) {
+    for (const n of searchNames) {
+      if (companyNameCore(n) && meta.formerNames.toLowerCase().includes(companyNameCore(n))) {
+        nameMatchKind = 'near-exact';
+        matchedVariant = n;
+        break;
+      }
+    }
+  }
+
+  const reasons = [];
+  const mismatches = [];
+  if (nameMatchKind !== 'exact' && nameMatchKind !== 'near-exact') {
+    reasons.push(
+      `encyclopedia skipped — low confidence match (name is ${nameMatchKind}, not exact/near-exact)`
+    );
+    return {
+      ok: false,
+      score: titleScore,
+      nameMatchKind,
+      mismatches: ['name'],
+      reasons,
+      matchedVariant,
+      meta
+    };
+  }
+
+  if (!industryFieldsCompatible(resolved.industry, meta.industry)) {
+    mismatches.push('industry');
+    reasons.push(`industry mismatch: resolved=${resolved.industry} infobox=${meta.industry}`);
+  }
+  const resolvedYear = resolved.foundedYear || extractYearFromText(resolved.founded);
+  if (resolvedYear && meta.foundedYear && Number(resolvedYear) !== Number(meta.foundedYear)) {
+    mismatches.push('founded');
+    reasons.push(`founded year mismatch: resolved=${resolvedYear} infobox=${meta.foundedYear}`);
+  }
+  if (!locationFieldsCompatible(resolved.location, meta.hq)) {
+    mismatches.push('location');
+    reasons.push(`HQ mismatch: resolved=${resolved.location} infobox=${meta.hq}`);
+  }
+
+  if (mismatches.length >= 1) {
+    const weights = weightedWikiMismatchScore(mismatches);
+    if (weights.overThreshold) {
+      reasons.push(
+        `encyclopedia skipped — low confidence match (weighted mismatch ${weights.weightedScore} >= ${WIKI_MISMATCH_WEIGHT_THRESHOLD}; ${weights.contributed.map((c) => `${c.field}×${c.weight}`).join(', ')})`
+      );
+      return {
+        ok: false,
+        score: titleScore,
+        nameMatchKind,
+        mismatches,
+        reasons,
+        matchedVariant,
+        meta,
+        weightedMismatchScore: weights.weightedScore,
+        mismatchWeights: weights.contributed
+      };
+    }
+  }
+
+  const weights = weightedWikiMismatchScore(mismatches);
+  reasons.push(
+    `wikipedia accepted (${nameMatchKind} name match via ${matchedVariant}; weighted mismatch ${weights.weightedScore})`
+  );
+  return {
+    ok: true,
+    score: titleScore + Math.max(0, 20 - weights.weightedScore * 4),
+    nameMatchKind,
+    mismatches,
+    reasons,
+    matchedVariant,
+    meta,
+    weightedMismatchScore: weights.weightedScore,
+    mismatchWeights: weights.contributed
+  };
+}
+
+export function founderNameKeySet(names) {
+  const arr = Array.isArray(names)
+    ? names
+    : String(names || '')
+        .split(/\s*;\s*/)
+        .map((s) => s.trim());
+  const set = new Set();
+  for (const n of arr) {
+    const k = String(n || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (k.split(/\s+/).length >= 2) set.add(k);
+  }
+  return set;
+}
+
+/**
+ * Infobox wikilinks vs Wikidata P112 on the same QID.
+ * complete = same count and the name sets are identical.
+ * partial = one source missing, counts differ, or names do not overlap.
+ */
+export function founderListCompletenessDetail(infoboxNames, p112Names) {
+  const a = founderNameKeySet(infoboxNames);
+  const b = founderNameKeySet(p112Names);
+  const infoboxCount = a.size;
+  const p112Count = b.size;
+  if (!a.size && !b.size) {
+    return { completeness: 'none', completenessReason: null, infoboxCount, p112Count, completenessReasonDetail: null };
+  }
+  if (!a.size && b.size) {
+    return {
+      completeness: 'partial',
+      completenessReason: 'infobox_empty',
+      infoboxCount,
+      p112Count,
+      completenessReasonDetail: `infobox: ${infoboxCount}, P112: ${p112Count}`
+    };
+  }
+  if (a.size && !b.size) {
+    return {
+      completeness: 'partial',
+      completenessReason: 'p112_empty',
+      infoboxCount,
+      p112Count,
+      completenessReasonDetail: `infobox: ${infoboxCount}, P112: ${p112Count}`
+    };
+  }
+  let overlap = 0;
+  for (const k of a) {
+    if (b.has(k)) overlap += 1;
+  }
+  if (overlap === 0) {
+    return {
+      completeness: 'partial',
+      completenessReason: 'no_overlap',
+      infoboxCount,
+      p112Count,
+      completenessReasonDetail: `infobox: ${infoboxCount}, P112: ${p112Count}`
+    };
+  }
+  if (a.size === b.size && overlap === a.size) {
+    return { completeness: 'complete', completenessReason: null, infoboxCount, p112Count, completenessReasonDetail: null };
+  }
+  return {
+    completeness: 'partial',
+    completenessReason: 'count_mismatch',
+    infoboxCount,
+    p112Count,
+    completenessReasonDetail: `infobox: ${infoboxCount}, P112: ${p112Count}`
+  };
+}
+
+export function classifyFounderListCompleteness(infoboxNames, p112Names) {
+  return founderListCompletenessDetail(infoboxNames, p112Names).completeness;
+}
+
+export function classifyFoundersUnknownStatus(contacts, pipelineErrors = []) {
+  if (!isBlankOrUnknown(contacts)) return null;
+  if (Array.isArray(pipelineErrors) && pipelineErrors.length) return 'unknown_pipeline_error';
+  return 'unknown_no_data';
+}
+
+export function extractExplicitFoundedByNames(text) {
+  const blob = String(text || '');
+  const collected = [];
+  const push = (raw) => {
+    const n = normalizeFounders(raw);
+    if (!isBlankOrUnknown(n)) collected.push(n);
+  };
+  const foundedBy =
+    /(?:[Ff]ounded by|[Cc]o-founded by)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){0,3}(?:\s+(?:and|&|,)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){0,3}){0,4})/g;
+  let m;
+  while ((m = foundedBy.exec(blob))) push(m[1]);
+  const isFounder =
+    /([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s+(?:is|was)\s+(?:a\s+|the\s+)?(?:co-)?founder\b/gi;
+  while ((m = isFounder.exec(blob))) push(m[1]);
+  return normalizeFounders(collected.join('; '));
+}
+
+/**
+ * Tertiary team/people bio pass. Requires Founder / Co-Founder / Founding Partner
+ * in the title. CEO / President alone is ignored.
+ */
+export function extractFounderTitleBios(text) {
+  const blob = String(text || '');
+  const collected = [];
+  const skipName = (name) =>
+    /^(Our|The|Meet|Team|About|Leadership|Company|Board|Staff|People|Home|Contact)$/i.test(name);
+  const pushName = (raw) => {
+    const name = String(raw || '').replace(/\s+/g, ' ').trim();
+    if (!name || skipName(name) || name.split(/\s+/).length < 2) return;
+    if (isExecTitleNotFounder(name)) return;
+    const n = normalizeFounders(name);
+    if (!isBlankOrUnknown(n)) collected.push(n);
+  };
+  const founderTitle = /\b(?:co-?founders?|founders?|founding\s+(?:partner|member))\b/i;
+  const labeled =
+    /([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s*[,;:\u2013\u2014\-]\s*([^\n|]{2,80})/g;
+  let m;
+  while ((m = labeled.exec(blob))) {
+    if (founderTitle.test(m[2])) pushName(m[1]);
+  }
+  const reverse =
+    /\b(?:Co-)?Founders?\b(?:\s*[&,/]\s*(?:CEO|CTO|COO|President|Partner))?[^\n]{0,24}?([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})/g;
+  while ((m = reverse.exec(blob))) {
+    if (!/^(by|the|our|a)$/i.test(m[1])) pushName(m[1]);
+  }
+  const twoLine =
+    /([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s*[\n|]\s*(?:Co-)?Founder\b|\bFounding\s+(?:Partner|Member)\b/g;
+  while ((m = twoLine.exec(blob))) pushName(m[1]);
+  return normalizeFounders(collected.join('; '));
+}
+
+/** JSON-LD / founded-by first; team bios only when both are empty. */
+export function mergeOfficialSiteFounders({ jsonLd = '', explicit = '', bios = '' } = {}) {
+  const primary = normalizeFounders(
+    [jsonLd, explicit].filter((v) => !isBlankOrUnknown(v)).join('; ')
+  );
+  if (!isBlankOrUnknown(primary)) return primary;
+  return isBlankOrUnknown(bios) ? UNKNOWN : normalizeFounders(bios);
+}
+
 /** Wikidata P21: female, trans woman */
 export const WD_GENDER_FEMALE = new Set(['Q6581072', 'Q1052281']);
 /** Wikidata P21: male, trans man */
@@ -428,6 +871,49 @@ export function summarizeFoundingTeamGender(genders) {
   if (hasM && hasU) return UNKNOWN;
   if (hasM) return 'Male';
   return UNKNOWN;
+}
+
+/**
+ * Gender used on the screening column.
+ * Female / mixed still keep on a partial Wikipedia list (a woman must not be hidden).
+ * All-male auto-skip is allowed only when infobox founders and Wikidata P112 agree
+ * (completeness === 'complete'). A partial Wikipedia list routes to Unknown / review.
+ * Non-Wikipedia sources (dictionary / site) keep summarizeFoundingTeamGender as-is
+ * because completeness is 'none'.
+ */
+export function genderForFoundingTeamScreen(genders, completeness) {
+  const gender = summarizeFoundingTeamGender(genders);
+  if (gender === 'Male' && completeness === 'partial') return UNKNOWN;
+  return gender;
+}
+
+/**
+ * Additive wrapper around genderForFoundingTeamScreen. Does not change that
+ * function's return values. A learned gender confirmation for this company
+ * is checked before the partial-all-male → Unknown guard is applied.
+ */
+export function applyScreenedFoundingTeamGender(genders, completeness, opts = {}) {
+  const rawGender = summarizeFoundingTeamGender(genders);
+  const screenedGender = genderForFoundingTeamScreen(genders, completeness);
+  const guardWouldBlock = completeness === 'partial' && rawGender === 'Male' && screenedGender === UNKNOWN;
+  const learnedGender = String(opts.learnedGender || '').trim();
+  const learnedOk = learnedGender && !/^unknown$/i.test(learnedGender);
+  if (guardWouldBlock && learnedOk) {
+    return {
+      gender: learnedGender,
+      rawGender,
+      screenedGender,
+      guardFired: false,
+      guardShortCircuited: true
+    };
+  }
+  return {
+    gender: screenedGender,
+    rawGender,
+    screenedGender,
+    guardFired: guardWouldBlock,
+    guardShortCircuited: false
+  };
 }
 
 /**

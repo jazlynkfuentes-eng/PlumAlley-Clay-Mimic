@@ -89,6 +89,24 @@ async function fetchWikipediaFounders() { return UNKNOWN; }
 async function lookupEncyclopediaFounders() {
   return { contacts: UNKNOWN, founderGenders: [], gender: UNKNOWN, provenance: null };
 }
+function collectNameVariants() { return []; }
+function classifyFoundersUnknownStatus(contacts, errors) {
+  if (!contacts || contacts === '-' || /^unknown$/i.test(String(contacts))) {
+    return (errors && errors.length) ? 'unknown_pipeline_error' : 'unknown_no_data';
+  }
+  return null;
+}
+function applyWikidataFoundersAndGender() { return false; }
+const FOUNDERS_PIPELINE_VERSION = 'founders-v10';
+function applyScreenedFoundingTeamGender(genders, completeness) {
+  const gender = (typeof summarizeFoundingTeamGender === 'function')
+    ? summarizeFoundingTeamGender(genders)
+    : 'Unknown';
+  if (gender === 'Male' && completeness === 'partial') return { gender: UNKNOWN, guardFired: true };
+  return { gender, guardFired: false };
+}
+function lookupLearnedGenderScreen() { return null; }
+function noteFounderGuardFired() {}
 function extractJsonLdFounders() { return UNKNOWN; }
 function extractEnrichmentFromHtml() {
   return { industry: UNKNOWN, headcount: UNKNOWN, location: UNKNOWN, contacts: UNKNOWN, gender: UNKNOWN, notes: UNKNOWN, source: 'none' };

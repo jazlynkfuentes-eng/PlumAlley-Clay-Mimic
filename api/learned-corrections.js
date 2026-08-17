@@ -81,7 +81,14 @@ function sanitizeCorrection(raw) {
     domain,
     source: String(raw?.source || 'manual').slice(0, 40),
     createdAt: raw?.createdAt || now,
-    updatedAt: raw?.updatedAt || now
+    updatedAt: raw?.updatedAt || now,
+    ...(raw?.genderConfirmed && !/^unknown$/i.test(String(raw.genderConfirmed))
+      ? {
+          genderConfirmed: String(raw.genderConfirmed).trim().slice(0, 40),
+          genderConfirmedAt: raw.genderConfirmedAt || now,
+          genderConfirmedSource: String(raw.genderConfirmedSource || '').slice(0, 60)
+        }
+      : {})
   };
 }
 

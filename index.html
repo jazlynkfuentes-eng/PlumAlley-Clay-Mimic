@@ -2018,6 +2018,15 @@
     const resolveCache = new Map();
     const verifyCache = new Map();
     const enrichCache = new Map();
+    // Bump FOUNDERS_PIPELINE_VERSION when founder-fill rules change (invalidates enrichCache).
+    // founders-v10: weighted wiki mismatch (industry 2 / HQ 1.5 / founded 1, skip at >= 3),
+    // completenessReason, partial-male guard counter, learned gender short-circuit.
+    // Was founders-v9.
+    const FOUNDERS_PIPELINE_VERSION = 'founders-v10';
+    const FOUNDERS_UNKNOWN_LABELS = {
+      unknown_no_data: 'Unknown: no data',
+      unknown_pipeline_error: 'Unknown: pipeline error'
+    };
     const ENRICH_CONCURRENCY = 6;
     let encyclopediaSlots = 0;
     const encyclopediaWaiters = [];
@@ -3964,7 +3973,7 @@
      * Structured company facts from Wikidata (HQ P159, founders P112, employees P1128).
      * Prefer entity whose official website matches the resolved domain.
      */
-    async function lookupWikidataCompanyFacts(companyName, domain) {
+    async function lookupWikidataCompanyFacts(companyName, domain, resolvedCtx = {}) {
       const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
       const out = {
         industry: UNKNOWN,
@@ -3974,10 +3983,20 @@
         gender: UNKNOWN,
         notes: UNKNOWN,
         founderGenders: [],
-        provenance: {}
+        provenance: {},
+        founderListCompleteness: 'none',
+        founderDebug: {},
+        pipelineError: null
       };
 
-      const encPromise = lookupEncyclopediaFounders(companyName, host);
+      const encPromise = lookupEncyclopediaFounders(companyName, host, {
+        companyName,
+        nameVariants: resolvedCtx.nameVariants,
+        industry: resolvedCtx.industry,
+        location: resolvedCtx.location,
+        foundedYear: resolvedCtx.foundedYear,
+        founded: resolvedCtx.founded
+      });
 
       try {
         // Domain-first SPARQL (structured, high confidence when it hits)
@@ -4053,12 +4072,14 @@ LIMIT 24`.trim();
                 if (!isBlankOrUnknown(out.gender)) {
                   out.provenance.gender = fieldProvenance(out.gender, 'wikidata', 'high');
                 }
+                out.sparqlFounderNames = founderNames;
               }
             }
           }
         }
       } catch (e) {
         console.warn('[enrich] wikidata sparql failed', e);
+        out.pipelineError = out.pipelineError || 'wikidata_sparql_failed';
       }
 
       // Fallback / fill gaps via enwiki entity claims
@@ -4125,11 +4146,27 @@ LIMIT 24`.trim();
         }
       } catch (e) {
         console.warn('[enrich] wikidata facts failed', e);
+        out.pipelineError = out.pipelineError || 'wikidata_entity_failed';
       }
 
       try {
         const enc = await encPromise;
-        if (enc && !isBlankOrUnknown(enc.contacts)) {
+        if (enc?.founderDebug) out.founderDebug = { ...out.founderDebug, ...enc.founderDebug };
+        if (enc?.error) out.pipelineError = enc.error;
+        if (enc?.skipped) {
+          out.encyclopediaSkipped = true;
+          out.founderDebug.wikiSkip = enc.skipReason || 'encyclopedia skipped — low confidence match';
+          if (enc.founderDebug?.weightedMismatchScore != null) {
+            out.founderDebug.weightedMismatchScore = enc.founderDebug.weightedMismatchScore;
+            out.founderDebug.mismatchWeights = enc.founderDebug.mismatchWeights;
+          }
+          if (!isBlankOrUnknown(out.contacts)) {
+            out.founderListCompleteness = 'partial';
+            out.completenessReason = 'infobox_empty';
+            out.completenessReasonDetail = `infobox: 0, P112: ${founderNameKeySet(out.sparqlFounderNames || out.contacts).size}`;
+            out.gender = genderForFoundingTeamScreen(out.founderGenders, 'partial');
+          }
+        } else if (enc && !isBlankOrUnknown(enc.contacts)) {
           out.contacts = unionFounderNames(out.contacts, enc.contacts);
           if (!isBlankOrUnknown(out.contacts)) {
             out.provenance.contacts = enc.provenance || fieldProvenance(out.contacts, 'wikipedia-infobox', 'high');
@@ -4137,16 +4174,27 @@ LIMIT 24`.trim();
           const genderPieces = [...(out.founderGenders || [])];
           if (Array.isArray(enc.founderGenders)) genderPieces.push(...enc.founderGenders);
           else if (!isBlankOrUnknown(enc.gender)) genderPieces.push(enc.gender);
+          const detail = founderListCompletenessDetail(enc.infoboxNames, enc.p112Names || out.sparqlFounderNames);
+          const completeness = enc.founderListCompleteness || detail.completeness;
+          out.founderListCompleteness = completeness;
+          out.completenessReason = enc.completenessReason || detail.completenessReason;
+          out.completenessReasonDetail = enc.completenessReasonDetail || detail.completenessReasonDetail;
           if (genderPieces.length) {
             out.founderGenders = genderPieces;
-            out.gender = summarizeFoundingTeamGender(genderPieces);
+            out.gender = genderForFoundingTeamScreen(genderPieces, completeness);
             if (!isBlankOrUnknown(out.gender)) {
               out.provenance.gender = fieldProvenance(out.gender, 'wikidata', 'high');
             }
           }
+        } else if (!isBlankOrUnknown(out.contacts)) {
+          out.founderListCompleteness = 'partial';
+          out.completenessReason = 'infobox_empty';
+          out.completenessReasonDetail = `infobox: 0, P112: ${founderNameKeySet(out.sparqlFounderNames || out.contacts).size}`;
+          out.gender = genderForFoundingTeamScreen(out.founderGenders, 'partial');
         }
       } catch (e) {
         console.warn('[enrich] encyclopedia founders failed', e);
+        out.pipelineError = out.pipelineError || 'encyclopedia_merge_failed';
       }
 
       return out;
@@ -4798,6 +4846,41 @@ LIMIT 24`.trim();
       return UNKNOWN;
     }
 
+    /**
+     * Screening gender. Female / mixed keep even on a partial Wikipedia list.
+     * All-male auto-skip only when infobox and Wikidata P112 agree (complete).
+     * Partial Wikipedia lists → Unknown (manual review). completeness 'none' does not override.
+     */
+    function genderForFoundingTeamScreen(genders, completeness) {
+      const gender = summarizeFoundingTeamGender(genders);
+      if (gender === 'Male' && completeness === 'partial') return UNKNOWN;
+      return gender;
+    }
+
+    function applyScreenedFoundingTeamGender(genders, completeness, opts = {}) {
+      const rawGender = summarizeFoundingTeamGender(genders);
+      const screenedGender = genderForFoundingTeamScreen(genders, completeness);
+      const guardWouldBlock = completeness === 'partial' && rawGender === 'Male' && screenedGender === UNKNOWN;
+      const learnedGender = String(opts.learnedGender || '').trim();
+      const learnedOk = learnedGender && !/^unknown$/i.test(learnedGender);
+      if (guardWouldBlock && learnedOk) {
+        return {
+          gender: learnedGender,
+          rawGender,
+          screenedGender,
+          guardFired: false,
+          guardShortCircuited: true
+        };
+      }
+      return {
+        gender: screenedGender,
+        rawGender,
+        screenedGender,
+        guardFired: guardWouldBlock,
+        guardShortCircuited: false
+      };
+    }
+
     function isExecTitleNotFounder(raw) {
       const s = String(raw || '').trim();
       if (!s) return false;
@@ -4814,7 +4897,7 @@ LIMIT 24`.trim();
       return normalizeFoundersLabel(vals.filter((v) => !isBlankOrUnknown(v)).join('; '));
     }
 
-    function applyWikidataFoundersAndGender(target, wikiFacts, dictFields = {}) {
+    function applyWikidataFoundersAndGender(target, wikiFacts, dictFields = {}, opts = {}) {
       if (!wikiFacts || isBlankOrUnknown(wikiFacts.contacts)) return false;
       target.contacts = unionFounderNames(target.contacts, wikiFacts.contacts);
       target.provenance = { ...(target.provenance || {}) };
@@ -4830,17 +4913,53 @@ LIMIT 24`.trim();
       } else if (!isBlankOrUnknown(target.gender)) {
         genderPieces.push(target.gender);
       }
-      const teamGender = summarizeFoundingTeamGender(genderPieces);
+      const completeness = wikiFacts.founderListCompleteness || 'none';
+      if (completeness && completeness !== 'none') target.founderListCompleteness = completeness;
+      const learned = typeof lookupLearnedGenderScreen === 'function'
+        ? lookupLearnedGenderScreen(opts.companyName || dictFields.companyName)
+        : null;
+      const applied = applyScreenedFoundingTeamGender(genderPieces, completeness, {
+        learnedGender: learned?.genderConfirmed
+      });
+      if (applied.guardFired && typeof noteFounderGuardFired === 'function') noteFounderGuardFired();
+      const teamGender = applied.gender;
+      target.founderDebug = {
+        ...(target.founderDebug || {}),
+        ...(wikiFacts.founderDebug || {}),
+        completeness,
+        completenessReason: wikiFacts.completenessReason || wikiFacts.founderDebug?.completenessReason || null,
+        completenessReasonDetail: wikiFacts.completenessReasonDetail || wikiFacts.founderDebug?.completenessReasonDetail || null,
+        rawFoundingTeamGender: applied.rawGender,
+        screenedFoundingTeamGender: applied.screenedGender,
+        guardFired: applied.guardFired,
+        guardShortCircuited: applied.guardShortCircuited
+      };
+      if (applied.guardFired) target.genderGuardFired = true;
+      if (applied.guardShortCircuited) target.genderGuardFired = false;
       if (!isBlankOrUnknown(teamGender)) {
         target.gender = teamGender;
         target.provenance.gender = wikiFacts.provenance?.gender || fieldProvenance(teamGender, 'wikidata', 'high');
+      } else if (completeness === 'partial' && applied.rawGender === 'Male') {
+        target.gender = UNKNOWN;
+        target.provenance.gender = fieldProvenance(UNKNOWN, 'wikidata', 'medium', {
+          unknownReason: 'partial_founder_list_no_auto_skip'
+        });
       } else if (isBlankOrUnknown(target.gender) && !isBlankOrUnknown(wikiFacts.gender)) {
         target.gender = wikiFacts.gender;
+      }
+      if (wikiFacts.founderDebug) {
+        target.founderDebug = { ...(wikiFacts.founderDebug || {}), ...(target.founderDebug || {}) };
       }
       return true;
     }
 
     function extractFounderNamesFromText(text, opts = {}) {
+      const explicit = extractExplicitFoundedByNames(text);
+      if (!opts.includeTeamLabels) return explicit;
+      return unionFounderNames(explicit, extractFounderTitleBios(text));
+    }
+
+    function extractExplicitFoundedByNames(text) {
       const blob = String(text || '');
       const collected = [];
       const push = (raw) => {
@@ -4854,15 +4973,43 @@ LIMIT 24`.trim();
       const isFounder =
         /([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s+(?:is|was)\s+(?:a\s+|the\s+)?(?:co-)?founder\b/gi;
       while ((m = isFounder.exec(blob))) push(m[1]);
-      if (opts.includeTeamLabels) {
-        const labeled =
-          /([A-Z][a-z]+(?:\s+[A-Z][a-z'-]+){1,3})\s*[,;:\u2013\u2014\-]\s*(?:Co-)?Founder\b/g;
-        while ((m = labeled.exec(blob))) {
-          if (/^(Our|The|Meet|Team|About|Leadership)\b/i.test(m[1])) continue;
-          push(m[1]);
-        }
-      }
       return normalizeFoundersLabel(collected.join('; '));
+    }
+
+    function extractFounderTitleBios(text) {
+      const blob = String(text || '');
+      const collected = [];
+      const skipName = (name) =>
+        /^(Our|The|Meet|Team|About|Leadership|Company|Board|Staff|People|Home|Contact)$/i.test(name);
+      const pushName = (raw) => {
+        const name = String(raw || '').replace(/\s+/g, ' ').trim();
+        if (!name || skipName(name) || name.split(/\s+/).length < 2) return;
+        if (isExecTitleNotFounder(name)) return;
+        const n = normalizeFoundersLabel(name);
+        if (!isBlankOrUnknown(n)) collected.push(n);
+      };
+      const founderTitle = /\b(?:co-?founders?|founders?|founding\s+(?:partner|member))\b/i;
+      const labeled =
+        /([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s*[,;:\u2013\u2014\-]\s*([^\n|]{2,80})/g;
+      let m;
+      while ((m = labeled.exec(blob))) {
+        if (founderTitle.test(m[2])) pushName(m[1]);
+      }
+      const reverse =
+        /\b(?:Co-)?Founders?\b(?:\s*[&,/]\s*(?:CEO|CTO|COO|President|Partner))?[^\n]{0,24}?([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})/g;
+      while ((m = reverse.exec(blob))) {
+        if (!/^(by|the|our|a)$/i.test(m[1])) pushName(m[1]);
+      }
+      const twoLine =
+        /([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s*[\n|]\s*(?:Co-)?Founder\b|\bFounding\s+(?:Partner|Member)\b/g;
+      while ((m = twoLine.exec(blob))) pushName(m[1]);
+      return normalizeFoundersLabel(collected.join('; '));
+    }
+
+    function mergeOfficialSiteFounders({ jsonLd = '', explicit = '', bios = '' } = {}) {
+      const primary = unionFounderNames(jsonLd, explicit);
+      if (!isBlankOrUnknown(primary)) return primary;
+      return isBlankOrUnknown(bios) ? UNKNOWN : normalizeFoundersLabel(bios);
     }
 
     function fieldProvenance(value, source, confidence, extra = {}) {
@@ -5138,16 +5285,27 @@ LIMIT 24`.trim();
      */
     async function scrapeFounderPages(host, _companyName) {
       if (!host) return UNKNOWN;
-      const paths = ['/about', '/about-us', '/team', '/people', '/leadership', '/founders', '/our-team'];
-      const pages = await Promise.all(paths.map((path) => fetchPageHtmlFast(`https://${host}${path}`, 2000)));
-      const names = [];
-      for (const html of pages) {
+      const teamPaths = ['/team', '/people', '/leadership', '/founders', '/our-team'];
+      const paths = ['/about', '/about-us', ...teamPaths];
+      const pages = await Promise.all(paths.map(async (path) => ({
+        path,
+        html: await fetchPageHtmlFast(`https://${host}${path}`, 2000)
+      })));
+      const jsonLdParts = [];
+      const explicitParts = [];
+      const bios = [];
+      for (const { path, html } of pages) {
         if (!html) continue;
-        names.push(extractJsonLdFounders(html));
+        jsonLdParts.push(extractJsonLdFounders(html));
         const text = stripHtmlToText(html).slice(0, 12000);
-        names.push(extractFounderNamesFromText(text, { includeTeamLabels: true }));
+        explicitParts.push(extractExplicitFoundedByNames(text));
+        if (teamPaths.includes(path)) bios.push(extractFounderTitleBios(text));
       }
-      return unionFounderNames(...names);
+      return mergeOfficialSiteFounders({
+        jsonLd: unionFounderNames(...jsonLdParts),
+        explicit: unionFounderNames(...explicitParts),
+        bios: unionFounderNames(...bios)
+      });
     }
 
     function extractInfoboxFounderNames(wikitext) {
@@ -5204,80 +5362,489 @@ LIMIT 24`.trim();
       return s;
     }
 
+    function companyNameCore(raw) {
+      return String(raw || '')
+        .toLowerCase()
+        .replace(/[.,]/g, ' ')
+        .replace(LEGAL_SUFFIX_RE, ' ')
+        .replace(/\s*\(.*?\)\s*/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function collectNameVariants(companyName, extras = []) {
+      const out = [];
+      const seen = new Set();
+      const push = (n) => {
+        const s = String(n || '').replace(/\s+/g, ' ').trim();
+        if (!s || s.length < 2) return;
+        const k = s.toLowerCase();
+        if (seen.has(k)) return;
+        seen.add(k);
+        out.push(s);
+      };
+      const raw = String(companyName || '');
+      const parenRe = /\(([^)]{2,60})\)/g;
+      let m;
+      while ((m = parenRe.exec(raw))) push(m[1]);
+      const withoutParen = raw.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+      if (withoutParen && withoutParen.toLowerCase() !== raw.trim().toLowerCase()) push(withoutParen);
+      for (const extra of extras || []) push(extra);
+      const current = raw.trim().toLowerCase();
+      return out.filter((v) => v.toLowerCase() !== current);
+    }
+
+    function cleanInfoboxValue(raw) {
+      return String(raw || '')
+        .replace(/\{\{[^}]*\}\}/g, ' ')
+        .replace(/\[\[(?:[^|\]]+\|)?([^\]]+)\]\]/g, '$1')
+        .replace(/<ref[\s\S]*?<\/ref>/gi, ' ')
+        .replace(/<br\s*\/?>/gi, ', ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/'{2,}/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function extractInfoboxField(wikitext, keys) {
+      const t = String(wikitext || '');
+      for (const key of keys) {
+        const re = new RegExp(
+          String.raw`\|\s*${key}\s*=\s*([\s\S]*?)(?=\n\s*\|\s*[a-zA-Z_][a-zA-Z0-9_]*\s*=|\n\}\}|$)`,
+          'i'
+        );
+        const m = t.match(re);
+        if (m && String(m[1]).trim()) return cleanInfoboxValue(m[1]);
+      }
+      return '';
+    }
+
+    function extractYearFromText(raw) {
+      const m = String(raw || '').match(/\b(1[89]\d{2}|20[0-2]\d)\b/);
+      return m ? Number(m[1]) : null;
+    }
+
+    function extractInfoboxMeta(wikitext) {
+      const industry = extractInfoboxField(wikitext, ['industry', 'industries']);
+      const founded = extractInfoboxField(wikitext, ['founded', 'established', 'foundation']);
+      const hq = extractInfoboxField(wikitext, [
+        'headquarters', 'hq', 'hq_location', 'hq_location_city', 'location', 'location_city'
+      ]);
+      const former = extractInfoboxField(wikitext, [
+        'former_name', 'former_names', 'native_name', 'aka', 'also_known_as', 'traded_as'
+      ]);
+      return { industry, founded, foundedYear: extractYearFromText(founded), hq, formerNames: former };
+    }
+
+    function classifyNameMatchKind(title, companyName, extraAliases = []) {
+      const coreName = companyNameCore(companyName);
+      const coreTitle = companyNameCore(title);
+      if (!coreName || !coreTitle) return 'none';
+      const titleScore = scoreWikipediaTitleForCompany(title, companyName);
+      if (titleScore < 0) return 'none';
+      if (coreTitle === coreName) return 'exact';
+      const aliases = [companyName, ...(extraAliases || [])].map(companyNameCore).filter(Boolean);
+      if (aliases.some((a) => a === coreTitle)) return 'exact';
+      if (
+        coreTitle.startsWith(`${coreName} `) ||
+        coreName.startsWith(`${coreTitle} `) ||
+        titleScore >= 50 ||
+        /\((?:company|firm|business|bank|organization|organisation)\)/i.test(String(title || ''))
+      ) {
+        return 'near-exact';
+      }
+      if (titleScore >= 25) return 'weak';
+      return 'none';
+    }
+
+    function industryFieldsCompatible(resolvedIndustry, infoboxIndustry) {
+      if (isBlankOrUnknown(resolvedIndustry) || !infoboxIndustry) return true;
+      const na = normalizeIndustryLabel(resolvedIndustry);
+      const nb = normalizeIndustryLabel(infoboxIndustry);
+      if (!isBlankOrUnknown(na) && !isBlankOrUnknown(nb) && na.toLowerCase() === nb.toLowerCase()) return true;
+      const tokens = (s) => String(s).toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 3);
+      const a = tokens(resolvedIndustry);
+      const b = tokens(infoboxIndustry);
+      if (a.some((t) => b.includes(t))) return true;
+      const families = [
+        /software|saas|technology|internet|computer|electronics|semiconductor|gpu/,
+        /venture|capital|private.?equity|investment|asset management/,
+        /health|bio|pharma|medical|therapeutics/,
+        /energy|oil|gas|renewable|climate/,
+        /bank|fintech|payment|financial/
+      ];
+      return families.some((re) => re.test(String(resolvedIndustry)) && re.test(String(infoboxIndustry)));
+    }
+
+    function locationFieldsCompatible(resolvedLocation, infoboxHq) {
+      if (isBlankOrUnknown(resolvedLocation) || !infoboxHq) return true;
+      const na = String(normalizeLocationLabel(resolvedLocation) || '').toLowerCase();
+      const nb = String(normalizeLocationLabel(infoboxHq) || '').toLowerCase();
+      if (na && nb && (na === nb || na.includes(nb) || nb.includes(na))) return true;
+      const tokens = (s) => String(s).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+        .filter((t) => t.length > 2 && !['the', 'and', 'united', 'states', 'usa', 'city'].includes(t));
+      const a = new Set(tokens(resolvedLocation));
+      const b = new Set(tokens(infoboxHq));
+      for (const t of a) {
+        if (b.has(t)) return true;
+      }
+      return false;
+    }
+
+    function scoreWikipediaPageAgainstResolved(page, resolved = {}) {
+      const title = page?.title || '';
+      const wikitext = page?.wikitext || '';
+      const pageAliases = page?.aliases || [];
+      const companyName = String(resolved.companyName || '').trim();
+      const variants = collectNameVariants(companyName, resolved.nameVariants);
+      const searchNames = [companyName, ...variants].filter(Boolean);
+      const meta = extractInfoboxMeta(wikitext);
+      const infoboxAliases = String(meta.formerNames || '').split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+      let nameMatchKind = 'none';
+      let titleScore = 0;
+      let matchedVariant = companyName;
+      const rank = { exact: 3, 'near-exact': 2, weak: 1, none: 0 };
+      for (const n of searchNames) {
+        const kind = classifyNameMatchKind(title, n, [...pageAliases, ...infoboxAliases]);
+        const sc = scoreWikipediaTitleForCompany(title, n);
+        if (rank[kind] > rank[nameMatchKind] || (kind === nameMatchKind && sc > titleScore)) {
+          nameMatchKind = kind;
+          titleScore = sc;
+          matchedVariant = n;
+        }
+      }
+      if (nameMatchKind !== 'exact' && nameMatchKind !== 'near-exact' && meta.formerNames) {
+        for (const n of searchNames) {
+          if (companyNameCore(n) && meta.formerNames.toLowerCase().includes(companyNameCore(n))) {
+            nameMatchKind = 'near-exact';
+            matchedVariant = n;
+            break;
+          }
+        }
+      }
+      const reasons = [];
+      const mismatches = [];
+      if (nameMatchKind !== 'exact' && nameMatchKind !== 'near-exact') {
+        reasons.push(`encyclopedia skipped — low confidence match (name is ${nameMatchKind}, not exact/near-exact)`);
+        return { ok: false, score: titleScore, nameMatchKind, mismatches: ['name'], reasons, matchedVariant, meta };
+      }
+      if (!industryFieldsCompatible(resolved.industry, meta.industry)) {
+        mismatches.push('industry');
+        reasons.push(`industry mismatch: resolved=${resolved.industry} infobox=${meta.industry}`);
+      }
+      const resolvedYear = resolved.foundedYear || extractYearFromText(resolved.founded);
+      if (resolvedYear && meta.foundedYear && Number(resolvedYear) !== Number(meta.foundedYear)) {
+        mismatches.push('founded');
+        reasons.push(`founded year mismatch: resolved=${resolvedYear} infobox=${meta.foundedYear}`);
+      }
+      if (!locationFieldsCompatible(resolved.location, meta.hq)) {
+        mismatches.push('location');
+        reasons.push(`HQ mismatch: resolved=${resolved.location} infobox=${meta.hq}`);
+      }
+      const weights = weightedWikiMismatchScore(mismatches);
+      if (weights.overThreshold) {
+        reasons.push(
+          `encyclopedia skipped — low confidence match (weighted mismatch ${weights.weightedScore} >= ${WIKI_MISMATCH_WEIGHT_THRESHOLD}; ${weights.contributed.map((c) => `${c.field}×${c.weight}`).join(', ')})`
+        );
+        return {
+          ok: false,
+          score: titleScore,
+          nameMatchKind,
+          mismatches,
+          reasons,
+          matchedVariant,
+          meta,
+          weightedMismatchScore: weights.weightedScore,
+          mismatchWeights: weights.contributed
+        };
+      }
+      reasons.push(`wikipedia accepted (${nameMatchKind} name match via ${matchedVariant}; weighted mismatch ${weights.weightedScore})`);
+      return {
+        ok: true,
+        score: titleScore + Math.max(0, 20 - weights.weightedScore * 4),
+        nameMatchKind,
+        mismatches,
+        reasons,
+        matchedVariant,
+        meta,
+        weightedMismatchScore: weights.weightedScore,
+        mismatchWeights: weights.contributed
+      };
+    }
+
+    const WIKI_MISMATCH_WEIGHTS = { industry: 2, location: 1.5, founded: 1 };
+    const WIKI_MISMATCH_WEIGHT_THRESHOLD = 3;
+    function weightedWikiMismatchScore(mismatches = []) {
+      const contributed = [];
+      let weightedScore = 0;
+      for (const field of mismatches) {
+        const weight = WIKI_MISMATCH_WEIGHTS[field];
+        if (!weight) continue;
+        weightedScore += weight;
+        contributed.push({ field, weight });
+      }
+      return {
+        weightedScore,
+        contributed,
+        overThreshold: weightedScore >= WIKI_MISMATCH_WEIGHT_THRESHOLD
+      };
+    }
+
+    function founderNameKeySet(names) {
+      const arr = Array.isArray(names)
+        ? names
+        : String(names || '').split(/\s*;\s*/).map((s) => s.trim());
+      const set = new Set();
+      for (const n of arr) {
+        const k = String(n || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (k.split(/\s+/).length >= 2) set.add(k);
+      }
+      return set;
+    }
+
+    function founderListCompletenessDetail(infoboxNames, p112Names) {
+      const a = founderNameKeySet(infoboxNames);
+      const b = founderNameKeySet(p112Names);
+      const infoboxCount = a.size;
+      const p112Count = b.size;
+      if (!a.size && !b.size) {
+        return { completeness: 'none', completenessReason: null, infoboxCount, p112Count, completenessReasonDetail: null };
+      }
+      if (!a.size && b.size) {
+        return {
+          completeness: 'partial',
+          completenessReason: 'infobox_empty',
+          infoboxCount,
+          p112Count,
+          completenessReasonDetail: `infobox: ${infoboxCount}, P112: ${p112Count}`
+        };
+      }
+      if (a.size && !b.size) {
+        return {
+          completeness: 'partial',
+          completenessReason: 'p112_empty',
+          infoboxCount,
+          p112Count,
+          completenessReasonDetail: `infobox: ${infoboxCount}, P112: ${p112Count}`
+        };
+      }
+      let overlap = 0;
+      for (const k of a) {
+        if (b.has(k)) overlap += 1;
+      }
+      if (overlap === 0) {
+        return {
+          completeness: 'partial',
+          completenessReason: 'no_overlap',
+          infoboxCount,
+          p112Count,
+          completenessReasonDetail: `infobox: ${infoboxCount}, P112: ${p112Count}`
+        };
+      }
+      if (a.size === b.size && overlap === a.size) {
+        return { completeness: 'complete', completenessReason: null, infoboxCount, p112Count, completenessReasonDetail: null };
+      }
+      return {
+        completeness: 'partial',
+        completenessReason: 'count_mismatch',
+        infoboxCount,
+        p112Count,
+        completenessReasonDetail: `infobox: ${infoboxCount}, P112: ${p112Count}`
+      };
+    }
+
+    function classifyFounderListCompleteness(infoboxNames, p112Names) {
+      return founderListCompletenessDetail(infoboxNames, p112Names).completeness;
+    }
+
+    function classifyFoundersUnknownStatus(contacts, pipelineErrors = []) {
+      if (!isBlankOrUnknown(contacts)) return null;
+      if (Array.isArray(pipelineErrors) && pipelineErrors.length) return 'unknown_pipeline_error';
+      return 'unknown_no_data';
+    }
+
     /**
      * Founders from Wikipedia infobox + the same page's Wikidata P112.
      * Company websites and DuckDuckGo Instant Answer almost never contain "founded by".
      */
-    async function lookupEncyclopediaFounders(companyName, _domain) {
+    async function lookupEncyclopediaFounders(companyName, _domain, resolvedCtx = {}) {
       const name = String(companyName || '').trim();
-      const empty = { contacts: UNKNOWN, founderGenders: [], gender: UNKNOWN, provenance: null };
+      const empty = {
+        contacts: UNKNOWN,
+        founderGenders: [],
+        gender: UNKNOWN,
+        provenance: null,
+        infoboxNames: [],
+        p112Names: [],
+        founderListCompleteness: 'none',
+        skipped: false,
+        skipReason: null,
+        error: null,
+        founderDebug: null
+      };
       if (!name) return empty;
       await acquireEncyclopediaSlot();
+      const variants = collectNameVariants(name, resolvedCtx.nameVariants);
+      const searchNames = [name, ...variants];
+      let lastSkip = null;
+      let lastError = null;
       try {
-        const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(`${name} company`)}&gsrlimit=5&prop=pageprops|revisions&ppprop=wikibase_item&rvprop=content&rvsection=0&redirects=1&format=json&origin=*`;
-        const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), 5000);
-        let res = await fetch(searchUrl, { signal: controller.signal });
-        clearTimeout(t);
-        if (res.status === 429) {
-          await new Promise((r) => setTimeout(r, 500));
-          const c2 = new AbortController();
-          const t2 = setTimeout(() => c2.abort(), 5000);
-          res = await fetch(searchUrl, { signal: c2.signal });
-          clearTimeout(t2);
-        }
-        if (!res.ok) return empty;
-        const json = await res.json();
-        const pages = Object.values(json?.query?.pages || {});
-        const ranked = pages
-          .map((p) => ({ page: p, score: scoreWikipediaTitleForCompany(p.title, name) }))
-          .filter((x) => x.score >= 25)
-          .sort((a, b) => b.score - a.score);
-        const best = ranked[0]?.page;
-        if (!best) return empty;
-        let wikitext = best.revisions?.[0]?.slots?.main?.['*'] || best.revisions?.[0]?.['*'] || '';
-        if (!wikitext && best.title) {
-          const parseRes = await fetch(
-            `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(best.title)}&prop=wikitext&section=0&redirects=1&format=json&origin=*`,
-            { signal: AbortSignal.timeout(4000) }
+        const fetchPagesForName = async (searchName) => {
+          const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(`${searchName} company`)}&gsrlimit=5&prop=pageprops|revisions&ppprop=wikibase_item&rvprop=content&rvsection=0&redirects=1&format=json&origin=*`;
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), 5000);
+          let res = await fetch(searchUrl, { signal: controller.signal });
+          clearTimeout(t);
+          if (res.status === 429) {
+            await new Promise((r) => setTimeout(r, 500));
+            const c2 = new AbortController();
+            const t2 = setTimeout(() => c2.abort(), 5000);
+            res = await fetch(searchUrl, { signal: c2.signal });
+            clearTimeout(t2);
+          }
+          if (!res.ok) {
+            lastError = `wikipedia_http_${res.status}`;
+            return [];
+          }
+          const json = await res.json();
+          return Object.values(json?.query?.pages || {});
+        };
+
+        const pageWikitext = async (page) => {
+          let wikitext = page.revisions?.[0]?.slots?.main?.['*'] || page.revisions?.[0]?.['*'] || '';
+          if (!wikitext && page.title) {
+            const parseRes = await fetch(
+              `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(page.title)}&prop=wikitext&section=0&redirects=1&format=json&origin=*`,
+              { signal: AbortSignal.timeout(4000) }
+            );
+            if (parseRes.ok) {
+              const parsed = await parseRes.json();
+              wikitext = parsed?.parse?.wikitext?.['*'] || '';
+            }
+          }
+          return wikitext;
+        };
+
+        const tryExtract = async (page, searchName) => {
+          const wikitext = await pageWikitext(page);
+          const guard = scoreWikipediaPageAgainstResolved(
+            { title: page.title, wikitext },
+            {
+              companyName: name,
+              nameVariants: resolvedCtx.nameVariants,
+              industry: resolvedCtx.industry,
+              location: resolvedCtx.location,
+              foundedYear: resolvedCtx.foundedYear,
+              founded: resolvedCtx.founded
+            }
           );
-          if (parseRes.ok) {
-            const parsed = await parseRes.json();
-            wikitext = parsed?.parse?.wikitext?.['*'] || '';
+          if (!guard.ok) {
+            lastSkip = {
+              skipReason: 'encyclopedia skipped — low confidence match',
+              founderDebug: {
+                wikiConfidence: guard.score,
+                wikiReasons: guard.reasons,
+                nameMatchKind: guard.nameMatchKind,
+                mismatches: guard.mismatches,
+                weightedMismatchScore: guard.weightedMismatchScore,
+                mismatchWeights: guard.mismatchWeights,
+                matchedVariant: guard.matchedVariant,
+                searchName,
+                pageTitle: page.title
+              }
+            };
+            console.log('[enrich] encyclopedia skipped — low confidence match', name, page.title, guard.reasons);
+            return null;
+          }
+          const infoboxNames = extractInfoboxFounderNames(wikitext);
+          const qid = page.pageprops?.wikibase_item;
+          let people = [];
+          if (qid) {
+            const wd = await fetchWikiApiJson(
+              `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qid}&props=claims&languages=en&format=json&origin=*`,
+              { label: 'wd-enc-p112' }
+            );
+            const founderIds = claimEntityIds(wd?.entities?.[qid], 'P112');
+            if (founderIds.length) people = await resolveWikidataFounderPeople(founderIds);
+          }
+          const p112Names = people.map((p) => p.name).filter(Boolean);
+          const contacts = normalizeFoundersLabel([...infoboxNames, ...p112Names].join('; '));
+          const detail = founderListCompletenessDetail(infoboxNames, p112Names);
+          const completeness = detail.completeness;
+          const founderGenders = people.map((p) => p.gender);
+          const learned = lookupLearnedGenderScreen(name);
+          const applied = applyScreenedFoundingTeamGender(founderGenders, completeness, {
+            learnedGender: learned?.genderConfirmed
+          });
+          return {
+            contacts,
+            founderGenders,
+            gender: applied.gender,
+            provenance: isBlankOrUnknown(contacts)
+              ? null
+              : fieldProvenance(contacts, infoboxNames.length ? 'wikipedia-infobox' : 'wikidata', 'high', {
+                  sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(String(page.title || '').replace(/ /g, '_'))}`
+                }),
+            infoboxNames,
+            p112Names,
+            founderListCompleteness: completeness,
+            completenessReason: detail.completenessReason,
+            completenessReasonDetail: detail.completenessReasonDetail,
+            skipped: false,
+            skipReason: null,
+            error: null,
+            founderDebug: {
+              wikiConfidence: guard.score,
+              wikiReasons: guard.reasons,
+              nameMatchKind: guard.nameMatchKind,
+              mismatches: guard.mismatches,
+              weightedMismatchScore: guard.weightedMismatchScore,
+              mismatchWeights: guard.mismatchWeights,
+              matchedVariant: guard.matchedVariant,
+              searchName,
+              pageTitle: page.title,
+              completeness,
+              completenessReason: detail.completenessReason,
+              completenessReasonDetail: detail.completenessReasonDetail,
+              infoboxCount: detail.infoboxCount,
+              p112Count: detail.p112Count,
+              rawFoundingTeamGender: applied.rawGender,
+              screenedFoundingTeamGender: applied.screenedGender,
+              guardFired: applied.guardFired,
+              guardShortCircuited: applied.guardShortCircuited
+            }
+          };
+        };
+
+        for (const searchName of searchNames) {
+          const pages = await fetchPagesForName(searchName);
+          const ranked = pages
+            .map((p) => ({ page: p, score: scoreWikipediaTitleForCompany(p.title, searchName) }))
+            .filter((x) => x.score >= 25)
+            .sort((a, b) => b.score - a.score);
+          for (const { page } of ranked.slice(0, 3)) {
+            const extracted = await tryExtract(page, searchName);
+            if (extracted && !isBlankOrUnknown(extracted.contacts)) return extracted;
+            if (extracted) return extracted;
           }
         }
-        const infoboxNames = extractInfoboxFounderNames(wikitext);
-        const qid = best.pageprops?.wikibase_item;
-        let people = [];
-        if (qid) {
-          const wd = await fetchWikiApiJson(
-            `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qid}&props=claims&languages=en&format=json&origin=*`,
-            { label: 'wd-enc-p112' }
-          );
-          const founderIds = claimEntityIds(wd?.entities?.[qid], 'P112');
-          if (founderIds.length) people = await resolveWikidataFounderPeople(founderIds);
+        if (lastSkip) {
+          return { ...empty, skipped: true, skipReason: lastSkip.skipReason, founderDebug: lastSkip.founderDebug };
         }
-        const p112Names = people.map((p) => p.name).filter(Boolean);
-        const contacts = normalizeFoundersLabel([...infoboxNames, ...p112Names].join('; '));
-        if (isBlankOrUnknown(contacts)) return empty;
-        const founderGenders = people.map((p) => p.gender);
-        return {
-          contacts,
-          founderGenders,
-          gender: summarizeFoundingTeamGender(founderGenders),
-          provenance: fieldProvenance(contacts, infoboxNames.length ? 'wikipedia-infobox' : 'wikidata', 'high', {
-            sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(String(best.title || '').replace(/ /g, '_'))}`
-          })
-        };
-      } catch (_) {
+        if (lastError) return { ...empty, error: lastError };
         return empty;
+      } catch (e) {
+        const msg = String(e?.name || e?.message || e || '');
+        const error = /abort|timeout/i.test(msg) ? 'wikipedia_timeout' : 'wikipedia_fetch_failed';
+        console.warn('[enrich] encyclopedia founders failed', error, e);
+        return { ...empty, error };
       } finally {
         releaseEncyclopediaSlot();
       }
     }
 
-    async function fetchWikipediaFounders(companyName, domain) {
-      const r = await lookupEncyclopediaFounders(companyName, domain);
+    async function fetchWikipediaFounders(companyName, domain, resolvedCtx = {}) {
+      const r = await lookupEncyclopediaFounders(companyName, domain, resolvedCtx);
       return r?.contacts || UNKNOWN;
     }
 
@@ -5468,7 +6035,7 @@ LIMIT 24`.trim();
         extra.push(fetchTargetedSearchCorpus(companyName, domain, 'location').then((c) => { locationCorpus = c; }));
       }
       if (missing.includes('contacts')) {
-        extra.push(fetchWikipediaFounders(companyName).then((v) => { wikiFounders = v; }));
+        extra.push(fetchWikipediaFounders(companyName, domain, current).then((v) => { wikiFounders = v; }));
       }
       if (extra.length) await Promise.all(extra);
 
@@ -5607,10 +6174,11 @@ LIMIT 24`.trim();
       const hc = corpus.match(/\b(\d{1,3}(?:,\d{3})*\+?\s*[-–to]+\s*\d{1,3}(?:,\d{3})*\+?|\d{1,3}(?:,\d{3})*\+)\s*(?:employees|people|team members|professionals)\b/i);
       if (hc) headcount = hc[1].replace(/\s+/g, ' ').trim();
 
-      // Founders — collect every explicit founder attribution, never current-CEO lines
+      // Founders — JSON-LD + explicit founded-by on the home page. Team-bio titles are tertiary
+      // and run in scrapeFounderPages only when those two sources are empty.
       let contacts = unionFounderNames(
-        extractFounderNamesFromText(corpus, { includeTeamLabels: true }),
-        extractJsonLdFounders(html)
+        extractJsonLdFounders(html),
+        extractExplicitFoundedByNames(corpus)
       );
 
       // Notes — prefer meta description if present and non-generic
@@ -5684,12 +6252,22 @@ LIMIT 24`.trim();
       return UNKNOWN;
     }
 
-    async function enrichCompanyDetails(domain, originalName, apiData = null) {
-      const enrichKey = `v8|encyclopedia-founders|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
+    async function enrichCompanyDetails(domain, originalName, apiData = null, enrichOpts = {}) {
+      const enrichKey = `${FOUNDERS_PIPELINE_VERSION}|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
       if (enrichCache.has(enrichKey)) {
         console.log('[enrich] CACHE HIT', domain);
         return applyBatchUniquenessGuard(domain, { ...enrichCache.get(enrichKey), fromCache: true });
       }
+
+      const pipelineErrors = [];
+      const nameVariants = collectNameVariants(originalName, enrichOpts.nameVariants);
+      const wikiCtx = {
+        nameVariants,
+        industry: enrichOpts.industry,
+        location: enrichOpts.location,
+        foundedYear: enrichOpts.foundedYear,
+        founded: enrichOpts.founded
+      };
 
       const blank = {
         industry: UNKNOWN,
@@ -5761,14 +6339,24 @@ LIMIT 24`.trim();
         // Still ask Wikidata for missing co-founders so a partial dict list cannot hide a woman founder.
         try {
           if (typeof lookupWikidataCompanyFacts === 'function') {
-            const wikiFacts = await lookupWikidataCompanyFacts(originalName, host);
-            if (applyWikidataFoundersAndGender(quick, wikiFacts, fromDict)) {
+            const wikiFacts = await lookupWikidataCompanyFacts(originalName, host, {
+              ...wikiCtx,
+              industry: quick.industry,
+              location: quick.location
+            });
+            if (wikiFacts?.pipelineError) pipelineErrors.push(wikiFacts.pipelineError);
+            if (wikiFacts?.founderDebug) quick.founderDebug = wikiFacts.founderDebug;
+            if (applyWikidataFoundersAndGender(quick, wikiFacts, fromDict, { companyName: originalName })) {
               quick.enrichSource = 'dictionary+wikidata-facts';
             }
           }
         } catch (e) {
           console.warn('[enrich] dictionary wikidata founder fill failed', e);
+          pipelineErrors.push('encyclopedia_merge_failed');
         }
+        quick.foundersUnknownStatus = classifyFoundersUnknownStatus(quick.contacts, pipelineErrors);
+        quick.pipelineVersion = FOUNDERS_PIPELINE_VERSION;
+        quick.nameVariants = nameVariants;
         const guardedQuick = applyBatchUniquenessGuard(host, quick);
         enrichCache.set(enrichKey, guardedQuick);
         console.log('[enrich] FAST dictionary', originalName, '->', guardedQuick.enrichSource);
@@ -5820,6 +6408,7 @@ LIMIT 24`.trim();
       } catch (e) {
         console.warn('[enrich] scrape failed', domain, e);
         blank.unknownReason.website = 'website_blocked_or_timeout';
+        pipelineErrors.push('website_blocked_or_timeout');
       }
 
       // Reject scrape contacts that are just the company name
@@ -5860,7 +6449,11 @@ LIMIT 24`.trim();
 
       // 3b) Wikidata structured facts (HQ / founders / employees) before free-text search
       try {
-        const wikiFacts = await lookupWikidataCompanyFacts(originalName, host);
+        const wikiFacts = await lookupWikidataCompanyFacts(originalName, host, {
+          ...wikiCtx,
+          industry: merged.industry,
+          location: merged.location
+        });
         const fill = (key) => {
           if (isBlankOrUnknown(merged[key]) && !isBlankOrUnknown(wikiFacts[key])) {
             merged[key] = wikiFacts[key];
@@ -5873,7 +6466,9 @@ LIMIT 24`.trim();
         fill('headcount');
         fill('location');
         fill('notes');
-        if (applyWikidataFoundersAndGender(merged, wikiFacts, fromDict)) {
+        if (wikiFacts?.pipelineError) pipelineErrors.push(wikiFacts.pipelineError);
+        if (wikiFacts?.founderDebug) merged.founderDebug = wikiFacts.founderDebug;
+        if (applyWikidataFoundersAndGender(merged, wikiFacts, fromDict, { companyName: originalName })) {
           /* founders + gender merged */
         }
         if (wikiFacts.provenance && Object.keys(wikiFacts.provenance).length) {
@@ -5883,6 +6478,7 @@ LIMIT 24`.trim();
         }
       } catch (e) {
         console.warn('[enrich] wikidata facts step failed', e);
+        pipelineErrors.push('wikidata_facts_failed');
       }
 
       // 4) Optional API payload — only fill remaining Unknowns
@@ -5910,6 +6506,7 @@ LIMIT 24`.trim();
         } catch (e) {
           console.warn('[enrich] search fallback failed', domain, e);
           merged.unknownReason = { ...(merged.unknownReason || {}), search: 'search_failed' };
+          pipelineErrors.push('search_failed');
         }
       }
 
@@ -5922,7 +6519,13 @@ LIMIT 24`.trim();
         notes: sanitizeUserFacingNotes(merged.notes) || UNKNOWN,
         enrichSource: merged.enrichSource || 'none',
         provenance: merged.provenance || provenance,
-        unknownReason: merged.unknownReason || {}
+        unknownReason: merged.unknownReason || {},
+        founderListCompleteness: merged.founderListCompleteness || 'none',
+        founderDebug: merged.founderDebug || null,
+        genderGuardFired: !!merged.genderGuardFired,
+        foundersUnknownStatus: null,
+        pipelineVersion: FOUNDERS_PIPELINE_VERSION,
+        nameVariants
       };
 
       // Record why remaining unknowns stay Unknown (debug only — never shown in Notes)
@@ -5930,6 +6533,16 @@ LIMIT 24`.trim();
         if (isBlankOrUnknown(result[k]) && !result.unknownReason[k]) {
           result.unknownReason[k] = 'no_reliable_source_found';
         }
+      }
+      result.foundersUnknownStatus = classifyFoundersUnknownStatus(result.contacts, pipelineErrors);
+      if (result.foundersUnknownStatus) {
+        result.unknownReason.contacts = result.foundersUnknownStatus;
+        result.founderDebug = {
+          ...(result.founderDebug || {}),
+          foundersUnknownStatus: result.foundersUnknownStatus,
+          pipelineErrors: pipelineErrors.slice(),
+          pipelineVersion: FOUNDERS_PIPELINE_VERSION
+        };
       }
 
       const guarded = applyBatchUniquenessGuard(host, result);
@@ -6212,6 +6825,44 @@ LIMIT 24`.trim();
       return { ...hit };
     }
 
+    function lookupLearnedGenderScreen(companyName) {
+      const key = companyKeyNorm(companyName);
+      if (!key) return null;
+      const hit = (learnedCorrectionsStore.corrections || []).find(c => c.companyKey === key);
+      if (!hit?.genderConfirmed || /^unknown$/i.test(String(hit.genderConfirmed))) return null;
+      return { ...hit };
+    }
+
+    const FOUNDER_GUARD_STATS_KEY = 'founderGuardStats_v10';
+    const founderGuardStatListeners = new Set();
+    function readFounderGuardStats() {
+      try {
+        const j = JSON.parse(localStorage.getItem(FOUNDER_GUARD_STATS_KEY) || '{}');
+        return {
+          partialMaleBlocked: Number(j.partialMaleBlocked) || 0,
+          updatedAt: j.updatedAt || null
+        };
+      } catch (_) {
+        return { partialMaleBlocked: 0, updatedAt: null };
+      }
+    }
+    function subscribeFounderGuardStats(fn) {
+      founderGuardStatListeners.add(fn);
+      return () => founderGuardStatListeners.delete(fn);
+    }
+    function noteFounderGuardFired() {
+      const cur = readFounderGuardStats();
+      const next = {
+        partialMaleBlocked: cur.partialMaleBlocked + 1,
+        updatedAt: new Date().toISOString()
+      };
+      try {
+        localStorage.setItem(FOUNDER_GUARD_STATS_KEY, JSON.stringify(next));
+      } catch (_) {}
+      founderGuardStatListeners.forEach((fn) => { try { fn(next); } catch (_) {} });
+      return next;
+    }
+
     async function persistLearnedCorrectionsToServer(store) {
       try {
         const res = await fetch('/api/learned-corrections', {
@@ -6365,12 +7016,14 @@ LIMIT 24`.trim();
       const now = new Date().toISOString();
       const list = (learnedCorrectionsStore.corrections || []).slice();
       const idx = list.findIndex(c => c.companyKey === key);
+      const prev = idx >= 0 ? list[idx] : {};
       const entry = {
+        ...prev,
         companyName: name,
         companyKey: key,
         domain: cleanDomain,
-        source: source || 'manual',
-        createdAt: idx >= 0 ? (list[idx].createdAt || now) : now,
+        source: source || prev.source || 'manual',
+        createdAt: prev.createdAt || now,
         updatedAt: now
       };
       if (idx >= 0) list[idx] = entry;
@@ -6382,6 +7035,45 @@ LIMIT 24`.trim();
         corrections: list
       });
       console.log('[learned] upsert', name, '->', cleanDomain, 'source=', source, 'remote=', result.remote?.ok);
+      return { ok: true, entry, ...result };
+    }
+
+    async function upsertLearnedGenderConfirmation({ companyName, domain, gender, source }) {
+      const name = String(companyName || '').trim();
+      const key = companyKeyNorm(name);
+      const confirmed = String(gender || '').trim();
+      if (!name || !key || !confirmed || /^unknown$/i.test(confirmed)) {
+        return { ok: false, reason: 'invalid' };
+      }
+      const now = new Date().toISOString();
+      const list = (learnedCorrectionsStore.corrections || []).slice();
+      const idx = list.findIndex(c => c.companyKey === key);
+      const prev = idx >= 0 ? list[idx] : {};
+      const cleanDomain = normalizeLearnedDomain(domain) || prev.domain;
+      if (!cleanDomain || !cleanDomain.includes('.')) {
+        return { ok: false, reason: 'invalid' };
+      }
+      const entry = {
+        ...prev,
+        companyName: prev.companyName || name,
+        companyKey: key,
+        domain: cleanDomain,
+        source: prev.source || source || 'thumbs-up-partial-review',
+        genderConfirmed: confirmed,
+        genderConfirmedAt: now,
+        genderConfirmedSource: source || 'thumbs-up-partial-review',
+        createdAt: prev.createdAt || now,
+        updatedAt: now
+      };
+      if (idx >= 0) list[idx] = entry;
+      else list.push(entry);
+      list.sort((a, b) => String(a.companyName || '').localeCompare(String(b.companyName || '')));
+      const result = await commitLearnedCorrectionsStore({
+        version: 1,
+        updatedAt: now,
+        corrections: list
+      });
+      console.log('[learned] gender confirm', name, '->', confirmed, 'remote=', result.remote?.ok);
       return { ok: true, entry, ...result };
     }
 
@@ -6614,6 +7306,7 @@ LIMIT 24`.trim();
       const [unlocked, setUnlocked] = useState(() => isSiteUnlocked());
 
       const [rows, setRows] = useState([]);
+      const [founderAuditFilter, setFounderAuditFilter] = useState('all');
       const [inputText, setInputText] = useState('');
       const [queue, setQueue] = useState([]);
       const [activeIds, setActiveIds] = useState([]);
@@ -6629,6 +7322,7 @@ LIMIT 24`.trim();
       const [learnedNotice, setLearnedNotice] = useState('');
       const [learnedTick, setLearnedTick] = useState(0);
       const [learnedSync, setLearnedSync] = useState(() => getLearnedSyncState());
+      const [founderGuardStats, setFounderGuardStats] = useState(() => readFounderGuardStats());
 
       // Pull the shared learned-corrections store once per load, then keep the
       // badge in sync as writes go out.
@@ -6640,6 +7334,7 @@ LIMIT 24`.trim();
         bootstrapLearnedCorrections().then(() => setLearnedTick(t => t + 1));
         return unsubscribe;
       }, []);
+      useEffect(() => subscribeFounderGuardStats(setFounderGuardStats), []);
       const learnedList = useMemo(() => {
         const q = learnedSearch.trim().toLowerCase();
         const all = getLearnedCorrectionsSnapshot().corrections || [];
@@ -6841,6 +7536,15 @@ LIMIT 24`.trim();
         const rest = headers.reduce((sum, col) => sum + (Number(colWidths[col.key]) || DEFAULT_COL_WIDTHS[col.key] || 120), 0);
         return statusW + rest;
       }, [colWidths, headers]);
+      const visibleRows = useMemo(() => {
+        if (founderAuditFilter === 'all') return rows;
+        return rows.filter((row) => {
+          if (founderAuditFilter === 'unknown_no_data') return row.foundersUnknownStatus === 'unknown_no_data';
+          if (founderAuditFilter === 'unknown_pipeline_error') return row.foundersUnknownStatus === 'unknown_pipeline_error';
+          if (founderAuditFilter === 'partial') return row.founderListCompleteness === 'partial';
+          return true;
+        });
+      }, [rows, founderAuditFilter]);
       const [editingHeader, setEditingHeader] = useState(null);
       const [editingHeaderValue, setEditingHeaderValue] = useState('');
 
@@ -7605,7 +8309,11 @@ LIMIT 24`.trim();
               // Refresh all / per-row refresh: keep the website, skip identity, re-enrich fields only.
               if (rowToProcess.refreshFieldsOnly && isDomainPrepopulated) {
                 updateRow(rowId, { status: 'enriching', refreshFieldsOnly: false });
-                const details = await enrichCompanyDetails(domain, companyName, null);
+                const details = await enrichCompanyDetails(domain, companyName, null, {
+                  nameVariants: rowToProcess.nameVariants || collectNameVariants(companyName, [rowToProcess.matchedName]),
+                  industry: rowToProcess[indKey],
+                  location: rowToProcess[locKey]
+                });
                 const keepNotes = rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Refreshing fields...' && rowToProcess[noteKey] !== '-'
                   && !/Re-running enrichment|Queueing|Select the correct website|Pick a candidate/i.test(rowToProcess[noteKey])
                   ? sanitizeUserFacingNotes(rowToProcess[noteKey])
@@ -7622,7 +8330,13 @@ LIMIT 24`.trim();
                   linkVerified: true,
                   refreshFieldsOnly: false,
                   enrichProvenance: details.provenance || null,
-                  enrichUnknownReason: details.unknownReason || details._unknownReason || null
+                  enrichUnknownReason: details.unknownReason || details._unknownReason || null,
+                  founderDebug: details.founderDebug || null,
+                  foundersUnknownStatus: details.foundersUnknownStatus || null,
+                  founderListCompleteness: details.founderListCompleteness || 'none',
+                  genderGuardFired: !!details.genderGuardFired || !!details.founderDebug?.guardFired,
+                  nameVariants: details.nameVariants || rowToProcess.nameVariants || [],
+                  pipelineVersion: details.pipelineVersion || FOUNDERS_PIPELINE_VERSION
                 });
                 release(rowId);
                 return;
@@ -7697,7 +8411,16 @@ LIMIT 24`.trim();
                     );
                   }
 
-                  updateRow(rowId, { status: 'verifying', [webKey]: domain, resolveMethod, candidates, confidenceScore, confidenceSignals });
+                  updateRow(rowId, {
+                    status: 'verifying',
+                    [webKey]: domain,
+                    resolveMethod,
+                    candidates,
+                    confidenceScore,
+                    confidenceSignals,
+                    matchedName: resolvedObj.matchedName || companyName,
+                    nameVariants: collectNameVariants(companyName, [resolvedObj.matchedName])
+                  });
                   const verification = await verifyDomainLive(domain, companyName, {
                     fastPath: fastPath && (strongRecommend || autoFound),
                     trustedCatalogue: trustedCatalogue && autoFound,
@@ -7866,7 +8589,11 @@ LIMIT 24`.trim();
                 updateRow(rowId, { status: 'enriching', linkVerified: true, resolveMethod: userConfirmed ? 'user-confirmed' : 'manual' });
               }
 
-              const details = await enrichCompanyDetails(domain, companyName, apiData);
+              const details = await enrichCompanyDetails(domain, companyName, apiData, {
+                nameVariants: rowToProcess.nameVariants || collectNameVariants(companyName, [rowToProcess.matchedName]),
+                industry: rowToProcess[indKey],
+                location: rowToProcess[locKey]
+              });
               const priorNotes = rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Queueing...' && rowToProcess[noteKey] !== '-'
                 && !/Select the correct website|Pick a candidate|Select or enter a domain|Ambiguous matches|Candidates:|Possible matches|Enriching confirmed|Could not verify|Verifying selected domain|Queueing|Score \d+|Auto-selected/i.test(rowToProcess[noteKey])
                 ? sanitizeUserFacingNotes(rowToProcess[noteKey])
@@ -7907,7 +8634,13 @@ LIMIT 24`.trim();
                 confidenceScore: rowToProcess.confidenceScore ?? null,
                 accuracyFeedback: null,
                 enrichProvenance: details.provenance || null,
-                enrichUnknownReason: details.unknownReason || details._unknownReason || null
+                enrichUnknownReason: details.unknownReason || details._unknownReason || null,
+                founderDebug: details.founderDebug || null,
+                foundersUnknownStatus: details.foundersUnknownStatus || null,
+                founderListCompleteness: details.founderListCompleteness || 'none',
+                genderGuardFired: !!details.genderGuardFired || !!details.founderDebug?.guardFired,
+                nameVariants: details.nameVariants || rowToProcess.nameVariants || [],
+                pipelineVersion: details.pipelineVersion || FOUNDERS_PIPELINE_VERSION
               });
               release(rowId);
             } catch (err) {
@@ -8230,6 +8963,20 @@ LIMIT 24`.trim();
         setAccuracyStats(stats);
         if (correct) {
           updateRow(rowId, { accuracyFeedback: 'up', pendingLearnFromThumbsDown: false });
+          const guardFired = !!(row.genderGuardFired || row.founderDebug?.guardFired);
+          if (guardFired) {
+            const genKey = getGenderColumnKey();
+            const displayed = String(row[genKey] || '').trim();
+            const confirmed = displayed && !/^unknown$/i.test(displayed) && displayed !== '-'
+              ? displayed
+              : (row.founderDebug?.rawFoundingTeamGender || 'Male');
+            upsertLearnedGenderConfirmation({
+              companyName: row[compKey] || '',
+              domain: row[webKey] || '',
+              gender: confirmed,
+              source: 'thumbs-up-partial-review'
+            });
+          }
         } else {
           // Wrong website — reopen picker; next Confirm teaches a learned correction
           updateRow(rowId, { accuracyFeedback: 'down', pendingLearnFromThumbsDown: true });
@@ -8258,9 +9005,20 @@ LIMIT 24`.trim();
 
         updateRow(id, { [column]: newValue });
 
-        // Auto trigger re-enrichment when core variables are corrected
+        const genKey = getGenderColumnKey();
         const compKey = getCompanyColumnKey();
         const webKey = getWebsiteColumnKey();
+        if (column === genKey && (currentRow.genderGuardFired || currentRow.founderDebug?.guardFired)
+          && newValue && !/^unknown$/i.test(newValue)) {
+          upsertLearnedGenderConfirmation({
+            companyName: currentRow[compKey] || '',
+            domain: currentRow[webKey] || '',
+            gender: newValue,
+            source: 'manual-gender-review'
+          });
+        }
+
+        // Auto trigger re-enrichment when core variables are corrected
         if (column === compKey || column === webKey) {
           triggerRowReRun(id);
         }
@@ -8511,6 +9269,19 @@ LIMIT 24`.trim();
                     : '—'}
                 </strong>
               </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }} title="Audit Unknown founders: pipeline errors vs genuine no-data, and partial Wikipedia lists that must not auto-skip">
+                <span>Founders audit</span>
+                <select
+                  value={founderAuditFilter}
+                  onChange={(e) => setFounderAuditFilter(e.target.value)}
+                  style={{ fontSize: '0.78rem', padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'inherit' }}
+                >
+                  <option value="all">All rows</option>
+                  <option value="unknown_no_data">Unknown: no data</option>
+                  <option value="unknown_pipeline_error">Unknown: pipeline error</option>
+                  <option value="partial">Partial founder list</option>
+                </select>
+              </label>
               <button
                 className="btn btn-primary"
                 disabled={rows.length === 0 || isProcessingActive}
@@ -8797,7 +9568,7 @@ LIMIT 24`.trim();
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((row) => {
+                      {visibleRows.map((row) => {
                         const isRowProcessing = activeIds.includes(row.id);
                         
                         // Resolve dynamic headers
@@ -9110,6 +9881,29 @@ LIMIT 24`.trim();
                                           ? `${row[compKey] || ''} ${founderVal}`
                                           : `${row[compKey] || ''} founder`;
                                         const displayVal = hasFounder ? founderVal : 'Unknown';
+                                        const subStatus = row.foundersUnknownStatus
+                                          ? (FOUNDERS_UNKNOWN_LABELS[row.foundersUnknownStatus] || row.foundersUnknownStatus)
+                                          : (row.founderListCompleteness === 'partial' ? 'Founder list: partial' : '');
+                                        const debugBits = [];
+                                        if (subStatus) debugBits.push(subStatus);
+                                        if (row.founderDebug?.completenessReason) {
+                                          debugBits.push(
+                                            row.founderDebug.completenessReasonDetail
+                                              ? `${row.founderDebug.completenessReason} (${row.founderDebug.completenessReasonDetail})`
+                                              : row.founderDebug.completenessReason
+                                          );
+                                        }
+                                        if (row.founderDebug?.weightedMismatchScore != null) {
+                                          debugBits.push(`wiki weighted mismatch ${row.founderDebug.weightedMismatchScore}`);
+                                        }
+                                        if (row.founderDebug?.guardFired) debugBits.push('gender guard: partial all-male → Unknown');
+                                        if (row.founderDebug?.guardShortCircuited) debugBits.push('gender guard short-circuited by learned confirmation');
+                                        if (row.founderDebug?.wikiSkip) debugBits.push(row.founderDebug.wikiSkip);
+                                        if (row.founderDebug?.wikiReasons?.length) debugBits.push(row.founderDebug.wikiReasons.join('; '));
+                                        if (row.founderDebug?.matchedVariant) debugBits.push(`matched as ${row.founderDebug.matchedVariant}`);
+                                        const auditTitle = debugBits.length
+                                          ? debugBits.join(' · ')
+                                          : `Search Google for: "${searchQuery}"`;
                                         return (
                                           <a 
                                             href={`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`} 
@@ -9117,9 +9911,14 @@ LIMIT 24`.trim();
                                             rel="noopener noreferrer"
                                             className="url-link"
                                             onClick={(e) => e.stopPropagation()}
-                                            title={`Search Google for: "${searchQuery}"`}
+                                            title={auditTitle}
                                           >
                                             <span>{displayVal}</span>
+                                            {subStatus ? (
+                                              <span style={{ display: 'block', fontSize: '0.65rem', opacity: 0.7, fontWeight: 500 }}>
+                                                {subStatus.replace(/^Unknown:\s*/i, '')}
+                                              </span>
+                                            ) : null}
                                             <ExternalLinkIcon size={10} />
                                           </a>
                                         );
@@ -9190,6 +9989,13 @@ LIMIT 24`.trim();
                 </div>
 
                 <div className="form-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
+                  <label className="form-label">Founders-v10 gender guard</label>
+                  <p style={{ fontSize: '0.8rem', margin: 0 }}>
+                    {founderGuardStats.partialMaleBlocked} row{founderGuardStats.partialMaleBlocked === 1 ? '' : 's'} blocked from all-male auto-skip because the Wikipedia founder list was partial.
+                  </p>
+                </div>
+
+                <div className="form-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
                   <label className="form-label">Simulated AI Model Prompt</label>
                   <textarea 
                     className="form-input" 
@@ -9223,7 +10029,16 @@ LIMIT 24`.trim();
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
                   Domains taught via thumbs-down + confirm, or manual entry. Checked before search on future runs.
                   Shared automatically with every browser and device — no export step.
+                  Thumbs-up on a partial all-male Unknown row stores a gender confirmation so Refresh all will not send that company back to review.
                 </p>
+                <div style={{ fontSize: '0.78rem', marginBottom: '0.65rem', padding: '0.5rem 0.6rem', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                  <strong>v10 gender-screen guard:</strong> {founderGuardStats.partialMaleBlocked} row{founderGuardStats.partialMaleBlocked === 1 ? '' : 's'} where a partial Wikipedia list would have auto-skipped Male and was sent to Unknown instead.
+                  {founderGuardStats.updatedAt ? (
+                    <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                      Last trigger {new Date(founderGuardStats.updatedAt).toLocaleString()}
+                    </span>
+                  ) : null}
+                </div>
                 <div style={{ fontSize: '0.75rem', marginBottom: '0.6rem', color: learnedSync.kv ? 'var(--accent-color)' : '#B45309' }}>
                   {learnedSync.status === 'syncing' && 'Syncing with shared store…'}
                   {learnedSync.status === 'synced' && `Synced across devices · ${learnedSync.count} correction${learnedSync.count === 1 ? '' : 's'}`}
@@ -9270,6 +10085,11 @@ LIMIT 24`.trim();
                           title="Domain"
                           style={{ fontFamily: 'var(--font-mono)' }}
                         />
+                        {c.genderConfirmed ? (
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', alignSelf: 'center' }} title="Confirmed founding-team gender after partial-list review">
+                            Gender: {c.genderConfirmed}
+                          </span>
+                        ) : null}
                         <div style={{ display: 'flex', gap: '0.25rem' }}>
                           <button
                             type="button"
