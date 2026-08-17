@@ -86,6 +86,9 @@ async function fetchPageHtml() { return null; }
 async function fetchPageHtmlFast() { return null; }
 async function scrapeFounderPages() { return UNKNOWN; }
 async function fetchWikipediaFounders() { return UNKNOWN; }
+async function lookupEncyclopediaFounders() {
+  return { contacts: UNKNOWN, founderGenders: [], gender: UNKNOWN, provenance: null };
+}
 function extractJsonLdFounders() { return UNKNOWN; }
 function extractEnrichmentFromHtml() {
   return { industry: UNKNOWN, headcount: UNKNOWN, location: UNKNOWN, contacts: UNKNOWN, gender: UNKNOWN, notes: UNKNOWN, source: 'none' };

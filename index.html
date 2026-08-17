@@ -2019,6 +2019,25 @@
     const verifyCache = new Map();
     const enrichCache = new Map();
     const ENRICH_CONCURRENCY = 6;
+    let encyclopediaSlots = 0;
+    const encyclopediaWaiters = [];
+    function acquireEncyclopediaSlot() {
+      if (encyclopediaSlots < 2) {
+        encyclopediaSlots += 1;
+        return Promise.resolve();
+      }
+      return new Promise((resolve) => {
+        encyclopediaWaiters.push(() => {
+          encyclopediaSlots += 1;
+          resolve();
+        });
+      });
+    }
+    function releaseEncyclopediaSlot() {
+      encyclopediaSlots -= 1;
+      const next = encyclopediaWaiters.shift();
+      if (next) next();
+    }
 
     function makeResolveCacheKey(companyName, financeFilterActive, skippedDomains, personContext) {
       return JSON.stringify({
@@ -3958,6 +3977,8 @@
         provenance: {}
       };
 
+      const encPromise = lookupEncyclopediaFounders(companyName, host);
+
       try {
         // Domain-first SPARQL (structured, high confidence when it hits)
         if (host) {
@@ -4100,10 +4121,32 @@ LIMIT 24`.trim();
               }
             }
           }
-          break;
+          if (!isBlankOrUnknown(out.contacts)) break;
         }
       } catch (e) {
         console.warn('[enrich] wikidata facts failed', e);
+      }
+
+      try {
+        const enc = await encPromise;
+        if (enc && !isBlankOrUnknown(enc.contacts)) {
+          out.contacts = unionFounderNames(out.contacts, enc.contacts);
+          if (!isBlankOrUnknown(out.contacts)) {
+            out.provenance.contacts = enc.provenance || fieldProvenance(out.contacts, 'wikipedia-infobox', 'high');
+          }
+          const genderPieces = [...(out.founderGenders || [])];
+          if (Array.isArray(enc.founderGenders)) genderPieces.push(...enc.founderGenders);
+          else if (!isBlankOrUnknown(enc.gender)) genderPieces.push(enc.gender);
+          if (genderPieces.length) {
+            out.founderGenders = genderPieces;
+            out.gender = summarizeFoundingTeamGender(genderPieces);
+            if (!isBlankOrUnknown(out.gender)) {
+              out.provenance.gender = fieldProvenance(out.gender, 'wikidata', 'high');
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[enrich] encyclopedia founders failed', e);
       }
 
       return out;
@@ -5107,42 +5150,135 @@ LIMIT 24`.trim();
       return unionFounderNames(...names);
     }
 
-    async function fetchWikipediaFounders(companyName) {
-      const name = String(companyName || '').trim();
-      if (!name) return UNKNOWN;
-      try {
-        const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), 2500);
-        const res = await fetch(
-          `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(`${name} company`)}&srlimit=5&format=json&origin=*`,
-          { signal: controller.signal }
-        );
-        clearTimeout(t);
-        if (!res.ok) return UNKNOWN;
-        const json = await res.json();
-        const hits = json?.query?.search || [];
-        const nameLower = name.toLowerCase();
-        const tokens = nameLower.split(/\s+/).filter((tok) => tok.length > 2);
-        const hit = hits.find((h) => {
-          const title = String(h.title || '').toLowerCase();
-          if (/disambiguation/i.test(title) || /disambiguation/i.test(h.snippet || '')) return false;
-          return title.includes(nameLower) || (tokens.length > 0 && tokens.every((tok) => title.includes(tok)));
-        });
-        if (!hit?.title) return UNKNOWN;
-        const s2 = new AbortController();
-        const t2 = setTimeout(() => s2.abort(), 2500);
-        const sumRes = await fetch(
-          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit.title)}`,
-          { signal: s2.signal, headers: { Accept: 'application/json' } }
-        );
-        clearTimeout(t2);
-        if (!sumRes.ok) return UNKNOWN;
-        const wiki = await sumRes.json();
-        if (wiki?.type === 'disambiguation') return UNKNOWN;
-        return extractFounderNamesFromText(`${wiki.extract || ''} ${wiki.description || ''}`, { includeTeamLabels: false });
-      } catch (_) {
-        return UNKNOWN;
+    function extractInfoboxFounderNames(wikitext) {
+      const t = String(wikitext || '');
+      if (!t) return [];
+      const field = t.match(/\|\s*founders?\s*=\s*([\s\S]*?)(?=\n\s*\|\s*[a-zA-Z_][a-zA-Z0-9_]*\s*=|\n\}\})/i);
+      const raw = field ? field[1] : '';
+      if (!raw.trim()) return [];
+      const names = [];
+      const re = /\[\[(?!File:|Image:)([^\]|#]+)(?:\|[^\]]+)?\]\]/gi;
+      let m;
+      while ((m = re.exec(raw))) {
+        const name = String(m[1] || '')
+          .replace(/_/g, ' ')
+          .replace(/\s*\(.*?\)\s*/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (name.split(/\s+/).length >= 2 && name.length < 60 && !/^(infobox|unbulleted|ubl|plainlist)$/i.test(name)) {
+          names.push(name);
+        }
       }
+      const seen = new Set();
+      const out = [];
+      for (const name of names) {
+        const k = name.toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(name);
+      }
+      return out;
+    }
+
+    function scoreWikipediaTitleForCompany(title, companyName) {
+      const rawTitle = String(title || '');
+      const rawName = String(companyName || '');
+      if (!rawTitle || !rawName) return 0;
+      if (/\(disambiguation\)|\balbum\b|\bfilm\b|\bsong\b|\btv series\b|\blist of\b/i.test(rawTitle)) return -100;
+      const t = rawTitle.toLowerCase();
+      const n = rawName
+        .toLowerCase()
+        .replace(/[.,]/g, ' ')
+        .replace(/\b(inc|llc|corp|corporation|ltd|co|plc|pbc|group)\b/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!n || n.length < 2) return 0;
+      const tCore = t.replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+      let s = 0;
+      if (tCore === n) s += 50;
+      if (t === n || t.startsWith(`${n} `) || t.startsWith(`${n},`)) s += 25;
+      if (/\((?:company|firm|business|bank|organization|organisation)\)/i.test(rawTitle)) s += 20;
+      if (n.length >= 4 && (t.includes(n) || tCore.includes(n))) s += 15;
+      const tokens = n.split(/\s+/).filter((tok) => tok.length > 2);
+      if (tokens.length >= 2 && tokens.every((tok) => t.includes(tok))) s += 12;
+      return s;
+    }
+
+    /**
+     * Founders from Wikipedia infobox + the same page's Wikidata P112.
+     * Company websites and DuckDuckGo Instant Answer almost never contain "founded by".
+     */
+    async function lookupEncyclopediaFounders(companyName, _domain) {
+      const name = String(companyName || '').trim();
+      const empty = { contacts: UNKNOWN, founderGenders: [], gender: UNKNOWN, provenance: null };
+      if (!name) return empty;
+      await acquireEncyclopediaSlot();
+      try {
+        const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(`${name} company`)}&gsrlimit=5&prop=pageprops|revisions&ppprop=wikibase_item&rvprop=content&rvsection=0&redirects=1&format=json&origin=*`;
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 5000);
+        let res = await fetch(searchUrl, { signal: controller.signal });
+        clearTimeout(t);
+        if (res.status === 429) {
+          await new Promise((r) => setTimeout(r, 500));
+          const c2 = new AbortController();
+          const t2 = setTimeout(() => c2.abort(), 5000);
+          res = await fetch(searchUrl, { signal: c2.signal });
+          clearTimeout(t2);
+        }
+        if (!res.ok) return empty;
+        const json = await res.json();
+        const pages = Object.values(json?.query?.pages || {});
+        const ranked = pages
+          .map((p) => ({ page: p, score: scoreWikipediaTitleForCompany(p.title, name) }))
+          .filter((x) => x.score >= 25)
+          .sort((a, b) => b.score - a.score);
+        const best = ranked[0]?.page;
+        if (!best) return empty;
+        let wikitext = best.revisions?.[0]?.slots?.main?.['*'] || best.revisions?.[0]?.['*'] || '';
+        if (!wikitext && best.title) {
+          const parseRes = await fetch(
+            `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(best.title)}&prop=wikitext&section=0&redirects=1&format=json&origin=*`,
+            { signal: AbortSignal.timeout(4000) }
+          );
+          if (parseRes.ok) {
+            const parsed = await parseRes.json();
+            wikitext = parsed?.parse?.wikitext?.['*'] || '';
+          }
+        }
+        const infoboxNames = extractInfoboxFounderNames(wikitext);
+        const qid = best.pageprops?.wikibase_item;
+        let people = [];
+        if (qid) {
+          const wd = await fetchWikiApiJson(
+            `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qid}&props=claims&languages=en&format=json&origin=*`,
+            { label: 'wd-enc-p112' }
+          );
+          const founderIds = claimEntityIds(wd?.entities?.[qid], 'P112');
+          if (founderIds.length) people = await resolveWikidataFounderPeople(founderIds);
+        }
+        const p112Names = people.map((p) => p.name).filter(Boolean);
+        const contacts = normalizeFoundersLabel([...infoboxNames, ...p112Names].join('; '));
+        if (isBlankOrUnknown(contacts)) return empty;
+        const founderGenders = people.map((p) => p.gender);
+        return {
+          contacts,
+          founderGenders,
+          gender: summarizeFoundingTeamGender(founderGenders),
+          provenance: fieldProvenance(contacts, infoboxNames.length ? 'wikipedia-infobox' : 'wikidata', 'high', {
+            sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(String(best.title || '').replace(/ /g, '_'))}`
+          })
+        };
+      } catch (_) {
+        return empty;
+      } finally {
+        releaseEncyclopediaSlot();
+      }
+    }
+
+    async function fetchWikipediaFounders(companyName, domain) {
+      const r = await lookupEncyclopediaFounders(companyName, domain);
+      return r?.contacts || UNKNOWN;
     }
 
     /**
@@ -5549,7 +5685,7 @@ LIMIT 24`.trim();
     }
 
     async function enrichCompanyDetails(domain, originalName, apiData = null) {
-      const enrichKey = `v7|founders-pages|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
+      const enrichKey = `v8|encyclopedia-founders|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
       if (enrichCache.has(enrichKey)) {
         console.log('[enrich] CACHE HIT', domain);
         return applyBatchUniquenessGuard(domain, { ...enrichCache.get(enrichKey), fromCache: true });

@@ -315,6 +315,75 @@ export function normalizeFounders(raw) {
   return out.join('; ') || UNKNOWN;
 }
 
+/**
+ * Wikipedia infobox `| founder / founders =` — wikilinks, not the lead paragraph.
+ * Lead summaries usually omit founders, which is why coverage was so low.
+ */
+export function extractInfoboxFounderNames(wikitext) {
+  const t = String(wikitext || '');
+  if (!t) return [];
+  const field = t.match(/\|\s*founders?\s*=\s*([\s\S]*?)(?=\n\s*\|\s*[a-zA-Z_][a-zA-Z0-9_]*\s*=|\n\}\})/i);
+  const raw = field ? field[1] : '';
+  if (!raw.trim()) return [];
+  const names = [];
+  const re = /\[\[(?!File:|Image:)([^\]|#]+)(?:\|[^\]]+)?\]\]/gi;
+  let m;
+  while ((m = re.exec(raw))) {
+    const name = String(m[1] || '')
+      .replace(/_/g, ' ')
+      .replace(/\s*\(.*?\)\s*/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (name.split(/\s+/).length >= 2 && name.length < 60 && !/^(infobox|unbulleted|ubl|plainlist)$/i.test(name)) {
+      names.push(name);
+    }
+  }
+  if (!names.length) {
+    const plain = raw
+      .replace(/\{\{[^}]*\}\}/g, ' ')
+      .replace(/<ref[\s\S]*?<\/ref>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/'{2,}/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const person = plain.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})$/);
+    if (person) names.push(person[1]);
+  }
+  const seen = new Set();
+  const out = [];
+  for (const name of names) {
+    const k = name.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(name);
+  }
+  return out;
+}
+
+export function scoreWikipediaTitleForCompany(title, companyName) {
+  const rawTitle = String(title || '');
+  const rawName = String(companyName || '');
+  if (!rawTitle || !rawName) return 0;
+  if (/\(disambiguation\)|\balbum\b|\bfilm\b|\bsong\b|\btv series\b|\blist of\b/i.test(rawTitle)) return -100;
+  const t = rawTitle.toLowerCase();
+  const n = rawName
+    .toLowerCase()
+    .replace(/[.,]/g, ' ')
+    .replace(/\b(inc|llc|corp|corporation|ltd|co|plc|pbc|group)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!n || n.length < 2) return 0;
+  const tCore = t.replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  let s = 0;
+  if (tCore === n) s += 50;
+  if (t === n || t.startsWith(`${n} `) || t.startsWith(`${n},`)) s += 25;
+  if (/\((?:company|firm|business|bank|organization|organisation)\)/i.test(rawTitle)) s += 20;
+  if (n.length >= 4 && (t.includes(n) || tCore.includes(n))) s += 15;
+  const tokens = n.split(/\s+/).filter((tok) => tok.length > 2);
+  if (tokens.length >= 2 && tokens.every((tok) => t.includes(tok))) s += 12;
+  return s;
+}
+
 /** Wikidata P21: female, trans woman */
 export const WD_GENDER_FEMALE = new Set(['Q6581072', 'Q1052281']);
 /** Wikidata P21: male, trans man */

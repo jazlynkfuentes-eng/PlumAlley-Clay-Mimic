@@ -14,7 +14,9 @@ import {
   extractFieldsFromSearchCorpus,
   isExecTitleNotFounder,
   genderFromWikidataQid,
-  summarizeFoundingTeamGender
+  summarizeFoundingTeamGender,
+  extractInfoboxFounderNames,
+  scoreWikipediaTitleForCompany
 } from './lib/enrichment-quality.mjs';
 
 let passed = 0;
@@ -135,6 +137,27 @@ check('does not mark Male when the founder list may be incomplete', () => {
   assert.equal(summarizeFoundingTeamGender(['Male', UNKNOWN]), UNKNOWN);
   assert.equal(summarizeFoundingTeamGender(['Male', 'Male']), 'Male');
   assert.equal(summarizeFoundingTeamGender([]), UNKNOWN);
+});
+
+console.log('13. Wikipedia infobox founders (lead paragraph is not enough)');
+check('reads Unbulleted list wikilinks', () => {
+  const names = extractInfoboxFounderNames(
+    '{{Infobox company\n| name = Apple\n| founders = {{Unbulleted list | [[Steve Jobs]] | [[Steve Wozniak]] | [[Ronald Wayne]]}}\n| hq = Cupertino\n}}'
+  );
+  assert.deepEqual(names, ['Steve Jobs', 'Steve Wozniak', 'Ronald Wayne']);
+});
+check('reads ubl template', () => {
+  const names = extractInfoboxFounderNames('| founder = {{Ubl|[[Bill Gates]]|[[Paul Allen]]}}\n| industry = Software\n');
+  assert.deepEqual(names, ['Bill Gates', 'Paul Allen']);
+});
+check('ignores lead text without infobox field', () => {
+  assert.deepEqual(extractInfoboxFounderNames('Apple Inc. is an American company founded in 1976.'), []);
+});
+check('scores company titles and rejects films', () => {
+  assert.ok(scoreWikipediaTitleForCompany('Apple Inc.', 'Apple') >= 25);
+  assert.ok(scoreWikipediaTitleForCompany('Nvidia', 'NVIDIA') >= 25);
+  assert.ok(scoreWikipediaTitleForCompany('Ramp (company)', 'Ramp') >= 25);
+  assert.ok(scoreWikipediaTitleForCompany('Apple (film)', 'Apple') < 0);
 });
 
 console.log(`\n${passed} assertions passed`);
