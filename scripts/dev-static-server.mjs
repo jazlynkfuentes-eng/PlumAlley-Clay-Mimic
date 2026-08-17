@@ -69,6 +69,32 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/pdl-enrich') {
+    if (req.method === 'GET') {
+      try {
+        const { pdlStatusPayload } = await import('./lib/pdl-proxy-handler.mjs');
+        sendJson(res, 200, pdlStatusPayload());
+      } catch (e) {
+        sendJson(res, 500, { enabled: false, error: e.message || String(e) });
+      }
+      return;
+    }
+    if (req.method === 'POST') {
+      try {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const { handlePdlEnrichRequest } = await import('./lib/pdl-proxy-handler.mjs');
+        const { status, payload } = await handlePdlEnrichRequest(body);
+        sendJson(res, status, payload);
+      } catch (e) {
+        sendJson(res, 500, { enabled: false, error: e.message || String(e) });
+      }
+      return;
+    }
+    sendJson(res, 405, { error: 'Method not allowed' });
+    return;
+  }
+
   if (url.pathname === '/api/learned-corrections') {
     if (req.method === 'GET') {
       try {
@@ -140,4 +166,5 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`[dev-static] http://127.0.0.1:${PORT}/`);
   console.log('[dev-static] POST /api/learned-corrections writes data/learned-corrections.json');
+  console.log('[dev-static] GET/POST /api/pdl-enrich (optional; requires PDL_API_KEY)');
 });

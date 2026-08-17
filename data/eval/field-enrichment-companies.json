@@ -1,0 +1,309 @@
+{
+  "version": 1,
+  "description": "Eval ground truth for HQ / Founders / Headcount only — NOT production dictionaries.",
+  "companies": [
+    {
+      "name": "NVIDIA",
+      "domain": "nvidia.com",
+      "category": "public_tech",
+      "expectedLocation": "Santa Clara, CA",
+      "altLocations": ["Santa Clara"],
+      "expectedFounders": "Jensen Huang; Chris Malachowsky; Curtis Priem",
+      "altFounders": ["Jensen Huang; Curtis Priem; Chris Malachowsky"],
+      "expectedHeadcount": "10,001+",
+      "altHeadcounts": ["5,001–10,000"]
+    },
+    {
+      "name": "Apple",
+      "domain": "apple.com",
+      "category": "public_tech",
+      "expectedLocation": "Cupertino, CA",
+      "expectedFounders": "Steve Jobs; Steve Wozniak",
+      "altFounders": ["Steve Jobs; Steve Wozniak; Ronald Wayne"],
+      "expectedHeadcount": "10,001+"
+    },
+    {
+      "name": "Microsoft",
+      "domain": "microsoft.com",
+      "category": "public_tech",
+      "expectedLocation": "Redmond, WA",
+      "expectedFounders": "Bill Gates; Paul Allen",
+      "expectedHeadcount": "10,001+"
+    },
+    {
+      "name": "Stripe",
+      "domain": "stripe.com",
+      "category": "startup",
+      "expectedLocation": "South San Francisco, CA",
+      "altLocations": ["San Francisco, CA", "San Francisco"],
+      "expectedFounders": "Patrick Collison; John Collison",
+      "expectedHeadcount": "1,001–5,000",
+      "altHeadcounts": ["5,001–10,000", "501–1,000"]
+    },
+    {
+      "name": "Anthropic",
+      "domain": "anthropic.com",
+      "category": "startup",
+      "expectedLocation": "San Francisco, CA",
+      "expectedFounders": "Dario Amodei; Daniela Amodei; Chris Olah; Jared Kaplan",
+      "altFounders": ["Dario Amodei; Daniela Amodei; Chris Olah", "Dario Amodei; Daniela Amodei"],
+      "expectedHeadcount": "501–1,000",
+      "altHeadcounts": ["1,001–5,000", "201–500"],
+      "foundersOptional": false
+    },
+    {
+      "name": "Ramp",
+      "domain": "ramp.com",
+      "category": "startup",
+      "expectedLocation": "New York, NY",
+      "expectedFounders": "Eric Glyman; Karim Atiyeh",
+      "expectedHeadcount": "501–1,000",
+      "altHeadcounts": ["1,001–5,000", "201–500"]
+    },
+    {
+      "name": "Lux Capital",
+      "domain": "luxcapital.com",
+      "category": "vc",
+      "expectedLocation": "New York, NY",
+      "expectedFounders": "Josh Wolfe; Peter Hebert",
+      "expectedHeadcount": "51–200",
+      "altHeadcounts": ["11–50", "201–500"]
+    },
+    {
+      "name": "Space Capital",
+      "domain": "spacecapital.com",
+      "category": "vc",
+      "expectedLocation": "New York, NY",
+      "altLocations": ["Brooklyn, NY"],
+      "expectedFounders": null,
+      "foundersApplicable": false,
+      "expectedHeadcount": "1–10",
+      "altHeadcounts": ["11–50"]
+    },
+    {
+      "name": "Blackstone",
+      "domain": "blackstone.com",
+      "category": "pe",
+      "expectedLocation": "New York, NY",
+      "expectedFounders": "Stephen Schwarzman; Peter Peterson",
+      "altFounders": ["Stephen A. Schwarzman; Peter G. Peterson", "Steve Schwarzman; Peter Peterson", "Peter George Peterson; Stephen A. Schwarzman"],
+      "expectedHeadcount": "1,001–5,000",
+      "altHeadcounts": ["5,001–10,000"]
+    },
+    {
+      "name": "Goldman Sachs",
+      "domain": "goldmansachs.com",
+      "category": "banking",
+      "expectedLocation": "New York, NY",
+      "expectedFounders": "Marcus Goldman",
+      "altFounders": ["Marcus Goldman; Samuel Sachs"],
+      "expectedHeadcount": "10,001+"
+    },
+    {
+      "name": "Moderna",
+      "domain": "modernatx.com",
+      "category": "biotech",
+      "expectedLocation": "Cambridge, MA",
+      "expectedFounders": "Noubar Afeyan",
+      "altFounders": ["Noubar Afeyan; Derrick Rossi; Robert Langer"],
+      "expectedHeadcount": "1,001–5,000",
+      "altHeadcounts": ["5,001–10,000", "501–1,000"]
+    },
+    {
+      "name": "Nike",
+      "domain": "nike.com",
+      "category": "consumer",
+      "expectedLocation": "Beaverton, OR",
+      "expectedFounders": "Phil Knight; Bill Bowerman",
+      "expectedHeadcount": "10,001+"
+    },
+    {
+      "name": "ExxonMobil",
+      "domain": "exxonmobil.com",
+      "category": "energy",
+      "expectedLocation": "Spring, TX",
+      "altLocations": ["Houston, TX", "Irving, TX"],
+      "expectedFounders": null,
+      "foundersApplicable": false,
+      "note": "Merger successor — founder concept weak",
+      "expectedHeadcount": "10,001+"
+    },
+    {
+      "name": "Siemens",
+      "domain": "siemens.com",
+      "category": "industrial",
+      "expectedLocation": "Munich, Germany",
+      "altLocations": ["München, Germany", "Berlin, Germany"],
+      "expectedFounders": "Werner von Siemens",
+      "altFounders": ["Werner von Siemens; Johann Georg Halske"],
+      "expectedHeadcount": "10,001+"
+    },
+    {
+      "name": "Spotify",
+      "domain": "spotify.com",
+      "category": "international",
+      "expectedLocation": "Stockholm, Sweden",
+      "expectedFounders": "Daniel Ek; Martin Lorentzon",
+      "expectedHeadcount": "5,001–10,000",
+      "altHeadcounts": ["1,001–5,000", "10,001+"]
+    },
+    {
+      "name": "ASML",
+      "domain": "asml.com",
+      "category": "international",
+      "expectedLocation": "Veldhoven, Netherlands",
+      "altLocations": ["Veldhoven"],
+      "expectedFounders": null,
+      "foundersApplicable": false,
+      "expectedHeadcount": "10,001+",
+      "altHeadcounts": ["5,001–10,000"]
+    },
+    {
+      "name": "Netflix",
+      "domain": "netflix.com",
+      "category": "media",
+      "expectedLocation": "Los Gatos, CA",
+      "altLocations": ["Los Gatos"],
+      "expectedFounders": "Reed Hastings; Marc Randolph",
+      "expectedHeadcount": "10,001+",
+      "altHeadcounts": ["5,001–10,000"]
+    },
+    {
+      "name": "Anduril",
+      "domain": "anduril.com",
+      "category": "startup",
+      "expectedLocation": "Costa Mesa, CA",
+      "altLocations": ["Irvine, CA", "Orange County, CA"],
+      "expectedFounders": "Palmer Luckey",
+      "altFounders": ["Palmer Luckey; Trae Stephens; Matt Grimm; Brian Schimpf"],
+      "expectedHeadcount": "1,001–5,000",
+      "altHeadcounts": ["501–1,000", "201–500"]
+    },
+    {
+      "name": "Warby Parker",
+      "domain": "warbyparker.com",
+      "category": "consumer",
+      "expectedLocation": "New York, NY",
+      "expectedFounders": "Neil Blumenthal; Dave Gilboa",
+      "altFounders": ["Neil Blumenthal; Dave Gilboa; Andrew Hunt; Jeffrey Raider"],
+      "expectedHeadcount": "1,001–5,000",
+      "altHeadcounts": ["501–1,000"]
+    },
+    {
+      "name": "Toyota",
+      "domain": "toyota.com",
+      "category": "automotive",
+      "expectedLocation": "Toyota City, Japan",
+      "altLocations": ["Toyota, Japan", "Aichi, Japan"],
+      "expectedFounders": "Kiichiro Toyoda",
+      "expectedHeadcount": "10,001+"
+    }
+  ],
+  "adversarialFounderFixtures": [
+    {
+      "name": "founder_also_ceo",
+      "corpus": "Acme Robotics was founded by Jane Smith. Jane Smith is the CEO of Acme Robotics.",
+      "company": "Acme Robotics",
+      "expect": "Jane Smith",
+      "rejectCeoOnly": false
+    },
+    {
+      "name": "ceo_not_founder",
+      "corpus": "John Doe is the CEO of Acme Robotics. The company builds drones.",
+      "company": "Acme Robotics",
+      "expect": "Unknown",
+      "reject": "John Doe"
+    },
+    {
+      "name": "multiple_founders",
+      "corpus": "Pixel Labs was co-founded by Alice Brown and Bob Chen in 2019.",
+      "company": "Pixel Labs",
+      "expect": "Alice Brown; Bob Chen"
+    },
+    {
+      "name": "managing_partner_not_founder",
+      "corpus": "Horizon Ventures is a venture firm. Sarah Lee is Managing Partner at Horizon Ventures.",
+      "company": "Horizon Ventures",
+      "expect": "Unknown",
+      "reject": "Sarah Lee"
+    },
+    {
+      "name": "team_page_founder_label",
+      "corpus": "Meet the Acme Co team. Jane Smith — Co-Founder. John Doe — CEO. Alice Brown — Engineer.",
+      "company": "Acme Co",
+      "expect": "Jane Smith",
+      "reject": "John Doe"
+    },
+    {
+      "name": "customer_testimonial_not_founder",
+      "corpus": "Reliable payments technology. Dax Dasilva, Founder and CEO, Lightspeed Read the story. Stripe builds infrastructure.",
+      "company": "Stripe",
+      "expect": "Unknown",
+      "reject": "Dax Dasilva"
+    },
+    {
+      "name": "merger_not_applicable_hint",
+      "corpus": "MegaCorp was formed by the merger of Alpha Inc and Beta Inc in 1999.",
+      "company": "MegaCorp",
+      "expect": "Unknown"
+    }
+  ],
+  "adversarialHqFixtures": [
+    {
+      "name": "explicit_hq",
+      "corpus": "Globex Corporation is headquartered in New York, NY and has offices in London and Tokyo.",
+      "expect": "New York, NY",
+      "reject": "London"
+    },
+    {
+      "name": "delaware_incorporation_not_hq",
+      "corpus": "Acme Inc is incorporated in Delaware. Acme Inc is headquartered in Austin, TX.",
+      "expect": "Austin, TX",
+      "reject": "Delaware"
+    },
+    {
+      "name": "office_not_hq",
+      "corpus": "We have an office in Chicago, IL. Visit our sales office anytime.",
+      "expect": "Unknown",
+      "reject": "Chicago, IL"
+    },
+    {
+      "name": "international_hq",
+      "corpus": "Spotify AB is headquartered in Stockholm, Sweden.",
+      "expect": "Stockholm, Sweden"
+    },
+    {
+      "name": "investment_geography_not_hq",
+      "corpus": "Northwind Capital invests in companies across Europe and Asia. Northwind Capital is headquartered in Boston, MA.",
+      "expect": "Boston, MA",
+      "reject": "Europe"
+    }
+  ],
+  "adversarialHeadcountFixtures": [
+    {
+      "name": "exact_count_buckets",
+      "corpus": "The company employs 75 employees worldwide.",
+      "expect": "51–200"
+    },
+    {
+      "name": "range_preserved",
+      "corpus": "Company size: 201-500 employees.",
+      "expect": "201–500"
+    },
+    {
+      "name": "team_page_not_headcount",
+      "corpus": "Meet the team. Jane Smith, John Doe, Alice Brown, Bob Chen. Our leadership team.",
+      "expect": "Unknown"
+    },
+    {
+      "name": "conflicting_should_need_authority",
+      "corpus": "One profile says 11-50 employees. Another outdated blog says 10,001+ employees.",
+      "note": "resolver may Unknown or pick with authority — unit test checks extract only"
+    },
+    {
+      "name": "no_data",
+      "corpus": "Acme builds software for enterprises.",
+      "expect": "Unknown"
+    }
+  ]
+}

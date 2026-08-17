@@ -1,0 +1,617 @@
+{
+  "summary": {
+    "companyCount": 10,
+    "identity": {
+      "correct": 9,
+      "incorrect": 1,
+      "ambiguous": 0,
+      "unresolved": 0
+    },
+    "identityAccuracyAmongResolved": 90,
+    "identityCorrectAmongAll": 90,
+    "industry": {
+      "correct": 4,
+      "incorrect": 1,
+      "unknown": 4
+    },
+    "industryPrecision": 80,
+    "industryCoverage": 55.6,
+    "avgProcessingMs": 18953,
+    "timeoutCount": 20,
+    "wrongIdentities": [
+      {
+        "name": "Brex",
+        "got": "brextom.com",
+        "expected": "brex.com",
+        "score": 174
+      }
+    ],
+    "wrongIndustries": [
+      {
+        "name": "ServiceNow",
+        "got": "Technology",
+        "expected": [
+          "Enterprise Software"
+        ],
+        "evidence": [
+          "American technology company",
+          "builds operational resilience and mitigates risk.",
+          "ServiceNow - Put AI to Work",
+          "Streamline your enterprise workflows with the ServiceNow AI Platform—empowering both customers and employees in every corner of your business."
+        ]
+      }
+    ],
+    "unknownIndustries": [
+      {
+        "name": "KKR",
+        "rejected": [],
+        "evidence": [
+          "is a leading global investment firm.",
+          "KKR: A Leading Global Investment Firm  | KKR",
+          "KKR is a leading global investment firm offering solutions in alternative assets spanning real estate, private credit, private equity, and infrastructure, as well as liquid credit,",
+          " KKR: A Leading Global Investment Firm | KKR --> KKR Global Select Your Experience KKR Global Learn about KKR's approach, solutions, and insights. This site is for clients, investo"
+        ],
+        "source": "insufficient_signal"
+      },
+      {
+        "name": "Illumina",
+        "rejected": [
+          {
+            "reason": "insufficient_evidence"
+          }
+        ],
+        "evidence": [],
+        "source": "none"
+      },
+      {
+        "name": "Caterpillar",
+        "rejected": [],
+        "evidence": [
+          "Larva of a butterfly or moth",
+          "Caterpillar | Caterpillar Inc",
+          "Caterpillar is the world’s leading manufacturer of construction and mining equipment, diesel and natural gas engines, industrial turbines and diesel-electric locomotives.",
+          " Caterpillar | Caterpillar Inc Skip to main content search --> Search search &#215; --> --> search Search --> --> --> --> --> --> close OK Contact Us search Search --> search --> S"
+        ],
+        "source": "insufficient_signal"
+      },
+      {
+        "name": "Vista",
+        "rejected": [],
+        "evidence": [
+          "VistaPrint Official Website: Online Printing Services",
+          "VistaPrint online printing services help you create and order the best custom products: marketing materials, business cards, signage, promotional products, custom gifts, packaging ",
+          " VistaPrint Official Website: Online Printing Services Accessibility Skip to main content Websites by Vista x Wix Corporate Pricing VistaCreate Help is here 1.866.207.4955 My Proje"
+        ],
+        "source": "insufficient_signal"
+      }
+    ]
+  },
+  "rows": [
+    {
+      "name": "Cloudflare",
+      "category": "public_tech",
+      "expectedDomain": "cloudflare.com",
+      "expectedIndustry": [
+        "Cloud Infrastructure",
+        "Cybersecurity",
+        "Enterprise Software"
+      ],
+      "resolvedDomain": "cloudflare.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 224,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "candidates": [
+        {
+          "domain": "cloudflare.com",
+          "score": 224,
+          "source": "brand_guess"
+        },
+        {
+          "domain": "cloudflare.net",
+          "score": 189,
+          "source": "clearbit"
+        },
+        {
+          "domain": "cloudflare.tv",
+          "score": 175,
+          "source": "clearbit"
+        }
+      ],
+      "industry": "Cloud Infrastructure",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bcontent delivery network\\b/i",
+        "/\\bCDN\\b/i",
+        "/\\bCDN\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American technology company",
+        "Cloudflare: Build for the agent era",
+        "Welcome to Cloudflare - Powering the next generation of applications",
+        " Cloudflare: Build for the agent era Products Solutions Resources Pricing Under attack? Under attack? Login Contact sales Start building Login Hero video off in Low preview — use H"
+      ],
+      "industryRejected": [
+        {
+          "label": "Semiconductors",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bcybersecurity\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 20850,
+      "timeouts": 2
+    },
+    {
+      "name": "Snowflake",
+      "category": "public_tech",
+      "expectedDomain": "snowflake.com",
+      "expectedIndustry": [
+        "Enterprise Software"
+      ],
+      "resolvedDomain": "snowflake.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 224,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "candidates": [
+        {
+          "domain": "snowflake.com",
+          "score": 224,
+          "source": "brand_guess"
+        },
+        {
+          "domain": "snowflakedesigns.com",
+          "score": 126,
+          "source": "clearbit"
+        },
+        {
+          "domain": "snowflakesmusic.in",
+          "score": 43,
+          "source": "clearbit"
+        }
+      ],
+      "industry": "Enterprise Software",
+      "industryConfidence": "medium",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bdata (?:cloud|analytics platform)\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Ice crystals that fall as snow",
+        "is a fully managed service that’s truly easy to use, connected across your entire data estate and trusted by thousands of customers.",
+        "Snowflake AI Data Cloud",
+        "Snowflake powers AI, data engineering, applications, and analytics on a trusted, scalable AI Data Cloud—eliminating silos and accelerating innovation."
+      ],
+      "industryRejected": [
+        {
+          "label": "Semiconductors",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bdata cloud\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 21095,
+      "timeouts": 2
+    },
+    {
+      "name": "CrowdStrike",
+      "category": "public_tech",
+      "expectedDomain": "crowdstrike.com",
+      "expectedIndustry": [
+        "Cybersecurity"
+      ],
+      "resolvedDomain": "crowdstrike.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 224,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "candidates": [
+        {
+          "domain": "crowdstrike.com",
+          "score": 224,
+          "source": "brand_guess"
+        },
+        {
+          "domain": "crowdstrike24hoursofspa.com",
+          "score": 126,
+          "source": "clearbit"
+        },
+        {
+          "domain": "crowdstrikeracing.com",
+          "score": 114,
+          "source": "clearbit"
+        }
+      ],
+      "industry": "Cybersecurity",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bendpoint (?:security|protection)\\b/i",
+        "/\\bcybersecurity\\b/i",
+        "/\\bendpoint security\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American cybersecurity technology company",
+        "Provides the visibility and precise control required to enable safe usage of removable media devices such as USB, SD card, and Thunderbolt devices across your organization.",
+        "CrowdStrike: We Stop Breaches with AI-native Cybersecurity",
+        "CrowdStrike is a global cybersecurity leader with an advanced cloud-native platform for protecting endpoints, cloud workloads, identities and data."
+      ],
+      "industryRejected": [
+        {
+          "label": "Semiconductors",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bcybersecurity\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 16375,
+      "timeouts": 2
+    },
+    {
+      "name": "ServiceNow",
+      "category": "public_tech",
+      "expectedDomain": "servicenow.com",
+      "expectedIndustry": [
+        "Enterprise Software"
+      ],
+      "resolvedDomain": "servicenow.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 224,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "candidates": [
+        {
+          "domain": "servicenow.com",
+          "score": 224,
+          "source": "brand_guess"
+        },
+        {
+          "domain": "servicenowinc.com",
+          "score": 151,
+          "source": "clearbit"
+        },
+        {
+          "domain": "servicenowguru.com",
+          "score": 151,
+          "source": "clearbit"
+        }
+      ],
+      "industry": "Technology",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\btechnology company\\b/i",
+        "/\\btechnology company\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American technology company",
+        "builds operational resilience and mitigates risk.",
+        "ServiceNow - Put AI to Work",
+        "Streamline your enterprise workflows with the ServiceNow AI Platform—empowering both customers and employees in every corner of your business."
+      ],
+      "industryRejected": [
+        {
+          "label": "Semiconductors",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bsoftware (?:platform|company|product)\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "incorrect",
+      "notesClean": true,
+      "elapsedMs": 17447,
+      "timeouts": 2
+    },
+    {
+      "name": "Brex",
+      "category": "private_startup",
+      "expectedDomain": "brex.com",
+      "expectedIndustry": [
+        "Fintech"
+      ],
+      "resolvedDomain": "brextom.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 174,
+      "identityOutcome": "incorrect",
+      "identityReason": "selected",
+      "candidates": [
+        {
+          "domain": "brextom.com",
+          "score": 174,
+          "source": "clearbit"
+        },
+        {
+          "domain": "brex.cz",
+          "score": 152,
+          "source": "clearbit"
+        },
+        {
+          "domain": "odprawy-celne-uk.online",
+          "score": 54,
+          "source": "clearbit"
+        }
+      ],
+      "industry": "Fintech",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bfintech (?:company|platform)\\b/i",
+        "/\\bfintech\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Fintech company owned by Capital One",
+        " Home - Brextom Vender Brextom Comprar Blog Contacto Vender Brextom Comprar Blog Contacto ¿Buscas una inmobiliaria en Murcia para vender al mejor precio? ¿Qué necesitas hacer hoy? ",
+        "Brex, a subsidiary of Capital One, is an American fintech company that offers credit cards and cash management accounts as well as a spend management software platform to startup t"
+      ],
+      "industryRejected": [
+        {
+          "label": "Semiconductors",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bsoftware (?:platform|company|product)\\b/i"
+          ]
+        },
+        {
+          "label": "Banking",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bfintech\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "skipped_bad_identity",
+      "notesClean": true,
+      "elapsedMs": 18421,
+      "timeouts": 2
+    },
+    {
+      "name": "KKR",
+      "category": "financial",
+      "expectedDomain": "kkr.com",
+      "expectedIndustry": [
+        "Private Equity",
+        "Asset Management"
+      ],
+      "resolvedDomain": "kkr.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 224,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "candidates": [
+        {
+          "domain": "kkr.com",
+          "score": 224,
+          "source": "brand_guess"
+        },
+        {
+          "domain": "973kkrc.com",
+          "score": 186,
+          "source": "clearbit"
+        },
+        {
+          "domain": "kkr.gov.my",
+          "score": 136,
+          "source": "clearbit"
+        }
+      ],
+      "industry": "Unknown",
+      "industryConfidence": "low",
+      "industrySource": "insufficient_signal",
+      "industryEvidence": [],
+      "industryEvidenceTexts": [
+        "is a leading global investment firm.",
+        "KKR: A Leading Global Investment Firm  | KKR",
+        "KKR is a leading global investment firm offering solutions in alternative assets spanning real estate, private credit, private equity, and infrastructure, as well as liquid credit,",
+        " KKR: A Leading Global Investment Firm | KKR --> KKR Global Select Your Experience KKR Global Learn about KKR's approach, solutions, and insights. This site is for clients, investo"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "unknown",
+      "notesClean": true,
+      "elapsedMs": 17309,
+      "timeouts": 2
+    },
+    {
+      "name": "Illumina",
+      "category": "healthcare",
+      "expectedDomain": "illumina.com",
+      "expectedIndustry": [
+        "Biotechnology"
+      ],
+      "resolvedDomain": "illumina.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 192,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "candidates": [
+        {
+          "domain": "illumina.com",
+          "score": 192,
+          "source": "brand_guess"
+        },
+        {
+          "domain": "illuminateed.com",
+          "score": 139,
+          "source": "clearbit"
+        },
+        {
+          "domain": "illuminatehc.com",
+          "score": 117,
+          "source": "clearbit"
+        }
+      ],
+      "industry": "Unknown",
+      "industryConfidence": "low",
+      "industrySource": "none",
+      "industryEvidence": [],
+      "industryEvidenceTexts": [],
+      "industryRejected": [
+        {
+          "reason": "insufficient_evidence"
+        }
+      ],
+      "industryOutcome": "unknown",
+      "notesClean": true,
+      "elapsedMs": 23818,
+      "timeouts": 2
+    },
+    {
+      "name": "Caterpillar",
+      "category": "industrial",
+      "expectedDomain": "caterpillar.com",
+      "expectedIndustry": [
+        "Industrial Technology",
+        "Automotive"
+      ],
+      "resolvedDomain": "caterpillar.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 224,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "candidates": [
+        {
+          "domain": "caterpillar.com",
+          "score": 224,
+          "source": "brand_guess"
+        },
+        {
+          "domain": "cat.com",
+          "score": 116,
+          "source": "clearbit"
+        },
+        {
+          "domain": "catworkwear.com",
+          "score": 76,
+          "source": "clearbit"
+        }
+      ],
+      "industry": "Unknown",
+      "industryConfidence": "low",
+      "industrySource": "insufficient_signal",
+      "industryEvidence": [],
+      "industryEvidenceTexts": [
+        "Larva of a butterfly or moth",
+        "Caterpillar | Caterpillar Inc",
+        "Caterpillar is the world’s leading manufacturer of construction and mining equipment, diesel and natural gas engines, industrial turbines and diesel-electric locomotives.",
+        " Caterpillar | Caterpillar Inc Skip to main content search --> Search search &#215; --> --> search Search --> --> --> --> --> --> close OK Contact Us search Search --> search --> S"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "unknown",
+      "notesClean": true,
+      "elapsedMs": 18871,
+      "timeouts": 2
+    },
+    {
+      "name": "Lululemon",
+      "category": "consumer",
+      "expectedDomain": "lululemon.com",
+      "expectedIndustry": [
+        "Consumer",
+        "E-Commerce"
+      ],
+      "resolvedDomain": "lululemon.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 192,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "candidates": [
+        {
+          "domain": "lululemon.com",
+          "score": 192,
+          "source": "brand_guess"
+        },
+        {
+          "domain": "lululemon.com.hk",
+          "score": 93,
+          "source": "clearbit"
+        },
+        {
+          "domain": "lululemon.com.au",
+          "score": 93,
+          "source": "clearbit"
+        }
+      ],
+      "industry": "Consumer",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bathletic (?:apparel|footwear)\\b/i",
+        "/\\bapparel\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Multinational athletic apparel retailer",
+        "Lululemon, commonly styled as lululemon, is a Canadian-American multinational athletic apparel retailer headquartered in Vancouver, British Columbia, and incorporated in Delaware, "
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 16386,
+      "timeouts": 2
+    },
+    {
+      "name": "Vista",
+      "category": "ambiguous",
+      "expectedDomain": "vistaequitypartners.com",
+      "expectedIndustry": [
+        "Private Equity"
+      ],
+      "resolvedDomain": "vista.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 224,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "candidates": [
+        {
+          "domain": "vista.com",
+          "score": 224,
+          "source": "brand_guess"
+        },
+        {
+          "domain": "vistana.com",
+          "score": 152,
+          "source": "clearbit"
+        },
+        {
+          "domain": "vista.ir",
+          "score": 133,
+          "source": "clearbit"
+        }
+      ],
+      "industry": "Unknown",
+      "industryConfidence": "low",
+      "industrySource": "insufficient_signal",
+      "industryEvidence": [],
+      "industryEvidenceTexts": [
+        "VistaPrint Official Website: Online Printing Services",
+        "VistaPrint online printing services help you create and order the best custom products: marketing materials, business cards, signage, promotional products, custom gifts, packaging ",
+        " VistaPrint Official Website: Online Printing Services Accessibility Skip to main content Websites by Vista x Wix Corporate Pricing VistaCreate Help is here 1.866.207.4955 My Proje"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "unknown",
+      "notesClean": true,
+      "elapsedMs": 18958,
+      "timeouts": 2
+    }
+  ]
+}

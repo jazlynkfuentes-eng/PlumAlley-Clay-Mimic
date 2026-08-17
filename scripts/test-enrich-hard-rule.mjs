@@ -30,29 +30,44 @@ function normalizeEnrichValue(v) {
 function applyBatchUniquenessGuard(domain, fields) {
   const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
   const out = { ...fields };
-  const guardedKeys = ['industry', 'contacts', 'notes'];
   const blocked = [];
-  for (const key of guardedKeys) {
-    const raw = out[key];
-    if (isBlankOrUnknown(raw)) {
-      out[key] = UNKNOWN;
-      continue;
+  const sharedIndustry = new Set(['venture capital', 'private equity', 'asset management', 'fintech']);
+
+  // Industry: allow shared taxonomy labels across companies in a batch
+  if (!isBlankOrUnknown(out.industry)) {
+    const norm = normalizeEnrichValue(out.industry);
+    if (!sharedIndustry.has(norm) && String(out.industry).split(/\s+/).length > 3) {
+      const owner = enrichmentValueRegistry.industry.get(norm);
+      if (owner && owner !== host) {
+        blocked.push({ key: 'industry', value: out.industry, owner });
+        out.industry = UNKNOWN;
+      } else {
+        enrichmentValueRegistry.industry.set(norm, host);
+      }
     }
-    const norm = normalizeEnrichValue(raw);
-    if (norm.length < 4) {
-      out[key] = UNKNOWN;
-      continue;
-    }
-    const owner = enrichmentValueRegistry[key].get(norm);
-    if (owner && owner !== host) {
-      blocked.push({ key, value: raw, owner });
-      out[key] = UNKNOWN;
-    } else {
-      enrichmentValueRegistry[key].set(norm, host);
-    }
+  } else {
+    out.industry = UNKNOWN;
   }
+
+  // Founders still unique per batch
+  if (!isBlankOrUnknown(out.contacts)) {
+    const norm = normalizeEnrichValue(out.contacts);
+    if (norm.length >= 4) {
+      const owner = enrichmentValueRegistry.contacts.get(norm);
+      if (owner && owner !== host) {
+        blocked.push({ key: 'contacts', value: out.contacts, owner });
+        out.contacts = UNKNOWN;
+      } else {
+        enrichmentValueRegistry.contacts.set(norm, host);
+      }
+    }
+  } else {
+    out.contacts = UNKNOWN;
+  }
+
   if (isBlankOrUnknown(out.headcount)) out.headcount = UNKNOWN;
   if (isBlankOrUnknown(out.location)) out.location = UNKNOWN;
+  if (isBlankOrUnknown(out.notes)) out.notes = UNKNOWN;
   out._blocked = blocked;
   return out;
 }

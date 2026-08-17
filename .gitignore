@@ -7,3 +7,4 @@ dist/
 .env*
 .agents/
 skills-lock.json
+data/cache/

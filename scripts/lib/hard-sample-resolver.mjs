@@ -539,7 +539,7 @@ async function gatherOfficialWebsiteFallback(companyName) {
     (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
     (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`
   ];
-  const spam = /wikipedia\.org|wikidata\.org|duckduckgo\.com|google\.com|bing\.com|yahoo\.com|facebook\.com|linkedin\.com|twitter\.com|x\.com|youtube\.com|instagram\.com|crunchbase\.com|bloomberg\.com|reuters\.com|pitchbook\.com|zoominfo\.com|apollo\.io|rocketreach/i;
+  const spam = /(^|\.)(wikipedia\.org|wikidata\.org|duckduckgo\.com|google\.com|bing\.com|yahoo\.com|facebook\.com|linkedin\.com|twitter\.com|x\.com|youtube\.com|instagram\.com|crunchbase\.com|bloomberg\.com|reuters\.com|pitchbook\.com|zoominfo\.com|apollo\.io|rocketreach\.com)(\/|$)/i;
 
   for (const build of proxies) {
     try {

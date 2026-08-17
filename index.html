@@ -146,6 +146,8 @@
       display: flex;
       gap: 0.75rem;
       align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     /* Buttons */
@@ -360,21 +362,89 @@
     .table-wrapper {
       display: block;
       width: 100%;
-      max-height: 70vh; /* Adjust as needed */
+      max-height: 70vh;
       overflow: auto;
+      flex: 1 1 auto;
+      min-height: 0;
     }
     .table-scroll-container {
-      overflow: hidden;
-      flex-grow: 1;
+      overflow: visible;
+      width: max-content;
+      min-width: 100%;
       height: auto;
     }
 
     .spreadsheet-table {
-      width: 100%;
+      width: max-content;
+      min-width: 100%;
       border-collapse: separate;
       border-spacing: 0;
       table-layout: fixed;
     }
+
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      padding: 0.45rem 0.65rem;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--table-header-bg);
+      flex-shrink: 0;
+    }
+    .table-toolbar-label {
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      margin-right: 0.15rem;
+    }
+    .density-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .density-toggle button {
+      border: none;
+      background: transparent;
+      font: inherit;
+      font-size: 0.72rem;
+      padding: 0.28rem 0.5rem;
+      cursor: pointer;
+      color: var(--text-secondary);
+      border-right: 1px solid var(--border-color);
+    }
+    .density-toggle button:last-child { border-right: none; }
+    .density-toggle button.active {
+      background: var(--accent-light);
+      color: var(--accent-hover);
+      font-weight: 600;
+    }
+    .density-toggle button:hover:not(.active) {
+      background: #F8FAFC;
+    }
+
+    .table-workspace.table-expanded {
+      position: fixed;
+      inset: 0.55rem;
+      z-index: 90;
+      max-height: none;
+      height: auto;
+      border-radius: 10px;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.2);
+    }
+    .table-workspace.table-expanded .table-wrapper {
+      max-height: none;
+      flex: 1 1 auto;
+    }
+    .table-expand-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.35);
+      z-index: 85;
+    }
+    body.table-expanded-lock { overflow: hidden; }
+    body.is-col-resizing, body.is-col-resizing * { cursor: col-resize !important; user-select: none !important; }
 
     /* Column Widths — tight defaults so more columns fit without horizontal scroll.
        Keys match header `col-${key}` classes (e.g. companyName, not "name"). */
@@ -387,20 +457,39 @@
     .col-location { width: 100px; min-width: 85px; }
     .col-contacts { width: 120px; min-width: 100px; }
     .col-notes { width: 140px; min-width: 110px; }
-    /* Ensure headers allow resizer positioning */
-    .spreadsheet-table th { position: relative; }
+    /* Sticky header is set below; keep a positioning context for the drag handle */
+    .spreadsheet-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 12;
+    }
+    .th-label {
+      display: block;
+      padding-right: 0.55rem;
+    }
     .col-resizer {
       position: absolute;
       right: 0;
       top: 0;
       bottom: 0;
-      width: 6px;
+      width: 8px;
       cursor: col-resize;
       user-select: none;
       background: transparent;
-      z-index: 2;
+      z-index: 13;
     }
-    .col-resizer:hover { background: rgba(91, 127, 166, 0.25); }
+    .col-resizer::after {
+      content: '';
+      position: absolute;
+      top: 20%;
+      bottom: 20%;
+      right: 2px;
+      width: 2px;
+      border-radius: 1px;
+      background: transparent;
+    }
+    .col-resizer:hover, .col-resizer:active { background: rgba(91, 127, 166, 0.12); }
+    .col-resizer:hover::after, .col-resizer:active::after { background: var(--accent-color); }
     .export-group {
       display: inline-flex;
       align-items: center;
@@ -768,7 +857,7 @@
     .spreadsheet-table th {
       position: sticky;
       top: 0;
-      z-index: 10;
+      z-index: 12;
       background-color: var(--table-header-bg);
       border-bottom: 2px solid var(--border-color);
       border-right: 1px solid var(--border-color);
@@ -780,6 +869,8 @@
       user-select: none;
       white-space: normal;
       word-break: break-word;
+      overflow: visible;
+      box-shadow: 0 1px 0 var(--border-color);
     }
 
     .spreadsheet-table th:last-child {
@@ -816,6 +907,44 @@
 
     .spreadsheet-table td:last-child {
       border-right: none;
+    }
+
+    /* Density: compact truncates; expanded wraps Notes and long cells */
+    .table-density-compact .spreadsheet-table th,
+    .table-density-compact .spreadsheet-table td {
+      padding: 0.28rem 0.45rem;
+      font-size: 0.78rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      word-break: normal;
+    }
+    .table-density-compact .spreadsheet-table td > *,
+    .table-density-compact .notes-cell {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+    .table-density-comfortable .spreadsheet-table td {
+      padding: 0.5rem 0.65rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .table-density-comfortable .notes-cell {
+      white-space: nowrap;
+    }
+    .table-density-expanded .spreadsheet-table th,
+    .table-density-expanded .spreadsheet-table td {
+      padding: 0.75rem 0.8rem;
+      white-space: normal;
+      overflow: visible;
+      word-break: break-word;
+    }
+    .table-density-expanded .notes-cell {
+      white-space: pre-wrap;
+      line-height: 1.45;
     }
 
     /* Clickable URLs */
@@ -1966,7 +2095,8 @@
     // 80: wiki-less Clearbit+DNS correct matches commonly land ~81; 90 was too strict under Wiki 429s.
     // 80–89 still requires strong name lock / multi-source / finance signal (see shouldAutoFoundResolve).
     const RESOLVE_AUTO_FOUND_THRESHOLD = 80;
-    const RESOLVE_AMBIGUITY_GAP = 12;
+    // Precision-first: require a clear margin before auto-resolving
+    const RESOLVE_AMBIGUITY_GAP = 18;
 
     /** Auto-Found when score ≥ 80 (with guards), or major-firm / dictionary / learned at confidence 100.
      *  With Finance Search Filter: sole finance-typed top candidate (≥ picker threshold) also auto-Founds. */
@@ -2506,11 +2636,21 @@
       const nameLower = String(candidate.name || '').toLowerCase();
       const nameClean = nameLower.replace(/[^a-z0-9]/g, '');
       const parts = String(candidate.domain || '').toLowerCase().split('.');
-      const host = String(candidate.domain || '').toLowerCase();
-      const domBase = (parts[0] || '').replace(/[^a-z0-9]/g, '');
+      const host = String(candidate.domain || '').toLowerCase().replace(/^www\./, '');
+      const hostParts = host.split('.');
+      // Registrable-ish base: skip property subdomains (ir.netflix.net → netflix)
+      let domBase = (hostParts[0] || '').replace(/[^a-z0-9]/g, '');
+      if (
+        hostParts.length >= 3 &&
+        /^(ir|investors?|shop|store|careers|jobs|support|help|community|developers?|docs|blog|news|press|events|games|merch)$/i.test(hostParts[0])
+      ) {
+        domBase = (hostParts[1] || '').replace(/[^a-z0-9]/g, '');
+      }
       const stop = new Set(['of', 'the', 'and', 'a', 'an', 'for', 'in', 'on', 'at', 'to']);
       const tokens = rawLower.split(/\s+/).map(t => t.replace(/[^a-z0-9]/g, '')).filter(t => t.length > 0 && !stop.has(t));
       const contentTokens = tokens.filter(t => t.length > 2);
+      // Keep distinctive PE/VC tokens (equity, partners, ventures) for multiword identity
+      const identityTokens = tokens.filter(t => !['inc', 'llc', 'corp', 'corporation', 'company', 'group', 'holdings', 'management', 'global', 'the'].includes(t));
       // Initials acronym: "International Business Machines" → "ibm"
       const acronym = tokens.length >= 2 ? tokens.map(t => t[0]).join('') : '';
       let score = 0;
@@ -2533,11 +2673,31 @@
       if (domBase === cleanQuery || (acronym && domBase === acronym)) {
         score += 35;
       } else if (cleanQuery.length >= 4 && (domBase.startsWith(cleanQuery) || cleanQuery.startsWith(domBase))) {
-        score += 18;
+        // brand suffix noise: microsoftcasualgames, brextom
+        if (domBase.startsWith(cleanQuery) && domBase.length > cleanQuery.length + 2) {
+          score -= 25;
+        } else {
+          score += 18;
+        }
       } else if (cleanQuery.length >= 4 && (domBase.includes(cleanQuery) || cleanQuery.includes(domBase))) {
         score += 10;
       } else if (acronym && acronym.length >= 2 && (domBase.includes(acronym) || acronym.includes(domBase))) {
         score += 20;
+      }
+
+      // Multiword entity: require distinctive token coverage (Vista Equity Partners ≫ vista.com)
+      if (identityTokens.length >= 2) {
+        const hits = identityTokens.filter(t => domBase.includes(t) || host.includes(t)).length;
+        const coverage = hits / identityTokens.length;
+        if (coverage < 0.6) score -= 18;
+        else score += Math.round(coverage * 12);
+      }
+
+      // "* AI" brands: prefer brand.com over brandai.com
+      if (identityTokens.length === 2 && identityTokens[1] === 'ai') {
+        const primary = identityTokens[0];
+        if (domBase === primary) score += 12;
+        if (domBase === `${primary}ai` || domBase === cleanQuery) score -= 14;
       }
 
       // Clearbit spam: exact stolen brand name on a domain with zero token/acronym overlap
@@ -2548,11 +2708,20 @@
         exactName = false;
       }
 
+      // Affiliate / microsite / non-canonical host penalties (site-purpose + hostname)
+      if (/\.(shop|store)$/i.test(host)) score -= 30;
+      if (/(casualgames|merchandise|merch|fanclub)/i.test(host.replace(/\./g, ''))) score -= 28;
+      if (hostParts.length >= 3 && /^(ir|investors?|shop|store|careers|jobs|support|community|developers?|blog|games)$/i.test(hostParts[0])) {
+        score -= 22;
+      }
+      if (/\.(com\.co|com\.br|com\.mx|com\.au|co\.[a-z]{2})$/i.test(host)) score -= 16;
+
       const tld = parts[parts.length - 1] || '';
       const isUsGov = /\.gov$/i.test(host) && !/\.gov\.[a-z]{2}$/i.test(host);
       const isForeignGov = /\.gov\.[a-z]{2}$/i.test(host) || /\.(go|gob)\.[a-z]{2}$/i.test(host);
       if (isUsGov) score += 10;
-      else if (['com', 'org', 'edu', 'gov', 'net', 'io', 'co', 'us', 'uk', 'ai'].includes(tld)) score += 4;
+      else if (['com', 'org', 'edu', 'gov', 'net', 'io', 'co', 'us', 'uk', 'ai', 'capital', 'so'].includes(tld)) score += 4;
+      else if (['shop', 'store'].includes(tld)) score -= 20;
       else score -= 8;
       // Prefer US .gov over foreign SEC-equivalents when query has no country qualifier
       if (isForeignGov && !/\b(philippines|ghana|thailand|zimbabwe|nigeria|kenya|india|pakistan|australia|canada|uk|britain)\b/i.test(rawLower)) {
@@ -2711,7 +2880,7 @@
         (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
         (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`
       ];
-      const spam = /wikipedia\.org|wikidata\.org|duckduckgo\.com|google\.com|bing\.com|yahoo\.com|facebook\.com|linkedin\.com|twitter\.com|x\.com|youtube\.com|instagram\.com|crunchbase\.com|bloomberg\.com|reuters\.com|pitchbook\.com|zoominfo\.com|apollo\.io|rocketreach/i;
+      const spam = /(^|\.)(wikipedia\.org|wikidata\.org|duckduckgo\.com|google\.com|bing\.com|yahoo\.com|facebook\.com|linkedin\.com|twitter\.com|x\.com|youtube\.com|instagram\.com|crunchbase\.com|bloomberg\.com|reuters\.com|pitchbook\.com|zoominfo\.com|apollo\.io|rocketreach\.com)(\/|$)/i;
 
       for (const build of proxies) {
         try {
@@ -3004,6 +3173,21 @@
       // Drop hard DNS failures from "best" contention when alternatives exist
       const live = ranked.filter(c => c.dnsOk !== false);
       let contenders = live.length ? live : ranked;
+
+      // Prefer exact apex brand.com over property subdomains / brand-suffix noise
+      const queryKey = companyKeyNorm(companyName);
+      contenders = [...contenders].sort((a, b) => {
+        const aHost = String(a.domain || '').toLowerCase();
+        const bHost = String(b.domain || '').toLowerCase();
+        const aApex = aHost === `${queryKey}.com` || aHost.replace(/^www\./, '') === `${queryKey}.com`;
+        const bApex = bHost === `${queryKey}.com` || bHost.replace(/^www\./, '') === `${queryKey}.com`;
+        if (aApex !== bApex) return aApex ? -1 : 1;
+        const aProp = /^(ir|shop|store|careers|jobs)\./i.test(aHost) || /\.(shop|store)$/i.test(aHost);
+        const bProp = /^(ir|shop|store|careers|jobs)\./i.test(bHost) || /\.(shop|store)$/i.test(bHost);
+        if (aProp !== bProp) return aProp ? 1 : -1;
+        return b.totalScore - a.totalScore;
+      });
+
       let best = contenders[0] || null;
       let runnerUp = contenders.find(c => c.domain !== best?.domain) || null;
 
@@ -3019,6 +3203,15 @@
         Math.abs(best.totalScore - runnerUp.totalScore) < RESOLVE_AMBIGUITY_GAP &&
         runnerUp.totalScore >= RESOLVE_CONFIDENCE_THRESHOLD - 15
       );
+      // Even with exactName, thin margins on ambiguous short brands → picker
+      if (
+        best &&
+        runnerUp &&
+        Math.abs(best.totalScore - runnerUp.totalScore) < RESOLVE_AMBIGUITY_GAP &&
+        isAmbiguousCompanyName(companyName)
+      ) {
+        ambiguous = true;
+      }
       // Same-name entities across jurisdictions are a real human decision — keep them ambiguous
       let forcedAmbiguous = false;
       if (secFamily.length >= 2 && /securities and exchange|^\s*sec\s*$/i.test(companyName)) {
@@ -3654,14 +3847,190 @@
 
     function industryFromWikidataInstances(instanceIds, companyName, domain) {
       if (!instanceIds || !instanceIds.length) return null;
+      const ids = new Set(instanceIds);
       if (instanceIds.some(id => WD_EDUCATION.has(id))) return 'Education';
       if (instanceIds.some(id => WD_GOVERNMENT.has(id))) return 'Government';
       if (instanceIds.some(id => WD_NONPROFIT_STRONG.has(id))) return 'Nonprofit / Foundation';
+      // Venture capital / private equity firm classes
+      if (ids.has('Q15980864') || ids.has('Q1236839') || ids.has('Q1687336')) return 'Venture Capital';
+      if (ids.has('Q592888') || ids.has('Q5152546')) return 'Private Equity';
+      if (ids.has('Q12319666') || ids.has('Q778575')) return 'Hedge Fund';
+      if (ids.has('Q161718') || ids.has('Q219577')) return 'Asset Management';
       // Weak org type + name/domain hints
       if (instanceIds.some(id => WD_NONPROFIT.has(id)) && inferEntityTypeIndustry(companyName, domain)) {
         return inferEntityTypeIndustry(companyName, domain);
       }
       return null;
+    }
+
+    function claimEntityIds(entity, prop) {
+      return (entity?.claims?.[prop] || [])
+        .map((c) => c?.mainsnak?.datavalue?.value?.id)
+        .filter(Boolean);
+    }
+
+    async function resolveWikidataLabels(ids) {
+      const unique = [...new Set((ids || []).filter(Boolean))].slice(0, 12);
+      if (!unique.length) return {};
+      try {
+        const wd = await fetchWikiApiJson(
+          `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${unique.join('|')}&props=labels&languages=en&format=json&origin=*`,
+          { label: 'wd-labels' }
+        );
+        const out = {};
+        for (const id of unique) {
+          const label = wd?.entities?.[id]?.labels?.en?.value;
+          if (label) out[id] = label;
+        }
+        return out;
+      } catch (_) {
+        return {};
+      }
+    }
+
+    /**
+     * Structured company facts from Wikidata (HQ P159, founders P112, employees P1128).
+     * Prefer entity whose official website matches the resolved domain.
+     */
+    async function lookupWikidataCompanyFacts(companyName, domain) {
+      const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      const out = {
+        industry: UNKNOWN,
+        headcount: UNKNOWN,
+        location: UNKNOWN,
+        contacts: UNKNOWN,
+        notes: UNKNOWN,
+        provenance: {}
+      };
+
+      try {
+        // Domain-first SPARQL (structured, high confidence when it hits)
+        if (host) {
+          const urls = [
+            `https://${host}/`, `https://www.${host}/`, `http://${host}/`, `http://www.${host}/`,
+            `https://${host}`, `https://www.${host}`
+          ];
+          const values = urls.map((u) => `<${u}>`).join(' ');
+          const sparql = `
+SELECT ?item ?itemLabel ?hqLabel ?founderLabel ?employees ?desc WHERE {
+  VALUES ?url { ${values} }
+  ?item wdt:P856 ?url .
+  OPTIONAL { ?item wdt:P159 ?hq . }
+  OPTIONAL { ?item wdt:P112 ?founder . }
+  OPTIONAL { ?item wdt:P1128 ?employees . }
+  OPTIONAL { ?item schema:description ?desc . FILTER(LANG(?desc) = "en") }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}
+LIMIT 8`.trim();
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), 6000);
+          const res = await fetch(`https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(sparql)}`, {
+            signal: controller.signal,
+            headers: { Accept: 'application/sparql-results+json' }
+          });
+          clearTimeout(t);
+          if (res.ok) {
+            const json = await res.json();
+            const bindings = json?.results?.bindings || [];
+            const founderNames = [];
+            for (const b of bindings) {
+              if (b.hqLabel?.value && isBlankOrUnknown(out.location)) {
+                out.location = normalizeLocationLabel(b.hqLabel.value);
+                out.provenance.location = fieldProvenance(out.location, 'wikidata', 'high');
+              }
+              if (b.founderLabel?.value) founderNames.push(b.founderLabel.value);
+              if (b.employees?.value != null && isBlankOrUnknown(out.headcount)) {
+                out.headcount = normalizeHeadcountLabel(String(b.employees.value));
+                out.provenance.headcount = fieldProvenance(out.headcount, 'wikidata', 'high');
+              }
+              if (b.desc?.value && isBlankOrUnknown(out.notes)) {
+                const note = sanitizeUserFacingNotes(b.desc.value);
+                if (note) {
+                  out.notes = note;
+                  out.provenance.notes = fieldProvenance(out.notes, 'wikidata', 'medium');
+                }
+                if (/venture capital/i.test(b.desc.value)) {
+                  out.industry = 'Venture Capital';
+                  out.provenance.industry = fieldProvenance(out.industry, 'wikidata', 'high');
+                } else if (/private equity/i.test(b.desc.value)) {
+                  out.industry = 'Private Equity';
+                  out.provenance.industry = fieldProvenance(out.industry, 'wikidata', 'high');
+                }
+              }
+            }
+            if (founderNames.length) {
+              out.contacts = normalizeFoundersLabel([...new Set(founderNames)].join('; '));
+              if (!isBlankOrUnknown(out.contacts)) {
+                out.provenance.contacts = fieldProvenance(out.contacts, 'wikidata', 'high');
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[enrich] wikidata sparql failed', e);
+      }
+
+      // Fallback / fill gaps via enwiki entity claims
+      try {
+        const hits = await fetchWikidataEntitiesForName(companyName, companyName);
+        const ordered = [...hits].sort((a, b) => {
+          const aMatch = a.domain && host && a.domain === host ? 1 : 0;
+          const bMatch = b.domain && host && b.domain === host ? 1 : 0;
+          return bMatch - aMatch || b.prominenceScore - a.prominenceScore;
+        });
+        for (const hit of ordered.slice(0, 2)) {
+          const entity = hit.entity;
+          if (!entity) continue;
+          // Require domain match OR strong name match to avoid wrong entity
+          const domainOk = hit.domain && host && hit.domain === host;
+          const nameOk = String(hit.title || '').toLowerCase().includes(String(companyName || '').toLowerCase().split(/\s+/)[0] || '___');
+          if (!domainOk && !nameOk) continue;
+
+          if (isBlankOrUnknown(out.industry)) {
+            const fromP31 = industryFromWikidataInstances(hit.instanceIds, companyName, domain);
+            if (fromP31) {
+              out.industry = fromP31;
+              out.provenance.industry = fieldProvenance(out.industry, 'wikidata', 'high');
+            } else if (/venture capital/i.test(hit.description || '')) {
+              out.industry = 'Venture Capital';
+              out.provenance.industry = fieldProvenance(out.industry, 'wikidata', 'medium');
+            }
+          }
+
+          if (isBlankOrUnknown(out.headcount) && hit.employees != null) {
+            out.headcount = normalizeHeadcountLabel(String(hit.employees));
+            out.provenance.headcount = fieldProvenance(out.headcount, 'wikidata', 'high');
+          }
+
+          if (isBlankOrUnknown(out.notes) && hit.description) {
+            const note = sanitizeUserFacingNotes(hit.description);
+            if (note) {
+              out.notes = note;
+              out.provenance.notes = fieldProvenance(out.notes, 'wikidata', 'medium');
+            }
+          }
+
+          const hqIds = claimEntityIds(entity, 'P159');
+          const founderIds = claimEntityIds(entity, 'P112');
+          const labels = await resolveWikidataLabels([...hqIds, ...founderIds]);
+          if (isBlankOrUnknown(out.location) && hqIds[0] && labels[hqIds[0]]) {
+            out.location = normalizeLocationLabel(labels[hqIds[0]]);
+            out.provenance.location = fieldProvenance(out.location, 'wikidata', 'high');
+          }
+          if (isBlankOrUnknown(out.contacts) && founderIds.length) {
+            const names = founderIds.map((id) => labels[id]).filter(Boolean);
+            out.contacts = normalizeFoundersLabel(names.join('; '));
+            if (!isBlankOrUnknown(out.contacts)) {
+              out.provenance.contacts = fieldProvenance(out.contacts, 'wikidata', 'high');
+            }
+          }
+          break;
+        }
+      } catch (e) {
+        console.warn('[enrich] wikidata facts failed', e);
+      }
+
+      return out;
     }
 
     async function lookupWikidataEntityType(companyName, domain) {
@@ -4129,6 +4498,217 @@
       return String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
     }
 
+    /** Pipeline / debug text that must never appear in user-facing Notes or CSV. */
+    const PIPELINE_NOTES_RE =
+      /Verifying selected domain\.?\.?\.?|Queueing\.?\.?\.?|Re-running enrichment\.?\.?\.?|Enriching confirmed|Select the correct website|Pick a candidate|Select or enter a domain|Ambiguous matches|Candidates:|Possible matches|Could not verify|Could not fetch|Could not resolve|Domain does not resolve|Page content does not match|AI search error|Score \d+|confirm required|Low confidence|Auto-selected \([^)]+\)|scrape failed|DNS|HTTP \d{3}|retry|timeout|allorigins|corsproxy|codetabs|enrichSource|confidenceScore|resolveMethod|major firm/gi;
+
+    const SHARED_INDUSTRY_LABELS = new Set([
+      'venture capital', 'private equity', 'asset management', 'investment management',
+      'hedge fund', 'investment banking', 'banking', 'financial technology', 'fintech',
+      'software / saas', 'software & cloud', 'artificial intelligence', 'healthcare / biotech',
+      'education', 'government', 'nonprofit / foundation', 'legal services', 'e-commerce / retail',
+      'climate tech vc', 'deep tech vc', 'growth equity', 'investment management / gp stakes',
+      'technology / ai', 'consumer electronics', 'media / entertainment', 'automotive / energy', 'technology'
+    ]);
+
+    function sanitizeUserFacingNotes(raw) {
+      if (raw == null) return '';
+      let s = String(raw).trim();
+      if (!s || s === '-') return '';
+      s = s.replace(PIPELINE_NOTES_RE, ' ');
+      s = s
+        .split(/\s*[·|]\s*/)
+        .map((part) => part.trim())
+        .filter((part) => {
+          if (!part) return false;
+          if (/^(verifying|queueing|searching|enriching|pending)/i.test(part)) return false;
+          if (/score\s*\d+/i.test(part) && part.length < 40) return false;
+          if (/verifying selected domain/i.test(part)) return false;
+          return true;
+        })
+        .join(' · ');
+      s = s.replace(/\s{2,}/g, ' ').replace(/\s*·\s*·+/g, ' · ').replace(/^[\s·]+|[\s·]+$/g, '').trim();
+      if (!s || isBlankOrUnknown(s)) return '';
+      return s.slice(0, 320);
+    }
+
+    function normalizeIndustryLabel(raw) {
+      if (isBlankOrUnknown(raw)) return UNKNOWN;
+      let s = String(raw).trim().replace(/\s+/g, ' ');
+      const map = [
+        [/semiconductor|chipmaker|chip design|\bGPU\b|invents the GPU/i, 'Semiconductors'],
+        [/cybersecurity|cyber security/i, 'Cybersecurity'],
+        [/enterprise software|b2b software|\bSaaS\b|productivity software|cloud software/i, 'Enterprise Software'],
+        [/fintech|financial technology|payments|neobank/i, 'Fintech'],
+        [/biotech|biotechnology|therapeutics|genomics/i, 'Biotechnology'],
+        [/healthcare|health care|medical device|clinical/i, 'Healthcare'],
+        [/e-?commerce|online retail|marketplace/i, 'E-Commerce'],
+        [/consumer electronics|consumer brand|consumer goods|apparel|footwear|eyewear/i, 'Consumer'],
+        [/streaming|media company|entertainment/i, 'Media & Entertainment'],
+        [/gaming|video game/i, 'Gaming'],
+        [/renewable|clean energy|solar|wind power|climate tech/i, 'Renewable Energy'],
+        [/oil\s*(?:&|and)\s*gas|petroleum/i, 'Oil & Gas'],
+        [/electric utility|power generation|energy company/i, 'Energy'],
+        [/aerospace|defense|space (?:tech|systems|infrastructure)/i, 'Aerospace & Defense'],
+        [/industrial|manufacturing|automation|robotics/i, 'Industrial Technology'],
+        [/automotive|electric vehicle|\bEV\b/i, 'Automotive'],
+        [/^(vc|v\.c\.|venture capital firm|early[- ]stage vc)$/i, 'Venture Capital'],
+        [/venture capital|\bVC firm\b|seed (?:and|&) early-stage/i, 'Venture Capital'],
+        [/private equity|\bPE\b|buyout/i, 'Private Equity'],
+        [/investment bank|investment banking/i, 'Investment Banking'],
+        [/hedge fund/i, 'Hedge Fund'],
+        [/asset management|investment management/i, 'Asset Management'],
+        [/real estate|\breit\b/i, 'Real Estate'],
+        [/professional services|consulting firm/i, 'Professional Services'],
+        [/law firm|legal services/i, 'Legal Services'],
+        [/higher education|university|college/i, 'Education'],
+        [/government|public agency/i, 'Government'],
+        [/nonprofit|non-profit|foundation/i, 'Nonprofit / Foundation'],
+        [/banking|commercial bank/i, 'Banking'],
+        [/artificial intelligence (?:company|lab|research)|AI (?:company|lab|research|safety)|generative AI (?:company|lab)/i, 'Artificial Intelligence'],
+        [/technology company|software company/i, 'Technology']
+      ];
+      for (const [re, label] of map) {
+        if (re.test(s)) return label;
+      }
+      if (s.length <= 40) return s.replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\bVc\b/g, 'VC');
+      return s.slice(0, 60);
+    }
+
+    const CITY_LOCATION_ALIASES = {
+      nyc: 'New York, NY', 'new york city': 'New York, NY', 'new york': 'New York, NY',
+      sf: 'San Francisco, CA', 'san fran': 'San Francisco, CA', 'san francisco': 'San Francisco, CA',
+      la: 'Los Angeles, CA', 'los angeles': 'Los Angeles, CA', 'silicon valley': 'Palo Alto, CA'
+    };
+
+    function normalizeLocationLabel(raw) {
+      if (isBlankOrUnknown(raw)) return UNKNOWN;
+      let s = String(raw).trim().replace(/\s+/g, ' ');
+      const alias = CITY_LOCATION_ALIASES[s.toLowerCase()];
+      if (alias) return alias;
+      s = s.replace(/,\s*United States of America$/i, '').replace(/,\s*United States$/i, '').replace(/,\s*USA$/i, '').replace(/,\s*US$/i, '');
+      s = s.replace(/,\s*United Kingdom$/i, ', UK');
+      return sanitizeLocationValue(s);
+    }
+
+    function normalizeHeadcountLabel(raw) {
+      if (isBlankOrUnknown(raw)) return UNKNOWN;
+      let s = String(raw).trim().replace(/\s+/g, ' ').replace(/-/g, '–').replace(/\bto\b/gi, '–');
+      const buckets = [
+        { max: 10, label: '1–10' }, { max: 50, label: '11–50' }, { max: 200, label: '51–200' },
+        { max: 500, label: '201–500' }, { max: 1000, label: '501–1,000' }, { max: 5000, label: '1,001–5,000' },
+        { max: 10000, label: '5,001–10,000' }, { max: Infinity, label: '10,000+' }
+      ];
+      const parseN = (x) => {
+        const n = Number(String(x).replace(/,/g, '').replace(/\+/g, ''));
+        return Number.isFinite(n) ? n : null;
+      };
+      const range = s.match(/^(\d{1,3}(?:,\d{3})*)\s*[–-]\s*(\d{1,3}(?:,\d{3})*)\+?$/);
+      if (range) {
+        const a = parseN(range[1]); const b = parseN(range[2]);
+        if (a != null && b != null) {
+          const mid = Math.round((a + b) / 2);
+          for (const bucket of buckets) if (mid <= bucket.max) return bucket.label;
+        }
+        return `${range[1]}–${range[2]}`;
+      }
+      const exact = s.match(/^(\d{1,3}(?:,\d{3})*)\+?$/);
+      if (exact) {
+        const n = parseN(exact[1]);
+        if (n != null) for (const bucket of buckets) if (n <= bucket.max) return bucket.label;
+      }
+      const withWords = s.match(/(\d{1,3}(?:,\d{3})*)\s*[–-]\s*(\d{1,3}(?:,\d{3})*)/);
+      if (withWords) return normalizeHeadcountLabel(`${withWords[1]}–${withWords[2]}`);
+      return s.slice(0, 40);
+    }
+
+    function normalizeFoundersLabel(raw) {
+      if (isBlankOrUnknown(raw)) return UNKNOWN;
+      let s = String(raw).trim();
+      s = s.replace(/\s*\((?:Founder|Co-Founder|CEO|CTO|CFO|Partner|Managing Partner|MD)[^)]*\)/gi, '');
+      s = s.replace(/,?\s*(?:Founder|Co-Founder|CEO|Chief Executive Officer|Managing Partner|Managing Director)\b/gi, '');
+      s = s.replace(/\s+and\s+/gi, '; ').replace(/\s*,\s*/g, '; ');
+      const parts = s.split(/\s*;\s*/).map((p) => p.trim()).filter((p) => p && p.split(/\s+/).length >= 2 && p.length < 60 && !/^(the|our|team|company)\b/i.test(p));
+      if (!parts.length) return UNKNOWN;
+      const seen = new Set();
+      const out = [];
+      for (const name of parts) {
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(name);
+      }
+      return out.join('; ') || UNKNOWN;
+    }
+
+    function fieldProvenance(value, source, confidence, extra = {}) {
+      return {
+        value: isBlankOrUnknown(value) ? UNKNOWN : value,
+        source: source || 'none',
+        sourceType: extra.sourceType || 'unknown',
+        sourceUrl: extra.sourceUrl || null,
+        confidence: confidence || 'low',
+        method: extra.method || 'unknown',
+        fetchedAt: extra.fetchedAt || new Date().toISOString(),
+        unknownReason: isBlankOrUnknown(value) ? (extra.unknownReason || null) : null
+      };
+    }
+
+    function shouldBlockDuplicateIndustry(_value) {
+      // Repeated industries across a pasted list are legitimate (e.g. 50 software companies).
+      return false;
+    }
+
+    /** Expand messy paste: bullets, numbering, comma lists. Dedupes NVIDIA ≈ NVIDIA Corporation. */
+    function expandPastedCompanyInput(rawText) {
+      const text = String(rawText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const lines = [];
+      for (const line of text.split('\n')) {
+        let s = line.trim();
+        if (!s) continue;
+        s = s.replace(/^[\s]*[-*•●◦▪▸►]\s+/, '');
+        s = s.replace(/^\d+[\.)]\s+/, '');
+        s = s.replace(/^\[?\d+\]?\s+/, '');
+        if (!s) continue;
+        if (s.includes('\t')) {
+          lines.push(s);
+          continue;
+        }
+        const commaParts = s.split(',').map((p) => p.trim()).filter(Boolean);
+        const looksLikeList =
+          commaParts.length >= 2 &&
+          commaParts.every((p) => p.length <= 60) &&
+          !/\b(Inc|LLC|Ltd|Corp|Corporation|LP|LLP|PLC)\s*,/i.test(s) &&
+          commaParts.every((p) => !/\b(CEO|CTO|Partner|Director|Manager|Analyst)\b/i.test(p));
+        const softList =
+          commaParts.length >= 3 &&
+          commaParts.every((p) => p.split(/\s+/).length <= 5) &&
+          !/\b(CEO|Partner|Director)\b/i.test(s);
+        if (looksLikeList || softList) {
+          for (const part of commaParts) if (part) lines.push(part);
+        } else {
+          lines.push(s);
+        }
+      }
+      return lines;
+    }
+
+    function dedupeParsedPreviewRows(rows) {
+      const seen = new Set();
+      const out = [];
+      for (const row of rows) {
+        const key = companyKeyNorm(String(row.companyName || '').replace(LEGAL_SUFFIX_RE, ' '));
+        if (!key) {
+          out.push(row);
+          continue;
+        }
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(row);
+      }
+      return out;
+    }
+
     const US_STATE_OR_PROVINCE = new Set([
       'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
       'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
@@ -4232,62 +4812,244 @@
     }
 
     /**
-     * Hard rule: if the same founder/industry/notes text is about to be written for two
-     * different domains in this batch, blank it to Unknown (shared boilerplate = bug signal).
+     * Finalize enrichment fields. Repeated industry/location/headcount across a batch
+     * is allowed — many pasted lists legitimately share Software, NYC, etc.
      */
     function applyBatchUniquenessGuard(domain, fields) {
-      const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
       const out = { ...fields };
-      const guardedKeys = ['industry', 'contacts', 'notes'];
-      for (const key of guardedKeys) {
-        const raw = out[key];
-        if (isBlankOrUnknown(raw)) {
-          out[key] = UNKNOWN;
-          continue;
-        }
-        const norm = normalizeEnrichValue(raw);
-        // Ignore ultra-generic short tokens
-        if (norm.length < 4) {
-          out[key] = UNKNOWN;
-          continue;
-        }
-        const owner = enrichmentValueRegistry[key].get(norm);
-        if (owner && owner !== host) {
-          console.warn(`[enrich] BLOCK duplicate ${key} "${raw}" already used by ${owner}; forcing Unknown for ${host}`);
-          out[key] = UNKNOWN;
-        } else {
-          enrichmentValueRegistry[key].set(norm, host);
-        }
-      }
-      // Headcount / location: never invent; blank or invalid place → Unknown
-      if (isBlankOrUnknown(out.headcount)) out.headcount = UNKNOWN;
-      out.location = sanitizeLocationValue(out.location);
+      const unknownReason = { ...(out._unknownReason || {}) };
+
+      out.industry = isBlankOrUnknown(out.industry) ? UNKNOWN : normalizeIndustryLabel(out.industry);
+      out.contacts = isBlankOrUnknown(out.contacts) ? UNKNOWN : normalizeFoundersLabel(out.contacts);
+      out.notes = sanitizeUserFacingNotes(out.notes);
+      if (!out.notes) out.notes = UNKNOWN;
+      out.headcount = normalizeHeadcountLabel(out.headcount);
+      out.location = normalizeLocationLabel(out.location);
       if (isBlankOrUnknown(out.gender)) out.gender = UNKNOWN;
+      out._unknownReason = unknownReason;
       return out;
     }
 
-    async function fetchPageHtml(absoluteUrl, timeoutMs = 2800) {
+    async function fetchPageHtml(absoluteUrl, timeoutMs = 4500) {
       const proxyBuilders = [
         (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
         (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
         (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
         (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
       ];
-      for (let i = 0; i < proxyBuilders.length; i++) {
-        try {
-          const controller = new AbortController();
-          const t = setTimeout(() => controller.abort(), timeoutMs);
-          const res = await fetch(proxyBuilders[i](absoluteUrl), { signal: controller.signal });
-          clearTimeout(t);
-          if (!res.ok) continue;
-          let html = await res.text();
-          if (html.trim().startsWith('{') && html.includes('"contents"')) {
-            try { html = JSON.parse(html).contents || ''; } catch (_) {}
-          }
-          if (html && html.length >= 40) return html;
-        } catch (_) { /* try next proxy */ }
+      for (let attempt = 0; attempt < 2; attempt++) {
+        for (let i = 0; i < proxyBuilders.length; i++) {
+          try {
+            const controller = new AbortController();
+            const t = setTimeout(() => controller.abort(), timeoutMs);
+            const res = await fetch(proxyBuilders[i](absoluteUrl), { signal: controller.signal });
+            clearTimeout(t);
+            if (!res.ok) continue;
+            let html = await res.text();
+            if (html.trim().startsWith('{') && html.includes('"contents"')) {
+              try { html = JSON.parse(html).contents || ''; } catch (_) {}
+            }
+            if (html && html.length >= 40) return html;
+          } catch (_) { /* try next proxy */ }
+        }
       }
       return null;
+    }
+
+    /**
+     * Targeted DuckDuckGo Instant Answer + RelatedTopics corpus for a missing field.
+     */
+    async function fetchTargetedSearchCorpus(companyName, domain, field) {
+      const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      const name = String(companyName || '').trim();
+      const fieldQueries = {
+        industry: [`"${name}" venture capital firm`, `"${name}" industry`, `"${name}" about`],
+        location: [`"${name}" headquarters`, `"${name}" based in`, `"${name}" location`],
+        headcount: [`"${name}" employees`, `"${name}" team size`, `"${name}" headcount`],
+        contacts: [`"${name}" founder`, `"${name}" founded by`, `"${name}" co-founder`],
+        notes: [`"${name}" about`, `"${name}" ${host || ''}`.trim()]
+      };
+      const queries = (fieldQueries[field] || [`"${name}" ${field}`]).slice(0, 2);
+      if (host) queries.push(`site:${host} ${field === 'contacts' ? 'founder' : field}`);
+      let corpus = '';
+      for (const q of queries) {
+        try {
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), 3500);
+          const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1`, { signal: controller.signal });
+          clearTimeout(t);
+          if (!response.ok) continue;
+          const json = await response.json();
+          if (json.AbstractText) corpus += ` ${json.AbstractText}`;
+          if (json.Heading) corpus += ` ${json.Heading}`;
+          if (Array.isArray(json.RelatedTopics)) {
+            for (const topic of json.RelatedTopics.slice(0, 6)) {
+              if (topic?.Text) corpus += ` ${topic.Text}`;
+              if (Array.isArray(topic?.Topics)) {
+                for (const sub of topic.Topics.slice(0, 4)) {
+                  if (sub?.Text) corpus += ` ${sub.Text}`;
+                }
+              }
+            }
+          }
+          if (json.Infobox && Array.isArray(json.Infobox.content)) {
+            for (const item of json.Infobox.content) {
+              if (item?.label && item?.value) corpus += ` ${item.label}: ${item.value}`;
+            }
+          }
+        } catch (_) { /* next query */ }
+      }
+      // Wikipedia REST summary as secondary structured source
+      try {
+        const titleGuess = name.replace(/\s+/g, '_');
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 3500);
+        const wikiRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(titleGuess)}`, {
+          signal: controller.signal,
+          headers: { Accept: 'application/json' }
+        });
+        clearTimeout(t);
+        if (wikiRes.ok) {
+          const wiki = await wikiRes.json();
+          if (wiki?.extract) corpus += ` ${wiki.extract}`;
+          if (wiki?.description) corpus += ` ${wiki.description}`;
+          if (wiki?.coordinates) {
+            // ignore coords — not a city string
+          }
+        }
+      } catch (_) { /* optional */ }
+      return corpus.trim();
+    }
+
+    function extractFieldsFromSearchCorpus(corpus, companyName) {
+      const text = String(corpus || '');
+      const out = {
+        industry: UNKNOWN,
+        headcount: UNKNOWN,
+        location: UNKNOWN,
+        contacts: UNKNOWN,
+        notes: UNKNOWN,
+        provenance: {},
+        unknownReason: {}
+      };
+      if (!text || text.length < 20) {
+        out.unknownReason = { search: 'search_failed' };
+        return out;
+      }
+
+      // Evidence-based industry: only high-signal business-description phrases (not buried keywords)
+      const highSignal = [
+        text.match(/\b(?:is an?|provides|builds|develops|operates)[^.]{15,220}\./i)?.[0],
+        text.slice(0, 500)
+      ].filter(Boolean).join(' ');
+      const industryRulesStrict = [
+        [/\b(?:observability platform|monitoring (?:and security )?platform|cloud monitoring|SaaS (?:platform|company)|enterprise software|software company that)\b/i, 'Enterprise Software'],
+        [/\b(?:cybersecurity company|endpoint security|cloud security platform)\b/i, 'Cybersecurity'],
+        [/\b(?:semiconductor company|fabless semiconductor|invents the GPU|develops graphics processing units|chipmaker)\b/i, 'Semiconductors'],
+        [/\b(?:fintech (?:company|platform)|financial technology|financial (?:services|infrastructure) platform|accept payments)\b/i, 'Fintech'],
+        [/\b(?:biotechnology company|biotech (?:company|firm)|gene sequencing|mRNA therapeutics|genomics)\b/i, 'Biotechnology'],
+        [/\b(?:venture capital (?:firm|fund|company)|venture firm|VC firm|early[- ]stage venture)\b/i, 'Venture Capital'],
+        [/\b(?:private equity (?:firm|company)|buyout firm)\b/i, 'Private Equity'],
+        [/\b(?:investment bank|investment banking)\b/i, 'Investment Banking'],
+        [/\b(?:e-?commerce (?:platform|company)|commerce platform)\b/i, 'E-Commerce'],
+        [/\b(?:oil\s*(?:&|and)\s*gas company|petroleum company)\b/i, 'Oil & Gas'],
+        [/\b(?:renewable energy|clean energy company)\b/i, 'Renewable Energy'],
+        [/\b(?:energy company|power generation|energy infrastructure)\b/i, 'Energy'],
+        [/\b(?:aerospace (?:and|&) defense|defense (?:contractor|company)|autonomous defense)\b/i, 'Aerospace & Defense'],
+        [/\b(?:electric vehicle (?:company|maker)|automaker|automotive (?:company|manufacturer))\b/i, 'Automotive'],
+        [/\b(?:artificial intelligence (?:company|lab)|AI (?:company|lab|research)|generative AI (?:company|lab))\b/i, 'Artificial Intelligence'],
+        [/\b(?:cloud infrastructure|content delivery network|\bCDN\b|web application firewall)\b/i, 'Cloud Infrastructure'],
+        [/\b(?:consumer electronics|apparel|eyewear|Just Do It|iPhone, iPad)\b/i, 'Consumer'],
+        [/\b(?:streaming (?:service|platform|company)|media (?:and|&) entertainment)\b/i, 'Media & Entertainment'],
+        [/\b(?:asset management (?:firm|company)|investment management firm)\b/i, 'Asset Management'],
+        [/\b(?:industrial (?:technology|automation)|industry, infrastructure and mobility)\b/i, 'Industrial Technology']
+      ];
+      // Reject semiconductors if observability/SaaS language dominates
+      const vetoSemi = /\b(?:observability|cloud monitoring|monitoring as a service|SaaS)\b/i.test(highSignal);
+      for (const [re, label] of industryRulesStrict) {
+        if (label === 'Semiconductors' && vetoSemi) continue;
+        if (re.test(highSignal)) {
+          out.industry = label;
+          out.provenance.industry = fieldProvenance(out.industry, 'search_snippet', 'medium', {
+            sourceType: 'search',
+            method: 'evidence_phrase'
+          });
+          break;
+        }
+      }
+      if (isBlankOrUnknown(out.industry)) out.unknownReason.industry = 'insufficient_signal';
+
+      const loc =
+        text.match(/\b(?:based in|headquartered in|headquarters in|HQ(?:\s+in)?)\s+([A-Z][a-zA-Z .'-]{1,40}?),\s*([A-Z]{2}|[A-Z][a-zA-Z][a-zA-Z .'-]{1,24})\b/) ||
+        text.match(/\b(?:based in|headquartered in|headquarters in|HQ(?:\s+in)?)\s+(New York City|San Francisco|Los Angeles|London|Boston|Chicago|Seattle|Austin|Palo Alto|Menlo Park|Brooklyn)\b/) ||
+        text.match(/\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)?),\s*(CA|NY|TX|MA|WA|IL|CO|FL|GA|PA|UK|USA)\b/);
+      if (loc) {
+        const rawLoc = loc[2] ? `${loc[1].trim()}, ${loc[2].trim()}` : loc[1].trim();
+        out.location = normalizeLocationLabel(rawLoc);
+        out.provenance.location = fieldProvenance(out.location, 'search_snippet', 'medium');
+      }
+
+      const hc = text.match(/\b(\d{1,3}(?:,\d{3})*\s*[–-]\s*\d{1,3}(?:,\d{3})*|\d{1,3}(?:,\d{3})*\+)\s*(?:employees|people|team members)\b/i);
+      if (hc) {
+        out.headcount = normalizeHeadcountLabel(hc[1]);
+        out.provenance.headcount = fieldProvenance(out.headcount, 'search_snippet', 'medium');
+      }
+
+      const founder =
+        text.match(/(?:(?:[Ff]ounded by|[Cc]o-founded by)\s+|[Ff]ounders?[:\s]+)([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3}(?:\s+(?:and|&)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})?)/) ||
+        text.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s+(?:is|was)\s+(?:the\s+)?(?:[Cc]o-)?[Ff]ounder\b/);
+      if (founder?.[1]) {
+        const name = normalizeFoundersLabel(founder[1]);
+        const companyLower = String(companyName || '').toLowerCase();
+        if (!isBlankOrUnknown(name) && !companyLower.includes(name.toLowerCase())) {
+          out.contacts = name;
+          out.provenance.contacts = fieldProvenance(out.contacts, 'search_snippet', 'medium');
+        }
+      }
+
+      const sentence = text.match(/([A-Z][^.]{40,180}\.)/);
+      if (sentence && !/wikipedia|duckduckgo|may refer to|disambiguation|launching soon|open menu|sign up to be/i.test(sentence[1])) {
+        const note = sanitizeUserFacingNotes(sentence[1]);
+        if (note) {
+          out.notes = note;
+          out.provenance.notes = fieldProvenance(out.notes, 'search_snippet', 'low');
+        }
+      }
+      return out;
+    }
+
+    async function enrichMissingViaSearch(companyName, domain, current) {
+      const missing = ['industry', 'headcount', 'location', 'contacts', 'notes'].filter((k) => isBlankOrUnknown(current[k]));
+      if (!missing.length) return { ...current, provenance: current.provenance || {}, unknownReason: current.unknownReason || {} };
+
+      const provenance = { ...(current.provenance || {}) };
+      const unknownReason = { ...(current.unknownReason || {}) };
+      const next = { ...current };
+
+      // One combined corpus pass covering the first missing fields (limit API calls)
+      const primaryField = missing[0];
+      const corpus = await fetchTargetedSearchCorpus(companyName, domain, primaryField);
+      // Also fetch a founders-specific query when founders missing
+      let foundersCorpus = '';
+      if (missing.includes('contacts') && primaryField !== 'contacts') {
+        foundersCorpus = await fetchTargetedSearchCorpus(companyName, domain, 'contacts');
+      }
+      let locationCorpus = '';
+      if (missing.includes('location') && primaryField !== 'location') {
+        locationCorpus = await fetchTargetedSearchCorpus(companyName, domain, 'location');
+      }
+
+      const mined = extractFieldsFromSearchCorpus([corpus, foundersCorpus, locationCorpus].filter(Boolean).join(' '), companyName);
+      for (const key of ['industry', 'headcount', 'location', 'contacts', 'notes']) {
+        if (isBlankOrUnknown(next[key]) && !isBlankOrUnknown(mined[key])) {
+          next[key] = mined[key];
+          if (mined.provenance?.[key]) provenance[key] = mined.provenance[key];
+        } else if (isBlankOrUnknown(next[key])) {
+          unknownReason[key] = unknownReason[key] || 'no_reliable_source_found';
+        }
+      }
+
+      return { ...next, provenance, unknownReason };
     }
 
     function extractMeta(html, prop) {
@@ -4345,16 +5107,32 @@
           [/higher education|research university|ivy league|\buniversity\b|\bcollege\b/i, 'Education'],
           [/\bnonprofit\b|\bnon-profit\b|\bfoundation\b|\bcharity\b/i, 'Nonprofit / Foundation'],
           [/\bgovernment\b|\bmunicipal\b|\bfederal\b|\bpublic agency\b/i, 'Government'],
-          [/venture capital|growth equity|private equity|seed (?:and|&) early-stage/i, 'Venture Capital'],
+          [/venture capital|seed (?:and|&) early-stage|\bVC firm\b|venture firm/i, 'Venture Capital'],
+          [/private equity|buyout firm|\bPE firm\b/i, 'Private Equity'],
+          [/investment bank|investment banking/i, 'Investment Banking'],
+          [/asset management|investment management/i, 'Asset Management'],
+          [/hedge fund/i, 'Hedge Fund'],
+          [/fintech|payments? infrastructure|financial technology|neobank/i, 'Fintech'],
+          [/artificial intelligence|machine learning|language model|generative AI/i, 'Artificial Intelligence'],
+          [/semiconductor|chipmaker|\bGPU\b|chip design/i, 'Semiconductors'],
+          [/cybersecurity|cyber security/i, 'Cybersecurity'],
+          [/software as a service|\bSaaS\b|enterprise software|productivity software/i, 'Enterprise Software'],
+          [/e-?commerce|online retail|direct[- ]to[- ]consumer/i, 'E-Commerce'],
+          [/biotech|biotechnology|therapeutics|genomics/i, 'Biotechnology'],
+          [/healthcare|medical device|clinical/i, 'Healthcare'],
+          [/renewable|clean energy|solar|wind power|climate tech/i, 'Renewable Energy'],
+          [/oil\s*(?:&|and)\s*gas|petroleum/i, 'Oil & Gas'],
+          [/\benergy\b|electric utility|power generation/i, 'Energy'],
+          [/aerospace|defense contractor|space systems/i, 'Aerospace & Defense'],
+          [/automotive|electric vehicle|\bEV\b/i, 'Automotive'],
+          [/industrial|manufacturing|automation|robotics/i, 'Industrial Technology'],
+          [/media|streaming|entertainment/i, 'Media & Entertainment'],
+          [/gaming|video game/i, 'Gaming'],
+          [/consumer goods|apparel|footwear|eyewear/i, 'Consumer'],
+          [/legal services|law firm/i, 'Legal Services'],
+          [/real estate|\breit\b/i, 'Real Estate'],
           [/fund administration|fund administrator/i, 'Fund Administration'],
-          [/outsourced chief investment|OCIO/i, 'OCIO / Investment Management'],
-          [/asset management|investment management|investment firm/i, 'Investment Management'],
-          [/fintech|payments? infrastructure|financial technology/i, 'Financial Technology'],
-          [/artificial intelligence|machine learning|language model/i, 'Artificial Intelligence'],
-          [/software as a service|\bSaaS\b|productivity software/i, 'Software / SaaS'],
-          [/e-?commerce|online retail/i, 'E-Commerce / Retail'],
-          [/healthcare|biotech|therapeutics|clinical/i, 'Healthcare / Biotech'],
-          [/legal services|law firm/i, 'Legal Services']
+          [/banking|commercial bank/i, 'Banking']
         ];
         for (const [re, label] of industryRules) {
           if (re.test(corpus)) { industry = label; break; }
@@ -4397,8 +5175,8 @@
       // "Founder and CEO" into a fake name like "and CEO".
       let contacts = UNKNOWN;
       const founderPatterns = [
-        /(?:[Ff]ounded by|[Cc]o-founded by|[Ff]ounder[:\s]+|[Cc]o-[Ff]ounder[:\s]+)([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})/,
-        /([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s*,?\s*(?:Founder|Co-Founder|CEO|Chief Executive Officer|Managing Partner|Managing Director)\b/
+        /(?:(?:[Ff]ounded by|[Cc]o-founded by)\s+|[Ff]ounder[:\s]+|[Cc]o-[Ff]ounder[:\s]+)([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})/,
+        /([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s*,?\s*(?:Founder|Co-Founder)\b/
       ];
       const badName = /^(The|Our|This|With|And|Or|For|From|About|Meet|Team|Company|Board)\b|^(and|or)\b/i;
       for (const re of founderPatterns) {
@@ -4489,7 +5267,7 @@
     }
 
     async function enrichCompanyDetails(domain, originalName, apiData = null) {
-      const enrichKey = `v3|dict-first|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
+      const enrichKey = `v4|multi-source|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
       if (enrichCache.has(enrichKey)) {
         console.log('[enrich] CACHE HIT', domain);
         return applyBatchUniquenessGuard(domain, { ...enrichCache.get(enrichKey), fromCache: true });
@@ -4502,10 +5280,13 @@
         contacts: UNKNOWN,
         gender: UNKNOWN,
         notes: UNKNOWN,
-        enrichSource: 'none'
+        enrichSource: 'none',
+        provenance: {},
+        unknownReason: {}
       };
 
       const host = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      const provenance = {};
 
       // 1) Curated dictionary FIRST (domain or company name) — before scrape.
       const dictEntry = lookupDictionaryEntry(host, originalName);
@@ -4521,18 +5302,40 @@
           }
         : { ...blank };
 
-      // Fast path: dictionary already has enough real fields — skip scrape + Wikidata (was blocking Enriched for ~30–60s/row)
+      if (dictEntry) {
+        for (const k of ['industry', 'headcount', 'location', 'contacts', 'notes']) {
+          if (!isBlankOrUnknown(fromDict[k])) provenance[k] = fieldProvenance(fromDict[k], 'dictionary', 'high');
+        }
+      }
+
+      // Seed major-firm industry without skipping scrape/search for other fields
+      const majorHit = lookupMajorKnownFirm(originalName);
+      if (majorHit && String(majorHit.domain || '').toLowerCase() === host) {
+        if (isBlankOrUnknown(fromDict.industry) && majorHit.industry) {
+          fromDict.industry = majorHit.industry;
+          provenance.industry = fieldProvenance(fromDict.industry, 'major-firm', 'high');
+        }
+        if (isBlankOrUnknown(fromDict.notes)) {
+          fromDict.notes = majorHit.label || originalName;
+          provenance.notes = fieldProvenance(fromDict.notes, 'major-firm', 'medium');
+        }
+        fromDict.enrichSource = fromDict.enrichSource === 'none' ? 'major-firm' : `${fromDict.enrichSource}+major-firm`;
+      }
+
+      // Fast path: dictionary already has enough real fields — skip scrape + Wikidata
       const dictFilled = [fromDict.industry, fromDict.headcount, fromDict.location, fromDict.contacts]
         .filter(v => !isBlankOrUnknown(v)).length;
-      if (dictEntry && dictFilled >= 2) {
+      if (dictEntry && dictFilled >= 3) {
         const quick = {
           industry: isBlankOrUnknown(fromDict.industry) ? UNKNOWN : fromDict.industry,
           headcount: isBlankOrUnknown(fromDict.headcount) ? UNKNOWN : fromDict.headcount,
           location: sanitizeLocationValue(fromDict.location),
           contacts: isBlankOrUnknown(fromDict.contacts) ? UNKNOWN : fromDict.contacts,
           gender: isBlankOrUnknown(fromDict.gender) ? UNKNOWN : fromDict.gender,
-          notes: isBlankOrUnknown(fromDict.notes) ? UNKNOWN : fromDict.notes,
-          enrichSource: 'dictionary'
+          notes: sanitizeUserFacingNotes(fromDict.notes) || UNKNOWN,
+          enrichSource: 'dictionary',
+          provenance,
+          unknownReason: {}
         };
         const guardedQuick = applyBatchUniquenessGuard(host, quick);
         enrichCache.set(enrichKey, guardedQuick);
@@ -4540,35 +5343,18 @@
         return guardedQuick;
       }
 
-      // Fast path: major-firm catalogue — industry known, skip scrape/wiki so Enriched ticks up immediately
-      const majorHit = lookupMajorKnownFirm(originalName);
-      if (majorHit && String(majorHit.domain || '').toLowerCase() === host) {
-        const quickMaj = {
-          industry: majorHit.industry || UNKNOWN,
-          headcount: UNKNOWN,
-          location: UNKNOWN,
-          contacts: UNKNOWN,
-          gender: UNKNOWN,
-          notes: `${majorHit.label || originalName} · major firm`,
-          enrichSource: 'major-firm'
-        };
-        const guardedMaj = applyBatchUniquenessGuard(host, quickMaj);
-        enrichCache.set(enrichKey, guardedMaj);
-        console.log('[enrich] FAST major-firm', originalName, '->', guardedMaj.industry);
-        return guardedMaj;
-      }
-
       // 2) Live scrape only to fill gaps the dictionary doesn't cover
       let scraped = { ...blank };
       try {
-        const homeHtml = await fetchPageHtml(`https://${host}/`, 3000);
+        const homeHtml = await fetchPageHtml(`https://${host}/`, 4500);
         scraped = extractEnrichmentFromHtml(homeHtml, originalName);
         const needsMore = [scraped.industry, scraped.headcount, scraped.location, scraped.contacts]
-          .filter(v => isBlankOrUnknown(v)).length >= 3;
+          .filter(v => isBlankOrUnknown(v)).length >= 2;
         if (needsMore) {
-          const aboutHtml = await fetchPageHtml(`https://${host}/about`, 2800)
-            || await fetchPageHtml(`https://${host}/about-us`, 2800)
-            || await fetchPageHtml(`https://${host}/company`, 2800);
+          const aboutHtml = await fetchPageHtml(`https://${host}/about`, 4000)
+            || await fetchPageHtml(`https://${host}/about-us`, 4000)
+            || await fetchPageHtml(`https://${host}/company`, 4000)
+            || await fetchPageHtml(`https://${host}/team`, 4000);
           if (aboutHtml) {
             const aboutFields = extractEnrichmentFromHtml(aboutHtml, originalName);
             scraped = {
@@ -4586,8 +5372,14 @@
         } else if (!isBlankOrUnknown(scraped.industry) || !isBlankOrUnknown(scraped.contacts) || !isBlankOrUnknown(scraped.location)) {
           scraped = { ...scraped, enrichSource: 'scrape' };
         }
+        for (const k of ['industry', 'headcount', 'location', 'contacts', 'notes']) {
+          if (!isBlankOrUnknown(scraped[k]) && !provenance[k]) {
+            provenance[k] = fieldProvenance(scraped[k], 'website', 'high');
+          }
+        }
       } catch (e) {
         console.warn('[enrich] scrape failed', domain, e);
+        blank.unknownReason.website = 'website_blocked_or_timeout';
       }
 
       // Reject scrape contacts that are just the company name
@@ -4606,8 +5398,10 @@
         gender: preferDictThenScrape(fromDict.gender, scraped.gender),
         notes: preferDictThenScrape(fromDict.notes, scraped.notes),
         enrichSource: dictEntry
-          ? (scraped.enrichSource === 'scrape' ? 'dictionary+scrape' : 'dictionary')
-          : (scraped.enrichSource || 'none')
+          ? (scraped.enrichSource === 'scrape' ? 'dictionary+scrape' : (fromDict.enrichSource || 'dictionary'))
+          : (scraped.enrichSource || fromDict.enrichSource || 'none'),
+        provenance,
+        unknownReason: { ...(blank.unknownReason || {}) }
       };
 
       // Entity-type industry ALWAYS wins over keyword/dict noise for edu/gov/nonprofit
@@ -4616,8 +5410,37 @@
         merged = {
           ...merged,
           industry: entityType.industry,
-          enrichSource: `${merged.enrichSource}+entity-type:${entityType.source}`
+          enrichSource: `${merged.enrichSource}+entity-type:${entityType.source}`,
+          provenance: {
+            ...merged.provenance,
+            industry: fieldProvenance(entityType.industry, 'wikidata', 'high')
+          }
         };
+      }
+
+      // 3b) Wikidata structured facts (HQ / founders / employees) before free-text search
+      try {
+        const wikiFacts = await lookupWikidataCompanyFacts(originalName, host);
+        const fill = (key) => {
+          if (isBlankOrUnknown(merged[key]) && !isBlankOrUnknown(wikiFacts[key])) {
+            merged[key] = wikiFacts[key];
+            if (wikiFacts.provenance?.[key]) {
+              merged.provenance = { ...merged.provenance, [key]: wikiFacts.provenance[key] };
+            }
+          }
+        };
+        fill('industry');
+        fill('headcount');
+        fill('location');
+        fill('contacts');
+        fill('notes');
+        if (wikiFacts.provenance && Object.keys(wikiFacts.provenance).length) {
+          merged.enrichSource = String(merged.enrichSource || 'none').includes('wikidata')
+            ? merged.enrichSource
+            : `${merged.enrichSource}+wikidata-facts`;
+        }
+      } catch (e) {
+        console.warn('[enrich] wikidata facts step failed', e);
       }
 
       // 4) Optional API payload — only fill remaining Unknowns
@@ -4629,19 +5452,43 @@
           contacts: preferDictThenScrape(merged.contacts, apiData.founder),
           gender: preferDictThenScrape(merged.gender, apiData.gender),
           notes: preferDictThenScrape(merged.notes, apiData.notes),
-          enrichSource: merged.enrichSource === 'none' ? 'api' : merged.enrichSource
+          enrichSource: merged.enrichSource === 'none' ? 'api' : merged.enrichSource,
+          provenance: merged.provenance,
+          unknownReason: merged.unknownReason
         };
       }
 
+      // 5) Targeted search fallback for remaining Unknown fields (last resort before Unknown)
+      const stillMissing = ['industry', 'headcount', 'location', 'contacts', 'notes'].some((k) => isBlankOrUnknown(merged[k]));
+      if (stillMissing) {
+        try {
+          merged = await enrichMissingViaSearch(originalName, host, merged);
+          if (merged.enrichSource === 'none') merged.enrichSource = 'search';
+          else if (!String(merged.enrichSource).includes('search')) merged.enrichSource = `${merged.enrichSource}+search`;
+        } catch (e) {
+          console.warn('[enrich] search fallback failed', domain, e);
+          merged.unknownReason = { ...(merged.unknownReason || {}), search: 'search_failed' };
+        }
+      }
+
       const result = {
-        industry: isBlankOrUnknown(merged.industry) ? UNKNOWN : merged.industry,
-        headcount: isBlankOrUnknown(merged.headcount) ? UNKNOWN : merged.headcount,
-        location: sanitizeLocationValue(merged.location),
-        contacts: isBlankOrUnknown(merged.contacts) ? UNKNOWN : merged.contacts,
+        industry: normalizeIndustryLabel(merged.industry),
+        headcount: normalizeHeadcountLabel(merged.headcount),
+        location: normalizeLocationLabel(merged.location),
+        contacts: normalizeFoundersLabel(merged.contacts),
         gender: isBlankOrUnknown(merged.gender) ? UNKNOWN : merged.gender,
-        notes: isBlankOrUnknown(merged.notes) ? UNKNOWN : merged.notes,
-        enrichSource: merged.enrichSource || 'none'
+        notes: sanitizeUserFacingNotes(merged.notes) || UNKNOWN,
+        enrichSource: merged.enrichSource || 'none',
+        provenance: merged.provenance || provenance,
+        unknownReason: merged.unknownReason || {}
       };
+
+      // Record why remaining unknowns stay Unknown (debug only — never shown in Notes)
+      for (const k of ['industry', 'headcount', 'location', 'contacts', 'notes']) {
+        if (isBlankOrUnknown(result[k]) && !result.unknownReason[k]) {
+          result.unknownReason[k] = 'no_reliable_source_found';
+        }
+      }
 
       const guarded = applyBatchUniquenessGuard(host, result);
       enrichCache.set(enrichKey, guarded);
@@ -4650,6 +5497,8 @@
         headcount: guarded.headcount,
         location: guarded.location,
         contacts: guarded.contacts,
+        provenance: guarded.provenance,
+        unknownReason: guarded._unknownReason || guarded.unknownReason,
         dictHit: !!dictEntry
       });
       return guarded;
@@ -5359,7 +6208,7 @@
           String(c.source || '').toLowerCase().includes(q)
         );
       }, [learnedSearch, learnedTick]);
-      const [financeFilterActive, setFinanceFilterActive] = useState(true);
+      const [financeFilterActive, setFinanceFilterActive] = useState(false);
       const [editingCell, setEditingCell] = useState(null);
       const [editingValue, setEditingValue] = useState('');
       // Parse preview before enrichment
@@ -5400,6 +6249,16 @@
         notes: 140
       };
       const [colWidths, setColWidths] = useState({ ...DEFAULT_COL_WIDTHS });
+      const colWidthsRef = useRef(colWidths);
+      const DENSITY_OPTIONS = ['compact', 'comfortable', 'expanded'];
+      const [tableDensity, setTableDensity] = useState(() => {
+        try {
+          const saved = localStorage.getItem('tableDensity_v1');
+          if (DENSITY_OPTIONS.includes(saved)) return saved;
+        } catch (_) {}
+        return 'comfortable';
+      });
+      const [tableExpanded, setTableExpanded] = useState(false);
       // Load persisted widths on mount
       useEffect(() => {
         const saved = localStorage.getItem('colWidths_v3');
@@ -5418,20 +6277,38 @@
       }, []);
       // Save widths whenever they change
       useEffect(() => {
+        colWidthsRef.current = colWidths;
         localStorage.setItem('colWidths_v3', JSON.stringify(colWidths));
       }, [colWidths]);
-      // Resizing handlers
+      useEffect(() => {
+        localStorage.setItem('tableDensity_v1', tableDensity);
+      }, [tableDensity]);
+      useEffect(() => {
+        document.body.classList.toggle('table-expanded-lock', tableExpanded);
+        return () => document.body.classList.remove('table-expanded-lock');
+      }, [tableExpanded]);
+      useEffect(() => {
+        if (!tableExpanded) return undefined;
+        const onKey = (e) => {
+          if (e.key === 'Escape') setTableExpanded(false);
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+      }, [tableExpanded]);
+      // Resizing handlers — table grows with column widths instead of squeezing neighbors
       const startResize = (e, key) => {
         e.preventDefault();
         e.stopPropagation();
         const startX = e.clientX;
-        const startWidth = colWidths[key] || DEFAULT_COL_WIDTHS[key] || 120;
+        const startWidth = colWidthsRef.current[key] || DEFAULT_COL_WIDTHS[key] || 120;
+        document.body.classList.add('is-col-resizing');
         const onMouseMove = (ev) => {
           const delta = ev.clientX - startX;
-          const newWidth = Math.max(startWidth + delta, 60);
+          const newWidth = Math.max(60, Math.min(720, startWidth + delta));
           setColWidths((prev) => ({ ...prev, [key]: newWidth }));
         };
         const onMouseUp = () => {
+          document.body.classList.remove('is-col-resizing');
           document.removeEventListener('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
         };
@@ -5443,6 +6320,50 @@
         localStorage.removeItem('colWidths_v2');
         localStorage.removeItem('colWidths');
       };
+      const fitColumnsToContent = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const measure = (text, font) => {
+          ctx.font = font;
+          return ctx.measureText(String(text || '').replace(/\s+/g, ' ').trim()).width;
+        };
+        const next = { ...DEFAULT_COL_WIDTHS };
+        const headerFont = '600 13px Inter, sans-serif';
+        const cellFont = '400 14px Inter, sans-serif';
+        const pad = 36;
+        const maxByKey = {
+          status: 170,
+          companyName: 280,
+          sourceContact: 320,
+          website: 360,
+          industry: 220,
+          headcount: 140,
+          location: 220,
+          contacts: 280,
+          notes: 420
+        };
+        next.status = Math.round(Math.min(maxByKey.status, Math.max(100, measure('Searching...', headerFont) + pad + 48)));
+        headers.forEach((col) => {
+          let max = measure(col.label, headerFont) + pad;
+          rows.forEach((row) => {
+            const raw = row[col.key];
+            const text = raw == null || raw === '' ? '' : String(raw);
+            if (!text) return;
+            const snippet = text.length > 120 ? text.slice(0, 120) : text;
+            const w = measure(snippet, col.key === 'website' ? '400 13px JetBrains Mono, monospace' : cellFont);
+            if (w + pad > max) max = w + pad;
+          });
+          const cap = maxByKey[col.key] || 280;
+          next[col.key] = Math.round(Math.min(cap, Math.max(60, max)));
+        });
+        setColWidths(next);
+      };
+      const tableMinWidth = useMemo(() => {
+        const statusW = Number(colWidths.status) || DEFAULT_COL_WIDTHS.status;
+        const rest = headers.reduce((sum, col) => sum + (Number(colWidths[col.key]) || DEFAULT_COL_WIDTHS[col.key] || 120), 0);
+        return statusW + rest;
+      }, [colWidths, headers]);
       const [editingHeader, setEditingHeader] = useState(null);
       const [editingHeaderValue, setEditingHeaderValue] = useState('');
 
@@ -6444,13 +7365,18 @@
 
               const details = await enrichCompanyDetails(domain, companyName, apiData);
               const priorNotes = rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Queueing...' && rowToProcess[noteKey] !== '-'
-                && !/Select the correct website|Pick a candidate|Select or enter a domain|Ambiguous matches|Candidates:|Possible matches|Enriching confirmed|Could not verify/i.test(rowToProcess[noteKey])
-                ? rowToProcess[noteKey]
+                && !/Select the correct website|Pick a candidate|Select or enter a domain|Ambiguous matches|Candidates:|Possible matches|Enriching confirmed|Could not verify|Verifying selected domain|Queueing|Score \d+|Auto-selected/i.test(rowToProcess[noteKey])
+                ? sanitizeUserFacingNotes(rowToProcess[noteKey])
                 : '';
-              const noteWithSnippet = industrySnippet && details.notes && !details.notes.includes(industrySnippet)
-                ? `${details.notes} [${industrySnippet}]`
-                : details.notes;
-              const mergedNotes = [priorNotes, noteWithSnippet, autoSelectNote].filter(Boolean).join(' · ');
+              const cleanDetailsNotes = sanitizeUserFacingNotes(details.notes);
+              const cleanSnippet = industrySnippet && !PIPELINE_NOTES_RE.test(String(industrySnippet))
+                ? String(industrySnippet).slice(0, 120)
+                : '';
+              const noteWithSnippet = cleanSnippet && cleanDetailsNotes && !cleanDetailsNotes.includes(cleanSnippet)
+                ? `${cleanDetailsNotes} [${cleanSnippet}]`
+                : (cleanDetailsNotes || '');
+              const cleanAuto = sanitizeUserFacingNotes(autoSelectNote);
+              const mergedNotes = sanitizeUserFacingNotes([priorNotes, noteWithSnippet, cleanAuto].filter(Boolean).join(' · '));
               const keepForLater = normalizeCandidates(
                 rowToProcess.savedCandidates,
                 rowToProcess.candidates,
@@ -6463,7 +7389,7 @@
                 [locKey]: details.location,
                 [conKey]: details.contacts,
                 [genKey]: details.gender,
-                [noteKey]: mergedNotes || details.notes || '-',
+                [noteKey]: mergedNotes || '-',
                 status: 'found',
                 matchSnippet: industrySnippet,
                 linkVerified: true,
@@ -6476,7 +7402,9 @@
                 userConfirmedDomain: false,
                 showManualDomain: false,
                 confidenceScore: rowToProcess.confidenceScore ?? null,
-                accuracyFeedback: null
+                accuracyFeedback: null,
+                enrichProvenance: details.provenance || null,
+                enrichUnknownReason: details.unknownReason || details._unknownReason || null
               });
               release(rowId);
             } catch (err) {
@@ -6501,8 +7429,8 @@
 
       const handleParsePreview = () => {
         if (!inputText.trim()) return;
-        const lines = inputText.split('\n').filter(line => line.trim().length > 0);
-        const preview = lines.map(line => {
+        const expanded = expandPastedCompanyInput(inputText);
+        const preview = expanded.map(line => {
           const parsed = parsePersonCompanyLine(line) || {
             raw: line,
             companyName: line.trim(),
@@ -6521,8 +7449,8 @@
             notes: parsed.notes || '',
             alternates: parsed.alternates || []
           };
-        });
-        setParsePreview(preview);
+        }).filter(r => r.companyName || r.sourceContact);
+        setParsePreview(dedupeParsedPreviewRows(preview));
       };
 
       const updatePreviewRow = (id, fields) => {
@@ -6837,6 +7765,17 @@
         batchStartedAtRef.current = null;
       };
 
+      const sanitizeExportCell = (header, value) => {
+        let s = value == null ? '' : String(value);
+        const label = String(header?.label || header?.key || '').toLowerCase();
+        const key = String(header?.key || '').toLowerCase();
+        if (label.includes('note') || key.includes('note')) {
+          s = sanitizeUserFacingNotes(s);
+          if (!s || s === 'Unknown') s = '';
+        }
+        return s;
+      };
+
       const handleExportCSV = () => {
         if (rows.length === 0) return;
 
@@ -6845,7 +7784,7 @@
 
         rows.forEach(row => {
           const line = headers.map(h => {
-            const val = row[h.key] || '';
+            const val = sanitizeExportCell(h, row[h.key] || '');
             return `"${val.toString().replace(/"/g, '""')}"`;
           });
           csvRows.push(line.join(','));
@@ -6868,7 +7807,7 @@
         rows.forEach(row => {
           aoa.push(cols.map(c => {
             if (c.key === '_status') return row.status || '';
-            return row[c.key] != null ? String(row[c.key]) : '';
+            return sanitizeExportCell(c, row[c.key] != null ? String(row[c.key]) : '');
           }));
         });
         return { cols, aoa };
@@ -7074,6 +8013,30 @@
               <button className="btn" disabled={rows.length === 0} onClick={resetColumns} title="Reset column widths to defaults">
                 <span style={{ fontSize: '0.75rem' }}>Reset Cols</span>
               </button>
+              <button className="btn" disabled={rows.length === 0} onClick={fitColumnsToContent} title="Auto-size each column to its longest visible value">
+                <span style={{ fontSize: '0.75rem' }}>Fit columns</span>
+              </button>
+              <div className="density-toggle" title="Row height / how much text is shown">
+                {['compact', 'comfortable', 'expanded'].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    className={tableDensity === d ? 'active' : ''}
+                    disabled={rows.length === 0}
+                    onClick={() => setTableDensity(d)}
+                  >
+                    {d === 'compact' ? 'Compact' : d === 'comfortable' ? 'Comfortable' : 'Expanded'}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="btn"
+                disabled={rows.length === 0}
+                onClick={() => setTableExpanded((v) => !v)}
+                title={tableExpanded ? 'Exit full-screen table (Esc)' : 'Expand table to fill the viewport'}
+              >
+                <span style={{ fontSize: '0.75rem' }}>{tableExpanded ? 'Exit expand' : 'Expand table'}</span>
+              </button>
             </div>
           </header>
 
@@ -7210,7 +8173,8 @@
           )}
 
           {/* Spreadsheet Table Grid */}
-          <section className="table-workspace">
+          {tableExpanded && <div className="table-expand-backdrop" onClick={() => setTableExpanded(false)} />}
+          <section className={`table-workspace${tableExpanded ? ' table-expanded' : ''}`}>
             {rows.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-state-icon">
@@ -7222,19 +8186,52 @@
                 </p>
               </div>
             ) : (
-              <div className="table-wrapper">
+              <>
+              <div className="table-toolbar">
+                <span className="table-toolbar-label">Table</span>
+                <div className="density-toggle" title="Row height / how much text is shown">
+                  {['compact', 'comfortable', 'expanded'].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      className={tableDensity === d ? 'active' : ''}
+                      onClick={() => setTableDensity(d)}
+                    >
+                      {d === 'compact' ? 'Compact' : d === 'comfortable' ? 'Comfortable' : 'Expanded'}
+                    </button>
+                  ))}
+                </div>
+                <button className="btn" onClick={fitColumnsToContent} title="Auto-size each column to its longest visible value">
+                  <span style={{ fontSize: '0.75rem' }}>Fit columns</span>
+                </button>
+                <button className="btn" onClick={resetColumns} title="Reset column widths to defaults">
+                  <span style={{ fontSize: '0.75rem' }}>Reset Cols</span>
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => setTableExpanded((v) => !v)}
+                  title={tableExpanded ? 'Exit full-screen table (Esc)' : 'Expand table to fill the viewport'}
+                >
+                  <span style={{ fontSize: '0.75rem' }}>{tableExpanded ? 'Exit expand' : 'Expand table'}</span>
+                </button>
+              </div>
+              <div className={`table-wrapper table-density-${tableDensity}`}>
                 <div className="table-scroll-container">
-                  <table className="spreadsheet-table">
+                  <table className="spreadsheet-table" style={{ width: tableMinWidth, minWidth: tableMinWidth }}>
+                    <colgroup>
+                      <col style={{ width: colWidths.status || DEFAULT_COL_WIDTHS.status }} />
+                      {headers.map((col) => (
+                        <col key={col.key} style={{ width: colWidths[col.key] || DEFAULT_COL_WIDTHS[col.key] || 120 }} />
+                      ))}
+                    </colgroup>
                     <thead>
                       <tr>
-                        <th className="col-status" style={{ width: colWidths['status'] || 118, minWidth: 100 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>Status</span>
-                            <div className="col-resizer" onMouseDown={(e) => startResize(e, 'status')} />
-                          </div>
+                        <th className="col-status" style={{ width: colWidths.status || DEFAULT_COL_WIDTHS.status, minWidth: 60 }}>
+                          <span className="th-label">Status</span>
+                          <div className="col-resizer" title="Drag to resize" onMouseDown={(e) => startResize(e, 'status')} />
                         </th>
                         {headers.map(col => (
-                          <th key={col.key} className={`col-${col.key}`} style={{ width: colWidths[col.key] || undefined, minWidth: 60 }}>
+                          <th key={col.key} className={`col-${col.key}`} style={{ width: colWidths[col.key] || DEFAULT_COL_WIDTHS[col.key] || 120, minWidth: 60 }}>
                             {editingHeader === col.key ? (
                               <input
                                 ref={headerEditRef}
@@ -7245,15 +8242,16 @@
                                 onKeyDown={handleHeaderKeyDown}
                               />
                             ) : (
-                              <div
+                              <span
+                                className="th-label"
                                 onDoubleClick={() => handleHeaderDoubleClick(col.key, col.label)}
-                                title="Double-click header to rename · drag edge to resize"
-                                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                title="Double-click header to rename · drag right edge to resize"
+                                style={{ cursor: 'pointer' }}
                               >
-                                <span>{col.label}</span>
-                                <div className="col-resizer" onMouseDown={(e) => startResize(e, col.key)} />
-                              </div>
+                                {col.label}
+                              </span>
                             )}
+                            <div className="col-resizer" title="Drag to resize" onMouseDown={(e) => startResize(e, col.key)} />
                           </th>
                         ))}
                       </tr>
@@ -7605,18 +8603,16 @@
                   </table>
                 </div>
               </div>
-            )}
-
-            {rows.length > 0 && (
               <div className="table-bottom-actions">
                 <button className="btn-add-row" onClick={handleAddBlankRow}>
                   <PlusIcon size={12} />
                   <span>Add Empty Row</span>
                 </button>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  Double-click cells or headers to edit. Renaming header keys (e.g. to "Company") will auto-remap AI search keys dynamically.
+                  Double-click cells or headers to edit. Drag a header’s right edge to resize. Renaming header keys (e.g. to "Company") will auto-remap AI search keys dynamically.
                 </span>
               </div>
+              </>
             )}
           </section>
 

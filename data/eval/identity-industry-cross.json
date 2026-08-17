@@ -1,0 +1,4931 @@
+{
+  "summary": {
+    "companyCount": 32,
+    "identity": {
+      "correct": 28,
+      "incorrect": 0,
+      "ambiguous": 4,
+      "unresolved": 0
+    },
+    "resolutionPrecision": 100,
+    "resolutionCoverage": 87.5,
+    "identityAccuracyAmongResolved": 100,
+    "identityCorrectAmongAll": 87.5,
+    "industry": {
+      "correct": 25,
+      "incorrect": 0,
+      "unknown": 3
+    },
+    "industryPrecision": 100,
+    "industryCoverage": 89.3,
+    "avgProcessingMs": 12184,
+    "timeoutCount": 0,
+    "stage2": {
+      "attempted": 7,
+      "recovered": 3,
+      "recoveredIncorrect": 0,
+      "stillAmbiguous": 4,
+      "recoveries": [
+        {
+          "name": "Ramp",
+          "domain": "ramp.com",
+          "outcome": "correct",
+          "priorReason": "short_common_name_ambiguous",
+          "boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "deepAboutConfirm": 22,
+            "stage2Consensus": 30
+          },
+          "evidence": {
+            "domain": "ramp.com",
+            "boosts": {
+              "fullNameConfirmed": 40,
+              "descriptionFullName": 28,
+              "deepAboutConfirm": 22,
+              "stage2Consensus": 30
+            },
+            "score": 294,
+            "confidence": "high",
+            "priorReason": "short_common_name_ambiguous",
+            "priorBest": "ramp.com",
+            "priorSecond": "rampsystems.com"
+          }
+        },
+        {
+          "name": "Moderna",
+          "domain": "modernatx.com",
+          "outcome": "correct",
+          "priorReason": "insufficient_margin",
+          "boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          },
+          "evidence": {
+            "domain": "modernatx.com",
+            "boosts": {
+              "fullNameConfirmed": 40,
+              "deepAboutConfirm": 22,
+              "stage2DualSourceFullName": 18
+            },
+            "score": 302,
+            "confidence": "high",
+            "priorReason": "insufficient_margin",
+            "priorBest": "moderna.com",
+            "priorSecond": "modernatx.com"
+          }
+        },
+        {
+          "name": "Human Capital",
+          "domain": "human.capital",
+          "outcome": "correct",
+          "priorReason": "generic_name_com_lookalike",
+          "boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2EntityTypeMatch": 30
+          },
+          "evidence": {
+            "domain": "human.capital",
+            "boosts": {
+              "fullNameConfirmed": 40,
+              "deepAboutConfirm": 22,
+              "stage2EntityTypeMatch": 30
+            },
+            "score": 360,
+            "confidence": "high",
+            "priorReason": "generic_name_com_lookalike",
+            "priorBest": "humancapital.com",
+            "priorSecond": "human.capital"
+          }
+        }
+      ]
+    },
+    "wrongIdentities": [],
+    "wrongIndustries": [],
+    "unknownIndustries": [
+      {
+        "name": "Blackstone",
+        "rejected": [],
+        "evidence": [
+          "Blackstone Inc. is an American alternative investment management company based in New York City. In 2019, Blackstone converted from a publicly traded partnership into a C-type corp",
+          "The Blackstone Group"
+        ],
+        "source": "insufficient_signal"
+      },
+      {
+        "name": "M13",
+        "rejected": [],
+        "evidence": [
+          "Online Printing & Fast Nationwide Shipping | M13 Graphics",
+          "M13 Print by M13 Graphics. Premium online printing with nationwide shipping. Request a sample pack to see our quality & explore business cards, banners, & more.",
+          " Online Printing & Fast Nationwide Shipping | M13 Graphics Print Products Popular Products Business Card &#187; Flyer &#187; Postcard &#187; Brochure &#187; Poster &#187; Sticker &"
+        ],
+        "source": "insufficient_signal"
+      },
+      {
+        "name": "Human Capital",
+        "rejected": [],
+        "evidence": [
+          "We believe ambitious builders turn great ideas into great companies. We invest in founders, teams, and startups that share this mindset.",
+          " Human Capital Portfolio About Human Capital partners with exceptional founders, deploying capital and building teams of the highest caliber at scale. Legal Livongo Snowflake Space"
+        ],
+        "source": "insufficient_signal"
+      }
+    ]
+  },
+  "rows": [
+    {
+      "name": "NVIDIA",
+      "inputRaw": "NVIDIA",
+      "category": "large_public",
+      "expectedDomain": "nvidia.com",
+      "expectedIndustry": [
+        "Semiconductors"
+      ],
+      "resolvedDomain": "nvidia.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 287,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "jsonLdMatch": 30,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "product",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 50,
+      "candidates": [
+        {
+          "domain": "nvidia.com",
+          "score": 287,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "product",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "nvidia-arc.com",
+          "score": 39,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        },
+        {
+          "domain": "nvidiastore.com.br",
+          "score": -51,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "non_apex_host": -25,
+            "regional_ccTLD": -45,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        }
+      ],
+      "industry": "Semiconductors",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\binvents the GPU\\b/i",
+        "/\\bdevelops graphics processing units\\b/i",
+        "/\\bgraphics processing units?\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American multinational technology company",
+        "World Leader in Artificial Intelligence Computing | NVIDIA",
+        "NVIDIA invents the GPU and drives advances in AI, HPC, gaming, creative design, autonomous vehicles, and robotics.",
+        " World Leader in Artificial Intelligence Computing | NVIDIA NVIDIA Home NVIDIA Home Menu Menu icon Menu Menu icon Close Close icon Close Close icon Close Close icon Caret down icon"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 7402,
+      "timeouts": 0
+    },
+    {
+      "name": "Apple",
+      "inputRaw": "Apple",
+      "category": "large_public",
+      "expectedDomain": "apple.com",
+      "expectedIndustry": [
+        "Consumer",
+        "Technology"
+      ],
+      "resolvedDomain": "apple.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 287,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "jsonLdMatch": 30,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "product",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 60,
+      "candidates": [
+        {
+          "domain": "apple.com",
+          "score": 287,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "product",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "apple.news",
+          "score": 164,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        },
+        {
+          "domain": "appletoolbox.com",
+          "score": 29,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        },
+        {
+          "domain": "appleinsider.com",
+          "score": 9,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        },
+        {
+          "domain": "applebees.com",
+          "score": 9,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        }
+      ],
+      "industry": "Consumer",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\biPhone, iPad\\b/i",
+        "/\\bconsumer electronics\\b/i",
+        "/\\biPhone\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Apple Inc. is an American multinational technology company headquartered in Cupertino, California, in Silicon Valley, and known for consumer electronics, software and online servic",
+        "is a grifter running for her life after a heist goes sideways.",
+        "Discover the innovative world of Apple and shop everything iPhone, iPad, Apple Watch, Mac, and Apple TV, plus explore accessories, entertainment, and expert device support.",
+        " Apple Apple Apple Store Mac iPad iPhone Watch Vision AirPods TV & Home Entertainment Accessories Support 0 + iPhone Meet the latest iPhone lineup. Learn more Shop iPhone College, "
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 4674,
+      "timeouts": 0
+    },
+    {
+      "name": "Microsoft",
+      "inputRaw": "Microsoft",
+      "category": "large_public",
+      "expectedDomain": "microsoft.com",
+      "expectedIndustry": [
+        "Enterprise Software",
+        "Technology",
+        "Cloud Infrastructure"
+      ],
+      "resolvedDomain": "microsoft.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 162,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "games_property": -55,
+        "tldCom": 8,
+        "entityType": "store",
+        "entityTypeStorePenalty": -40,
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 45,
+      "candidates": [
+        {
+          "domain": "microsoft.com",
+          "score": 162,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "games_property": -55,
+            "tldCom": 8,
+            "entityType": "store",
+            "entityTypeStorePenalty": -40,
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "flightsimulator.com",
+          "score": 70,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "missingDistinctiveTokens": -50,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "product",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "office.com",
+          "score": 40,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "missingDistinctiveTokens": -50,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "product",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "onenote.com",
+          "score": 20,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "missingDistinctiveTokens": -50,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "microsoftcasualgames.com",
+          "score": -53,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "affiliate_host_token": -50,
+            "games_property": -55,
+            "tldCom": 8,
+            "entityType": "product",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Technology",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\btechnology company\\b/i",
+        "/\\btechnology company\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American multinational technology company",
+        "Microsoft Corporation is an American multinational technology company headquartered in Redmond, Washington. The company became influential in the rise of personal computers through",
+        "Microsoft – AI, Cloud, Productivity, Computing, Gaming & Apps",
+        "Explore Microsoft products and services and support for your home or business. Shop Microsoft 365, Copilot, Teams, Xbox, Windows, Azure, Surface and more."
+      ],
+      "industryRejected": [
+        {
+          "label": "Semiconductors",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bsoftware (?:platform|company|product)\\b/i",
+            "/\\bmarketplace\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 13941,
+      "timeouts": 0
+    },
+    {
+      "name": "MercadoLibre",
+      "inputRaw": "MercadoLibre",
+      "category": "large_public",
+      "expectedDomain": "mercadolibre.com",
+      "expectedIndustry": [
+        "E-Commerce"
+      ],
+      "resolvedDomain": "mercadolibre.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 231,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 45,
+      "candidates": [
+        {
+          "domain": "mercadolibre.com",
+          "score": 231,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "mercadolibre.com.ar",
+          "score": 79,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "non_apex_host": -25,
+            "regional_ccTLD": -45,
+            "tldUncommon": -12,
+            "entityType": "product",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "mercadolibre.com.mx",
+          "score": 79,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "non_apex_host": -25,
+            "regional_ccTLD": -45,
+            "tldUncommon": -12,
+            "entityType": "product",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "mercadolibre.com.ve",
+          "score": 79,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "non_apex_host": -25,
+            "regional_ccTLD": -45,
+            "tldUncommon": -12,
+            "entityType": "product",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "mercadolibre.com.co",
+          "score": 77,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "snippetMentionsCompany": 8,
+            "non_apex_host": -25,
+            "regional_ccTLD": -45,
+            "tldUncommon": -12,
+            "entityType": "product",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "E-Commerce",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\be-?commerce (?:platform|company)\\b/i",
+        "/\\be-?commerce\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Argentine e-commerce company",
+        "Mercado Libre - Envíos Gratis en el día",
+        "Compre productos con Envío Gratis en el día en Mercado Libre. Encuentre miles de marcas y productos a precios increíbles.",
+        " Mercado Libre - Envíos Gratis en el día MercadoLibre Argentina Bolivia Brasil Chile Colombia Costa Rica Dominicana Ecuador Guatemala Honduras México Nicaragua Panamá Paraguay Perú"
+      ],
+      "industryRejected": [
+        {
+          "label": "Semiconductors",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\be-?commerce\\b/i"
+          ]
+        },
+        {
+          "label": "Biotechnology",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\be-?commerce\\b/i"
+          ]
+        },
+        {
+          "label": "Energy",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\be-?commerce\\b/i"
+          ]
+        },
+        {
+          "label": "Aerospace & Defense",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\be-?commerce\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 11214,
+      "timeouts": 0
+    },
+    {
+      "name": "Netflix",
+      "inputRaw": "Netflix",
+      "category": "large_public",
+      "expectedDomain": "netflix.com",
+      "expectedIndustry": [
+        "Media & Entertainment"
+      ],
+      "resolvedDomain": "netflix.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 257,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "product",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 55,
+      "candidates": [
+        {
+          "domain": "netflix.com",
+          "score": 257,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "product",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "netflix.net",
+          "score": 226,
+          "source": "wikidata_official_expanded",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "entityType": "company",
+            "wikidataP856": 45
+          }
+        },
+        {
+          "domain": "netflix.shop",
+          "score": 107,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "commerce_tld": -60,
+            "tldShop": -70,
+            "entityType": "product",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "netflixmovies.com",
+          "score": 74,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "netflixlife.com",
+          "score": 60,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "product",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Media & Entertainment",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bstreaming (?:service|platform|company)\\b/i",
+        "/\\bstreaming\\b/i",
+        "/\\bmedia company\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American video streaming service",
+        "Netflix, Inc. is an American media company founded on August 29, 1997, by Reed Hastings and Marc Randolph in Scotts Valley, California, and currently based in Los Gatos, California",
+        "is a streaming service that offers a wide variety of award-winning TV shows, movies, anime, documentaries, and more on thousands of internet-connected devices.",
+        "Netflix - Watch TV Shows Online, Watch Movies Online"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 8449,
+      "timeouts": 0
+    },
+    {
+      "name": "Goldman Sachs",
+      "inputRaw": "Goldman Sachs",
+      "category": "financial",
+      "expectedDomain": "goldmansachs.com",
+      "expectedIndustry": [
+        "Investment Banking",
+        "Banking",
+        "Asset Management"
+      ],
+      "resolvedDomain": "goldmansachs.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 301,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "jsonLdMatch": 30,
+        "titleMentionsCompany": 18,
+        "aboutLanguage": 22,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "company",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 35,
+      "candidates": [
+        {
+          "domain": "goldmansachs.com",
+          "score": 301,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "goldman.sachs",
+          "score": 158,
+          "source": "brand_guess",
+          "signals": {
+            "tokenAsTldMatch": 18,
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20
+          }
+        },
+        {
+          "domain": "goldman-sachs.ch",
+          "score": 135,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "goldman.com",
+          "score": 83,
+          "source": "brand_guess",
+          "signals": {
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 20,
+            "incompleteEntityName": -40,
+            "distinctiveTokenHits": 18,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20
+          }
+        },
+        {
+          "domain": "gsam.com",
+          "score": 37,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "incompleteEntityName": -40,
+            "missingDistinctiveTokens": -50,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "copyrightMatch": 15,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Investment Banking",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\binvestment bank(?:ing)?\\b/i",
+        "/\\binvestment bank\\b/i",
+        "/\\binvestment banking\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American investment bank",
+        "The Goldman Sachs Group, Inc. is an American multinational investment bank and financial services company. Founded in 1869, Goldman Sachs is headquartered in the Battery Park City ",
+        "Home | Goldman Sachs",
+        "The Goldman Sachs Group, Inc. is a leading global investment banking, securities, and asset and wealth management firm that provides a wide range of financial services."
+      ],
+      "industryRejected": [
+        {
+          "label": "Fintech",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\binvestment bank\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 14356,
+      "timeouts": 0
+    },
+    {
+      "name": "Apollo Global Management",
+      "inputRaw": "Apollo Global Management",
+      "category": "financial",
+      "expectedDomain": "apollo.com",
+      "expectedIndustry": [
+        "Private Equity",
+        "Asset Management"
+      ],
+      "resolvedDomain": "apollo.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 239,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "jsonLdMatch": 30,
+        "titleMentionsCompany": 18,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "investment_firm",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 35,
+      "candidates": [
+        {
+          "domain": "apollo.com",
+          "score": 239,
+          "source": "brand_guess",
+          "signals": {
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "investment_firm",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "apolloglobalmanagement.com",
+          "score": 162,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "brandSuffixNoise": -50,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "agm.com",
+          "score": 49,
+          "source": "wikidata_official",
+          "signals": {
+            "tokenCoverage": 0,
+            "missingDistinctiveTokens": -50,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldCom": 8,
+            "entityType": "investment_firm",
+            "wikidataP856": 45
+          }
+        }
+      ],
+      "industry": "Private Equity",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bprivate equity (?:firm|company)\\b/i",
+        "/\\balternative assets\\b/i",
+        "/\\bprivate equity\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American private equity company",
+        "Home | Apollo Global Management",
+        " Home | Apollo Global Management General Public General Public Institutional Investors Public Shareholders Wealth Professionals Log In Investors Former Employees Portfolio Companie",
+        "Apollo Global Management, Inc. is an American asset management firm that primarily invests in alternative assets. As of 2025, the company had $840 billion of assets under managemen"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 7258,
+      "timeouts": 0
+    },
+    {
+      "name": "Blackstone",
+      "inputRaw": "Blackstone",
+      "category": "financial",
+      "expectedDomain": "blackstone.com",
+      "expectedIndustry": [
+        "Private Equity",
+        "Asset Management"
+      ],
+      "resolvedDomain": "blackstone.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 237,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 45,
+      "candidates": [
+        {
+          "domain": "blackstone.com",
+          "score": 237,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "blackstoneshooting.com",
+          "score": 90,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "blackstone-labs.com",
+          "score": 82,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "blackstonedevinc.com",
+          "score": 75,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "copyrightMatch": 15,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "blackstoneproducts.com",
+          "score": 50,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "store",
+            "entityTypeStorePenalty": -40,
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Unknown",
+      "industryConfidence": "low",
+      "industrySource": "insufficient_signal",
+      "industryEvidence": [],
+      "industryEvidenceTexts": [
+        "Blackstone Inc. is an American alternative investment management company based in New York City. In 2019, Blackstone converted from a publicly traded partnership into a C-type corp",
+        "The Blackstone Group"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "unknown",
+      "notesClean": true,
+      "elapsedMs": 3380,
+      "timeouts": 0
+    },
+    {
+      "name": "Evercore",
+      "inputRaw": "Evercore",
+      "category": "financial",
+      "expectedDomain": "evercore.com",
+      "expectedIndustry": [
+        "Investment Banking"
+      ],
+      "resolvedDomain": "evercore.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 256,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "jsonLdMatch": 30,
+        "titleMentionsCompany": 18,
+        "aboutLanguage": 22,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "nonprofit",
+        "sourceGuess": 1,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 55,
+      "candidates": [
+        {
+          "domain": "evercore.com",
+          "score": 256,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "nonprofit",
+            "sourceGuess": 1,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "evercorecompanies.com",
+          "score": 52,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "evercoreheroes.com",
+          "score": 52,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "product",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "evercoremedia.com",
+          "score": 40,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "evercoresearch.com",
+          "score": 40,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Investment Banking",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\binvestment bank(?:ing)?\\b/i",
+        "/\\binvestment banking\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American financial services company",
+        "Evercore is a premier global independent investment banking firm dedicated to helping clients achieve superior results.",
+        " Evercore Skip to content Evercore Search Menu navigation Explore Home Who We Are Overview Core Values Leadership Board Our Businesses &#038; Capabilities Investment Banking Strate",
+        "Evercore Inc., formerly known as Evercore Partners, is a global independent investment banking advisory firm founded in 1995 by Roger Altman, David Offensend, and Austin Beutner. T"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 2355,
+      "timeouts": 0
+    },
+    {
+      "name": "Lux Capital",
+      "inputRaw": "Lux Capital",
+      "category": "vc",
+      "expectedDomain": "luxcapital.com",
+      "expectedIndustry": [
+        "Venture Capital"
+      ],
+      "resolvedDomain": null,
+      "identityStatus": "ambiguous",
+      "identityConfidence": "low",
+      "identityScore": 297,
+      "identityOutcome": "ambiguous",
+      "identityReason": "insufficient_margin",
+      "identityStage": 1,
+      "stage2": {
+        "ran": true,
+        "recovered": false,
+        "priorReason": "insufficient_margin",
+        "newEvidence": null,
+        "diagnosis": {
+          "reason": "insufficient_margin",
+          "scoreMargin": -7,
+          "ambiguityRisk": 60,
+          "causeHints": [
+            "competing_real_companies_or_close_scores",
+            "high_ambiguity_risk_short_or_common_name",
+            "wikidata_gaps"
+          ]
+        }
+      },
+      "identitySignals": {
+        "domainContainsKey": 12,
+        "tokenCoverage": 40,
+        "candidateNameOverlap": 18,
+        "titleMentionsCompany": 18,
+        "aboutLanguage": 22,
+        "snippetMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "investment_firm",
+        "entityTypeMatch": 35,
+        "sourceClearbit": 18,
+        "ambiguityRiskPenalty": -10,
+        "fullNameConfirmed": 40,
+        "descriptionFullName": 28,
+        "stage2EntityTypeMatch": 30,
+        "stage2DualSourceFullName": 18
+      },
+      "ambiguityRisk": 50,
+      "candidates": [
+        {
+          "domain": "luxcapitalbr.com",
+          "score": 297,
+          "source": "clearbit",
+          "signals": {
+            "domainContainsKey": 12,
+            "tokenCoverage": 40,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "investment_firm",
+            "entityTypeMatch": 35,
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -10,
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2EntityTypeMatch": 30,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2EntityTypeMatch": 30,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "lux.capital",
+          "score": 296,
+          "source": "brand_guess",
+          "signals": {
+            "tokenAsTldMatch": 18,
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldAltOk": 4,
+            "entityType": "company",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2JsonLdExact": 20
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2JsonLdExact": 20
+          }
+        },
+        {
+          "domain": "luxcapital.com",
+          "score": 257,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "copyrightMatch": 15,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "luxcapital.li",
+          "score": 170,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "snippetMentionsCompany": 8,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -10,
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "luxcapitalinc.com",
+          "score": 150,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -10,
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          }
+        }
+      ],
+      "industry": "Unknown",
+      "industryConfidence": "low",
+      "industrySource": "skipped_identity",
+      "industryEvidence": [],
+      "industryEvidenceTexts": [],
+      "industryRejected": [],
+      "industryOutcome": "skipped_identity",
+      "notesClean": true,
+      "elapsedMs": 15034,
+      "timeouts": 0
+    },
+    {
+      "name": "M13",
+      "inputRaw": "M13",
+      "category": "vc",
+      "expectedDomain": "m13.co",
+      "expectedIndustry": [
+        "Venture Capital"
+      ],
+      "resolvedDomain": "m13.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 138,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "candidateNameExact": 28,
+        "jsonLdMatch": 30,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "print_brand": -50,
+        "tldCom": 8,
+        "entityType": "print_services",
+        "sourceGuess": 1,
+        "ambiguityRiskPenalty": -19,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 85,
+      "candidates": [
+        {
+          "domain": "m13.com",
+          "score": 138,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "print_brand": -50,
+            "tldCom": 8,
+            "entityType": "print_services",
+            "sourceGuess": 1,
+            "ambiguityRiskPenalty": -19,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "mlb.com",
+          "score": 19,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "titleOfficial": 12,
+            "tldCom": 8,
+            "entityType": "product",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19
+          }
+        },
+        {
+          "domain": "mega.nz",
+          "score": -13,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19
+          }
+        },
+        {
+          "domain": "macys.com",
+          "score": -21,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "titleOfficial": 12,
+            "ecommerce_cta": -40,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19
+          }
+        }
+      ],
+      "industry": "Unknown",
+      "industryConfidence": "low",
+      "industrySource": "insufficient_signal",
+      "industryEvidence": [],
+      "industryEvidenceTexts": [
+        "Online Printing & Fast Nationwide Shipping | M13 Graphics",
+        "M13 Print by M13 Graphics. Premium online printing with nationwide shipping. Request a sample pack to see our quality & explore business cards, banners, & more.",
+        " Online Printing & Fast Nationwide Shipping | M13 Graphics Print Products Popular Products Business Card &#187; Flyer &#187; Postcard &#187; Brochure &#187; Poster &#187; Sticker &"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "unknown",
+      "notesClean": true,
+      "elapsedMs": 3629,
+      "timeouts": 0
+    },
+    {
+      "name": "Space Capital",
+      "inputRaw": "Space Capital",
+      "category": "vc",
+      "expectedDomain": "spacecapital.com",
+      "expectedIndustry": [
+        "Venture Capital"
+      ],
+      "resolvedDomain": "spacecapital.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 311,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "jsonLdMatch": 30,
+        "titleMentionsCompany": 18,
+        "aboutLanguage": 22,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "investment_firm",
+        "entityTypeMatch": 35,
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 25,
+      "candidates": [
+        {
+          "domain": "spacecapital.com",
+          "score": 311,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "investment_firm",
+            "entityTypeMatch": 35,
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "space.capital",
+          "score": 154,
+          "source": "brand_guess",
+          "signals": {
+            "tokenAsTldMatch": 18,
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldAltOk": 4,
+            "entityType": "unknown",
+            "sourceGuess": 1
+          }
+        },
+        {
+          "domain": "spacecap.io",
+          "score": 41,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -50,
+            "tokenCoverage": 20,
+            "incompleteEntityName": -40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldAltOk": 4,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "space.com",
+          "score": 12,
+          "source": "brand_guess",
+          "signals": {
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 20,
+            "incompleteEntityName": -40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "unconfirmedGuess": -50
+          }
+        }
+      ],
+      "industry": "Venture Capital",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bventure capital (?:firm|company|fund)\\b/i",
+        "/\\bearly[- ]stage (?:venture|investor)\\b/i",
+        "/\\bventure capital\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American early-stage venture capital firm",
+        "IS AT AN INFLECTION POINT Government demand is surging and commercial adoption is accelerating.",
+        "Space Capital | Space Tech for the Real World",
+        "Founded in 2012, Space Capital is a venture capital firm with over $1 billion AUM investing at the intersection of space technology and global markets."
+      ],
+      "industryRejected": [
+        {
+          "label": "Fintech",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bventure capital firm\\b/i"
+          ]
+        },
+        {
+          "label": "Private Equity",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bventure capital firm\\b/i"
+          ]
+        },
+        {
+          "label": "Banking",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bventure capital\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 7274,
+      "timeouts": 0
+    },
+    {
+      "name": "Ramp",
+      "inputRaw": "Ramp",
+      "category": "startup",
+      "expectedDomain": "ramp.com",
+      "expectedIndustry": [
+        "Fintech",
+        "Enterprise Software"
+      ],
+      "resolvedDomain": "ramp.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 294,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 2,
+      "stage2": {
+        "ran": true,
+        "recovered": true,
+        "priorReason": "short_common_name_ambiguous",
+        "newEvidence": {
+          "domain": "ramp.com",
+          "boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "deepAboutConfirm": 22,
+            "stage2Consensus": 30
+          },
+          "score": 294,
+          "confidence": "high",
+          "priorReason": "short_common_name_ambiguous",
+          "priorBest": "ramp.com",
+          "priorSecond": "rampsystems.com"
+        },
+        "diagnosis": {
+          "reason": "short_common_name_ambiguous",
+          "scoreMargin": 153,
+          "ambiguityRisk": 85,
+          "causeHints": [
+            "high_ambiguity_risk_short_or_common_name",
+            "wikidata_gaps"
+          ]
+        }
+      },
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "candidateNameExact": 28,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "company",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "fullNameConfirmed": 40,
+        "descriptionFullName": 28,
+        "deepAboutConfirm": 22,
+        "stage2Consensus": 30
+      },
+      "ambiguityRisk": 85,
+      "candidates": [
+        {
+          "domain": "ramp.com",
+          "score": 294,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "deepAboutConfirm": 22,
+            "stage2Consensus": 30
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "deepAboutConfirm": 22,
+            "stage2Consensus": 30
+          }
+        },
+        {
+          "domain": "rampsystems.com",
+          "score": 208,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "rampslogistics.com",
+          "score": 175,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "copyrightMatch": 15,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "rampant.tv",
+          "score": 54,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldUncommon": -12,
+            "entityType": "company",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19,
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "rampantdesigntools.com",
+          "score": 36,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19,
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2DualSourceFullName": 18
+          }
+        }
+      ],
+      "industry": "Fintech",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bfinancial technology\\b/i",
+        "/\\bpayments?\\b/i",
+        "/\\bexpense management\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Tilted flat supporting surface",
+        "Ramp Business Corporation is an American multinational financial technology company that offers corporate charge cards, expense management, and bill-payment software. The company i",
+        "is available through this exclusive link and is part of Ramp's AI agent marketing program.",
+        "# Ramp — Machine Version **Quick links:** [Docs](https://docs.ramp.com/) · [Help Center](https://support.ramp.com/) · [Integrations](https://ramp.com/integrations) · [Pricing](http"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 31483,
+      "timeouts": 0
+    },
+    {
+      "name": "Anduril",
+      "inputRaw": "Anduril",
+      "category": "startup",
+      "expectedDomain": "anduril.com",
+      "expectedIndustry": [
+        "Aerospace & Defense"
+      ],
+      "resolvedDomain": "anduril.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 246,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "aboutLanguage": 22,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 45,
+      "candidates": [
+        {
+          "domain": "anduril.com",
+          "score": 246,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "andurilconsulting.ie",
+          "score": 20,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "andurilconsulting.llc",
+          "score": 20,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "andurilgroup.co.za",
+          "score": -50,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "non_apex_host": -25,
+            "regional_ccTLD": -45,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "andurilindustries.co.za",
+          "score": -50,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "non_apex_host": -25,
+            "regional_ccTLD": -45,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Aerospace & Defense",
+      "industryConfidence": "medium",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bdefense (?:contractor|technology|company)\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Transforming U.S. Defense Capabilities with Advanced Technology | Anduril",
+        "Anduril Industries builds advanced autonomous systems and defense technology to protect US and allied forces. Creating the future of national security through AI, robotics, and cut",
+        " Transforming U.S. Defense Capabilities with Advanced Technology | Anduril Please enable javascript "
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 11232,
+      "timeouts": 0
+    },
+    {
+      "name": "Anthropic",
+      "inputRaw": "Anthropic",
+      "category": "startup",
+      "expectedDomain": "anthropic.com",
+      "expectedIndustry": [
+        "Artificial Intelligence"
+      ],
+      "resolvedDomain": "anthropic.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 261,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "aboutLanguage": 22,
+        "homepageHeadMention": 12,
+        "copyrightMatch": 15,
+        "tldCom": 8,
+        "entityType": "company",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 45,
+      "candidates": [
+        {
+          "domain": "anthropic.com",
+          "score": 261,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "homepageHeadMention": 12,
+            "copyrightMatch": 15,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "anthropic.io",
+          "score": 191,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldAltOk": 4,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "anthropics.com",
+          "score": 159,
+          "source": "clearbit",
+          "signals": {
+            "domainContainsKey": 12,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "jasonkiu.com",
+          "score": 12,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "missingDistinctiveTokens": -50,
+            "candidateNameExact": 28,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "openhalo.online",
+          "score": 10,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "missingDistinctiveTokens": -50,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Artificial Intelligence",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bartificial intelligence (?:company|lab|research)\\b/i",
+        "/\\bAI (?:company|lab|research|safety) (?:company|lab)?\\b/i",
+        "/\\blarge language model(?:s)?\\b/i",
+        "/\\bartificial intelligence company\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American artificial intelligence company",
+        "is a public benefit corporation dedicated to securing its benefits and mitigating its risks.",
+        "Home \\ Anthropic",
+        "Anthropic is an AI safety and research company that's working to build reliable, interpretable, and steerable AI systems."
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 4508,
+      "timeouts": 0
+    },
+    {
+      "name": "Perplexity",
+      "inputRaw": "Perplexity",
+      "category": "startup",
+      "expectedDomain": "perplexity.ai",
+      "expectedIndustry": [
+        "Artificial Intelligence",
+        "Technology"
+      ],
+      "resolvedDomain": null,
+      "identityStatus": "ambiguous",
+      "identityConfidence": "low",
+      "identityScore": 220,
+      "identityOutcome": "ambiguous",
+      "identityReason": "insufficient_margin",
+      "identityStage": 1,
+      "stage2": {
+        "ran": true,
+        "recovered": false,
+        "priorReason": "insufficient_margin",
+        "newEvidence": null,
+        "diagnosis": {
+          "reason": "insufficient_margin",
+          "scoreMargin": -9,
+          "ambiguityRisk": 55,
+          "causeHints": [
+            "competing_real_companies_or_close_scores",
+            "high_ambiguity_risk_short_or_common_name",
+            "wikidata_gaps"
+          ]
+        }
+      },
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "tldCom": 8,
+        "entityType": "company",
+        "sourceGuess": 1,
+        "fullNameConfirmed": 40,
+        "descriptionFullName": 28
+      },
+      "ambiguityRisk": 45,
+      "candidates": [
+        {
+          "domain": "perplexity.ai",
+          "score": 351,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "snippetMentionsCompany": 8,
+            "tldAltOk": 4,
+            "entityType": "company",
+            "wikidataP856": 45,
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2Consensus": 30
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2Consensus": 30
+          }
+        },
+        {
+          "domain": "perplexity1.com",
+          "score": 287,
+          "source": "clearbit",
+          "signals": {
+            "domainContainsKey": 12,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceClearbit": 18,
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "perplexity.ca",
+          "score": 271,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldUncommon": -12,
+            "entityType": "company",
+            "sourceClearbit": 18,
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "perplexity.com",
+          "score": 220,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceGuess": 1,
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28
+          }
+        },
+        {
+          "domain": "perplexitygames.com",
+          "score": 166,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "descriptionFullName": 28,
+            "stage2DualSourceFullName": 18
+          }
+        }
+      ],
+      "industry": "Unknown",
+      "industryConfidence": "low",
+      "industrySource": "skipped_identity",
+      "industryEvidence": [],
+      "industryEvidenceTexts": [],
+      "industryRejected": [],
+      "industryOutcome": "skipped_identity",
+      "notesClean": true,
+      "elapsedMs": 29431,
+      "timeouts": 0
+    },
+    {
+      "name": "ExxonMobil",
+      "inputRaw": "ExxonMobil",
+      "category": "energy",
+      "expectedDomain": "exxonmobil.com",
+      "expectedIndustry": [
+        "Oil & Gas",
+        "Energy"
+      ],
+      "resolvedDomain": "exxonmobil.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 287,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "jsonLdMatch": 30,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "company",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 45,
+      "candidates": [
+        {
+          "domain": "exxonmobil.com",
+          "score": 287,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "exxonmobil.eu",
+          "score": 217,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "exxonmobil.com.sg",
+          "score": 155,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "non_apex_host": -25,
+            "regional_ccTLD": -45,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "exxonmobilchemical.com",
+          "score": 90,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "exxonmobillng.com",
+          "score": 70,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Oil & Gas",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\boil\\s*(?:&|and)\\s*gas (?:company|producer|major)\\b/i",
+        "/\\boil\\s*(?:&|and)\\s*gas\\b/i",
+        "/\\bupstream\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American multinational oil and gas company",
+        "Exxon Mobil Corporation | ExxonMobil",
+        "ExxonMobil scientists are pioneering new research & technologies to reduce emissions. Learn how we are responsibly meeting the world's energy needs.",
+        " Exxon Mobil Corporation | ExxonMobil Skip to content Who we are Who we are We're committed to responsibly meeting society&rsquo;s evolving energy needs. Who we are Who we are Our "
+      ],
+      "industryRejected": [
+        {
+          "label": "Enterprise Software",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\boil\\s*(?:&|and)\\s*gas company\\b/i"
+          ]
+        },
+        {
+          "label": "Renewable Energy",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\boil\\s*(?:&|and)\\s*gas\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 16253,
+      "timeouts": 0
+    },
+    {
+      "name": "NextEra Energy",
+      "inputRaw": "NextEra Energy",
+      "category": "energy",
+      "expectedDomain": "nexteraenergy.com",
+      "expectedIndustry": [
+        "Renewable Energy",
+        "Energy"
+      ],
+      "resolvedDomain": "nexteraenergy.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 257,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 35,
+      "candidates": [
+        {
+          "domain": "nexteraenergy.com",
+          "score": 257,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "nextera.energy",
+          "score": 158,
+          "source": "brand_guess",
+          "signals": {
+            "tokenAsTldMatch": 18,
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20
+          }
+        },
+        {
+          "domain": "nexteraenergyresources.com",
+          "score": 90,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -55,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "nexteraenergyservices.com",
+          "score": 90,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -55,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "nextera.com",
+          "score": 83,
+          "source": "brand_guess",
+          "signals": {
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 20,
+            "incompleteEntityName": -40,
+            "distinctiveTokenHits": 18,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20
+          }
+        }
+      ],
+      "industry": "Energy",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\benergy (?:company|infrastructure|technology)\\b/i",
+        "/\\belectric utility\\b/i",
+        "/\\belectric utility\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American utility company",
+        "is always building — power plants of all kinds, infrastructure to fuel them and the network to move the power they generate from coast to coast.",
+        "Enabling American Energy Dominance | NextEra Energy",
+        "Discover how NextEra Energy is leading America's energy evolution using an all forms of energy strategy to keep prices low for customers."
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 2902,
+      "timeouts": 0
+    },
+    {
+      "name": "GE Vernova",
+      "inputRaw": "GE Vernova",
+      "category": "energy",
+      "expectedDomain": "gevernova.com",
+      "expectedIndustry": [
+        "Energy",
+        "Industrial Technology"
+      ],
+      "resolvedDomain": "gevernova.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 286,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "aboutLanguage": 22,
+        "homepageHeadMention": 12,
+        "copyrightMatch": 15,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 25,
+      "candidates": [
+        {
+          "domain": "gevernova.com",
+          "score": 286,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "homepageHeadMention": 12,
+            "copyrightMatch": 15,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "ge.vernova",
+          "score": 158,
+          "source": "brand_guess",
+          "signals": {
+            "tokenAsTldMatch": 18,
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20
+          }
+        },
+        {
+          "domain": "ge.com",
+          "score": 39,
+          "source": "wikidata_official_expanded",
+          "signals": {
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 20,
+            "incompleteEntityName": -40,
+            "missingDistinctiveTokens": -50,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "wikidataP856": 45
+          }
+        },
+        {
+          "domain": "webhostingsimplified.com",
+          "score": -10,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "incompleteEntityName": -40,
+            "missingDistinctiveTokens": -50,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Energy",
+      "industryConfidence": "medium",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\benergy (?:company|infrastructure|technology)\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American energy technology company",
+        "is accelerating resilient, scalable energy technologies for tomorrow's grid.",
+        "GE Vernova | The Energy of Change",
+        "GE Vernova is accelerating the path to more reliable, affordable, and sustainable energy through our innovative portfolio of electrification and decarbonization technologies."
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 5379,
+      "timeouts": 0
+    },
+    {
+      "name": "Nike",
+      "inputRaw": "Nike",
+      "category": "consumer",
+      "expectedDomain": "nike.com",
+      "expectedIndustry": [
+        "Consumer"
+      ],
+      "resolvedDomain": "nike.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 287,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "jsonLdMatch": 30,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 85,
+      "candidates": [
+        {
+          "domain": "nike.com",
+          "score": 287,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "nikee.net",
+          "score": 112,
+          "source": "clearbit",
+          "signals": {
+            "domainContainsKey": 12,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19
+          }
+        },
+        {
+          "domain": "nike.sk",
+          "score": 102,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19
+          }
+        },
+        {
+          "domain": "nikeeyb.com",
+          "score": 56,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "copyrightMatch": 15,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19
+          }
+        },
+        {
+          "domain": "niketalk.com",
+          "score": 3,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19
+          }
+        }
+      ],
+      "industry": "Consumer",
+      "industryConfidence": "medium",
+      "industrySource": "multi_signal",
+      "industryEvidence": [
+        "/\\bapparel\\b/i",
+        "/\\bfootwear\\b/i",
+        "/\\bJust Do It\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Nike, Inc. is an American multinational corporation that is engaged in the design, development, manufacturing, and worldwide marketing and sales of footwear, apparel, equipment, ac",
+        "Nike. Just Do It. Nike.com",
+        "Inspiring the world's athletes, Nike delivers innovative products, experiences and services.",
+        " Nike. Just Do It. Nike.com Skip to main content Accessibility at Nike Find a Store Help Help Order Status Shipping & Delivery Returns Order Cancellation Size Charts Contact Us Mem"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 2322,
+      "timeouts": 0
+    },
+    {
+      "name": "Warby Parker",
+      "inputRaw": "Warby Parker",
+      "category": "consumer",
+      "expectedDomain": "warbyparker.com",
+      "expectedIndustry": [
+        "Consumer",
+        "E-Commerce"
+      ],
+      "resolvedDomain": "warbyparker.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 237,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 25,
+      "candidates": [
+        {
+          "domain": "warbyparker.com",
+          "score": 237,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "warby.parker",
+          "score": 158,
+          "source": "brand_guess",
+          "signals": {
+            "tokenAsTldMatch": 18,
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20
+          }
+        },
+        {
+          "domain": "warbyparkerfoundation.org",
+          "score": 112,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -55,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "entityType": "nonprofit",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "warby.com",
+          "score": 15,
+          "source": "brand_guess",
+          "signals": {
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 20,
+            "incompleteEntityName": -40,
+            "distinctiveTokenHits": 18,
+            "candidateNameExact": 28,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "unconfirmedGuess": -50
+          }
+        },
+        {
+          "domain": "trailandstream.com",
+          "score": -28,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "incompleteEntityName": -40,
+            "missingDistinctiveTokens": -50,
+            "candidateNameExact": 28,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Consumer",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\beyewear (?:brand|company)\\b/i",
+        "/\\beyewear\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American eyeglasses and contact lens retailer",
+        "Warby Parker Inc. is an American eyewear brand and retailer of prescription glasses, contact lenses, and sunglasses, based in New York City. It also offers eye exams. Originally fo"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 2646,
+      "timeouts": 0
+    },
+    {
+      "name": "Moderna",
+      "inputRaw": "Moderna",
+      "category": "healthcare",
+      "expectedDomain": "modernatx.com",
+      "expectedIndustry": [
+        "Biotechnology"
+      ],
+      "resolvedDomain": "modernatx.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 302,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 2,
+      "stage2": {
+        "ran": true,
+        "recovered": true,
+        "priorReason": "insufficient_margin",
+        "newEvidence": {
+          "domain": "modernatx.com",
+          "boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          },
+          "score": 302,
+          "confidence": "high",
+          "priorReason": "insufficient_margin",
+          "priorBest": "moderna.com",
+          "priorSecond": "modernatx.com"
+        },
+        "diagnosis": {
+          "reason": "insufficient_margin",
+          "scoreMargin": -10,
+          "ambiguityRisk": 55,
+          "causeHints": [
+            "competing_real_companies_or_close_scores",
+            "high_ambiguity_risk_short_or_common_name",
+            "wikidata_gaps"
+          ]
+        }
+      },
+      "identitySignals": {
+        "domainContainsKey": 12,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "snippetMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "copyrightMatch": 15,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceClearbit": 18,
+        "multiSourceConsensus": 20,
+        "fullNameConfirmed": 40,
+        "deepAboutConfirm": 22,
+        "stage2DualSourceFullName": 18
+      },
+      "ambiguityRisk": 45,
+      "candidates": [
+        {
+          "domain": "modernatx.com",
+          "score": 302,
+          "source": "clearbit",
+          "signals": {
+            "domainContainsKey": 12,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "copyrightMatch": 15,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "moderna.com.br",
+          "score": 153,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "non_apex_host": -25,
+            "regional_ccTLD": -45,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "moderna.com",
+          "score": 152,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1
+          },
+          "stage2Boosts": {}
+        },
+        {
+          "domain": "modernanimal.com",
+          "score": -4,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          },
+          "stage2Boosts": {}
+        },
+        {
+          "domain": "modern-age.com",
+          "score": -4,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "missingDistinctiveTokens": -50,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20
+          },
+          "stage2Boosts": {}
+        }
+      ],
+      "industry": "Biotechnology",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bbiotechnology (?:company|firm)\\b/i",
+        "/\\bbiotechnology\\b/i",
+        "/\\btherapeutics\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American biotechnology company",
+        "Pioneering mRNA technology - Moderna",
+        "Learn how we’re changing the world of medicine. Discover career opportunities, our product pipeline, and browse media resources. Meet Moderna.",
+        " Pioneering mRNA technology - Moderna Skip to main content mRNA Pipeline Careers Newsroom Blogs Moderna Supplier Page | Health Care Professionals Investors Clinical Trials About Us"
+      ],
+      "industryRejected": [
+        {
+          "label": "Healthcare",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bbiotechnology company\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 30628,
+      "timeouts": 0
+    },
+    {
+      "name": "Tempus AI",
+      "inputRaw": "Tempus AI",
+      "category": "healthcare",
+      "expectedDomain": "tempus.com",
+      "expectedIndustry": [
+        "Biotechnology",
+        "Healthcare",
+        "Artificial Intelligence"
+      ],
+      "resolvedDomain": "tempus.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "medium",
+      "identityScore": 225,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "primaryTokenDomain": 38,
+        "aiBrandComPreferred": 35,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 15,
+      "candidates": [
+        {
+          "domain": "tempus.com",
+          "score": 225,
+          "source": "brand_guess",
+          "signals": {
+            "primaryTokenDomain": 38,
+            "aiBrandComPreferred": 35,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "tempusai.com",
+          "score": 147,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "concatAiDomainPenalty": -45,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "tempusaircraft.com",
+          "score": 46,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -55,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Technology",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\btechnology company\\b/i",
+        "/\\btechnology company\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American health technology company",
+        "Tempus AI, Inc. is an American health technology company founded in 2015 by Eric Lefkofsky in Chicago, Illinois. It was established by Lefkofsky soon after his wife was diagnosed w"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 5180,
+      "timeouts": 0
+    },
+    {
+      "name": "Human Capital",
+      "inputRaw": "Human Capital",
+      "category": "ambiguous",
+      "expectedDomain": "human.capital",
+      "expectedIndustry": [
+        "Venture Capital",
+        "Asset Management"
+      ],
+      "resolvedDomain": "human.capital",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 360,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 2,
+      "stage2": {
+        "ran": true,
+        "recovered": true,
+        "priorReason": "generic_name_com_lookalike",
+        "newEvidence": {
+          "domain": "human.capital",
+          "boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2EntityTypeMatch": 30
+          },
+          "score": 360,
+          "confidence": "high",
+          "priorReason": "generic_name_com_lookalike",
+          "priorBest": "humancapital.com",
+          "priorSecond": "human.capital"
+        },
+        "diagnosis": {
+          "reason": "generic_name_com_lookalike",
+          "scoreMargin": 68,
+          "ambiguityRisk": 60,
+          "causeHints": [
+            "generic_company_name",
+            "high_ambiguity_risk_short_or_common_name",
+            "wikidata_gaps"
+          ]
+        }
+      },
+      "identitySignals": {
+        "tokenAsTldMatch": 50,
+        "tokenAsTldInvestEvidence": 1,
+        "primaryTokenDomain": 10,
+        "tokenCoverage": 40,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "homepageHeadMention": 12,
+        "tldAltOk": 4,
+        "entityType": "investment_firm",
+        "entityTypeMatch": 35,
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "investTokenTldBoost": 25,
+        "fullNameConfirmed": 40,
+        "deepAboutConfirm": 22,
+        "stage2EntityTypeMatch": 30
+      },
+      "ambiguityRisk": 50,
+      "candidates": [
+        {
+          "domain": "human.capital",
+          "score": 360,
+          "source": "brand_guess",
+          "signals": {
+            "tokenAsTldMatch": 50,
+            "tokenAsTldInvestEvidence": 1,
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "homepageHeadMention": 12,
+            "tldAltOk": 4,
+            "entityType": "investment_firm",
+            "entityTypeMatch": 35,
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "investTokenTldBoost": 25,
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2EntityTypeMatch": 30
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2EntityTypeMatch": 30
+          }
+        },
+        {
+          "domain": "humancapital.com",
+          "score": 284,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22
+          }
+        },
+        {
+          "domain": "humancapitalonline.com",
+          "score": 240,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -55,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "hcchr.com",
+          "score": 175,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "incompleteEntityName": -40,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "human-capital.ru",
+          "score": 162,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "snippetMentionsCompany": 8,
+            "tldObscureCc": -35,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          }
+        }
+      ],
+      "industry": "Unknown",
+      "industryConfidence": "low",
+      "industrySource": "insufficient_signal",
+      "industryEvidence": [],
+      "industryEvidenceTexts": [
+        "We believe ambitious builders turn great ideas into great companies. We invest in founders, teams, and startups that share this mindset.",
+        " Human Capital Portfolio About Human Capital partners with exceptional founders, deploying capital and building teams of the highest caliber at scale. Legal Livongo Snowflake Space"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "unknown",
+      "notesClean": true,
+      "elapsedMs": 45789,
+      "timeouts": 0
+    },
+    {
+      "name": "Chapter One",
+      "inputRaw": "Chapter One",
+      "category": "ambiguous",
+      "expectedDomain": "chapterone.com",
+      "expectedIndustry": [
+        "Venture Capital"
+      ],
+      "resolvedDomain": null,
+      "identityStatus": "ambiguous",
+      "identityConfidence": "low",
+      "identityScore": 280,
+      "identityOutcome": "ambiguous",
+      "identityReason": "insufficient_margin",
+      "identityStage": 1,
+      "stage2": {
+        "ran": true,
+        "recovered": false,
+        "priorReason": "generic_name_com_lookalike",
+        "newEvidence": null,
+        "diagnosis": {
+          "reason": "generic_name_com_lookalike",
+          "scoreMargin": 110,
+          "ambiguityRisk": 60,
+          "causeHints": [
+            "generic_company_name",
+            "high_ambiguity_risk_short_or_common_name",
+            "wikidata_gaps"
+          ]
+        }
+      },
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "investment_firm",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "fullNameConfirmed": 40,
+        "deepAboutConfirm": 22,
+        "stage2DualSourceFullName": 18
+      },
+      "ambiguityRisk": 50,
+      "candidates": [
+        {
+          "domain": "chapterone.com",
+          "score": 280,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "investment_firm",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "thisischapterone.com",
+          "score": 269,
+          "source": "clearbit",
+          "signals": {
+            "domainContainsKey": 12,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "chapter.one",
+          "score": 182,
+          "source": "brand_guess",
+          "signals": {
+            "tokenAsTldMatch": 18,
+            "primaryTokenDomain": 10,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "homepageHeadMention": 12,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40
+          }
+        },
+        {
+          "domain": "chapter1.ca",
+          "score": 138,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 20,
+            "incompleteEntityName": -40,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "chapter1.pk",
+          "score": 130,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 20,
+            "incompleteEntityName": -40,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -10,
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          }
+        }
+      ],
+      "industry": "Unknown",
+      "industryConfidence": "low",
+      "industrySource": "skipped_identity",
+      "industryEvidence": [],
+      "industryEvidenceTexts": [],
+      "industryRejected": [],
+      "industryOutcome": "skipped_identity",
+      "notesClean": true,
+      "elapsedMs": 30140,
+      "timeouts": 0
+    },
+    {
+      "name": "Scale AI",
+      "inputRaw": "Scale AI",
+      "category": "ambiguous",
+      "expectedDomain": "scale.com",
+      "expectedIndustry": [
+        "Artificial Intelligence",
+        "Enterprise Software"
+      ],
+      "resolvedDomain": "scale.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 277,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "primaryTokenDomain": 38,
+        "aiBrandComPreferred": 35,
+        "tokenCoverage": 40,
+        "candidateNameExact": 28,
+        "jsonLdMatch": 30,
+        "titleMentionsCompany": 18,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "nonprofit",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 60,
+      "candidates": [
+        {
+          "domain": "scale.com",
+          "score": 277,
+          "source": "brand_guess",
+          "signals": {
+            "primaryTokenDomain": 38,
+            "aiBrandComPreferred": 35,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "nonprofit",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "scale.ai",
+          "score": 233,
+          "source": "wikidata_official_expanded",
+          "signals": {
+            "tokenAsTldMatch": 18,
+            "primaryTokenDomain": 38,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "homepageHeadMention": 12,
+            "tldAltOk": 4,
+            "entityType": "nonprofit",
+            "wikidataP856": 45
+          }
+        },
+        {
+          "domain": "scaleai.ca",
+          "score": 135,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "concatAiDomainPenalty": -45,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -10
+          }
+        },
+        {
+          "domain": "scaleai.com",
+          "score": 132,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "concatAiDomainPenalty": -45,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "scaleaid.com",
+          "score": 68,
+          "source": "clearbit",
+          "signals": {
+            "domainContainsKey": 12,
+            "tokenCoverage": 40,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -10
+          }
+        }
+      ],
+      "industry": "Enterprise Software",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\benterprise software\\b/i",
+        "/\\benterprise software\\b/i",
+        "/\\bsoftware (?:platform|company)\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "American data annotation company",
+        "Reliable AI Systems for Critical Decisions | Scale AI",
+        "Scale delivers proven data, evaluations, and outcomes to AI labs, governments, and the Fortune 500.",
+        " Reliable AI Systems for Critical Decisions | Scale AI Scale appoints Francis deSouza as the new CEO Learn more Products Solutions Research Resources Log in Book demo Book demo The"
+      ],
+      "industryRejected": [
+        {
+          "label": "Semiconductors",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bsoftware (?:platform|company|product)\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 14695,
+      "timeouts": 0
+    },
+    {
+      "name": "Mercury",
+      "inputRaw": "Mercury",
+      "category": "ambiguous",
+      "expectedDomain": "mercury.com",
+      "expectedIndustry": [
+        "Fintech",
+        "Banking"
+      ],
+      "resolvedDomain": null,
+      "identityStatus": "ambiguous",
+      "identityConfidence": "low",
+      "identityScore": 195,
+      "identityOutcome": "ambiguous",
+      "identityReason": "short_common_name_ambiguous",
+      "identityStage": 1,
+      "stage2": {
+        "ran": true,
+        "recovered": false,
+        "priorReason": "short_common_name_ambiguous",
+        "newEvidence": null,
+        "diagnosis": {
+          "reason": "short_common_name_ambiguous",
+          "scoreMargin": 137,
+          "ambiguityRisk": 70,
+          "causeHints": [
+            "high_ambiguity_risk_short_or_common_name",
+            "wikidata_gaps"
+          ]
+        }
+      },
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "candidateNameExact": 28,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "fullNameConfirmed": 40,
+        "stage2DualSourceFullName": 18
+      },
+      "ambiguityRisk": 70,
+      "candidates": [
+        {
+          "domain": "mercury.com",
+          "score": 195,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "candidateNameExact": 28,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "mercuryinsurance.com",
+          "score": 180,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "mercuryvmp.com",
+          "score": 150,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "deepAboutConfirm": 22,
+            "stage2DualSourceFullName": 18
+          }
+        },
+        {
+          "domain": "mercurycards.com",
+          "score": 30,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "candidateNameOverlap": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -15,
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          },
+          "stage2Boosts": {
+            "fullNameConfirmed": 40,
+            "stage2DualSourceFullName": 18
+          }
+        }
+      ],
+      "industry": "Unknown",
+      "industryConfidence": "low",
+      "industrySource": "skipped_identity",
+      "industryEvidence": [],
+      "industryEvidenceTexts": [],
+      "industryRejected": [],
+      "industryOutcome": "skipped_identity",
+      "notesClean": true,
+      "elapsedMs": 19713,
+      "timeouts": 0
+    },
+    {
+      "name": "Stripe",
+      "inputRaw": "Stripe",
+      "category": "fintech",
+      "expectedDomain": "stripe.com",
+      "expectedIndustry": [
+        "Fintech"
+      ],
+      "resolvedDomain": "stripe.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 301,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "jsonLdMatch": 30,
+        "titleMentionsCompany": 18,
+        "aboutLanguage": 22,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "company",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 60,
+      "candidates": [
+        {
+          "domain": "stripe.com",
+          "score": 301,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "stripes.co",
+          "score": 142,
+          "source": "clearbit",
+          "signals": {
+            "domainContainsKey": 12,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldAltOk": 4,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        },
+        {
+          "domain": "stripes.com",
+          "score": 138,
+          "source": "clearbit",
+          "signals": {
+            "domainContainsKey": 12,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        },
+        {
+          "domain": "stripesgroup.com",
+          "score": 29,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        },
+        {
+          "domain": "stripersonline.com",
+          "score": 21,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        }
+      ],
+      "industry": "Fintech",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bfinancial technology\\b/i",
+        "/\\bfinancial (?:services|infrastructure) platform\\b/i",
+        "/\\baccept payments\\b/i",
+        "/\\bpayments?\\b/i",
+        "/\\bmoney movement\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Stripe, Inc. is an American multinational financial services and software as a service company dual-headquartered in South San Francisco, California, United States, and Dublin, Ire",
+        "Stripe | Financial Infrastructure to Grow Your Revenue",
+        "Stripe is a financial services platform that helps all types of businesses accept payments, build flexible billing models, and manage money movement.",
+        " Stripe | Financial Infrastructure to Grow Your Revenue Products Solutions Developers Resources Pricing Guide me Sign in Not sure where to start? Tell us about your business to get"
+      ],
+      "industryRejected": [
+        {
+          "label": "Semiconductors",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\be-?commerce\\b/i"
+          ]
+        },
+        {
+          "label": "Biotechnology",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\be-?commerce\\b/i"
+          ]
+        },
+        {
+          "label": "Energy",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\be-?commerce\\b/i"
+          ]
+        },
+        {
+          "label": "Aerospace & Defense",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\be-?commerce\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 7512,
+      "timeouts": 0
+    },
+    {
+      "name": "ASML",
+      "inputRaw": "ASML",
+      "category": "semiconductor",
+      "expectedDomain": "asml.com",
+      "expectedIndustry": [
+        "Semiconductors",
+        "Industrial Technology"
+      ],
+      "resolvedDomain": "asml.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 257,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 85,
+      "candidates": [
+        {
+          "domain": "asml.com",
+          "score": 257,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "asmlawchambers.com",
+          "score": -11,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19
+          }
+        },
+        {
+          "domain": "asmlawfirms.com",
+          "score": -23,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19
+          }
+        },
+        {
+          "domain": "asm-lanaeharsch.com",
+          "score": -43,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "missingDistinctiveTokens": -50,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19
+          }
+        },
+        {
+          "domain": "asm-supervisionmusicale.fr",
+          "score": -51,
+          "source": "clearbit",
+          "signals": {
+            "tokenCoverage": 0,
+            "missingDistinctiveTokens": -50,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -19
+          }
+        }
+      ],
+      "industry": "Semiconductors",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bintegrated circuits?\\b/i",
+        "/\\bsemiconductor\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Dutch photolithography company",
+        "ASML | The world's supplier to the semiconductor industry",
+        "ASML gives the world's leading chipmakers the power to mass produce patterns on silicon, helping to make computer chips smaller, faster and greener.",
+        " ASML | The world's supplier to the semiconductor industry Skip to main content ASML Logo Saved jobs We saved your job Company Back Company overview About ASML Back About ASML over"
+      ],
+      "industryRejected": [
+        {
+          "label": "E-Commerce",
+          "reason": "negative_veto",
+          "evidence": [
+            "/\\bsemiconductor\\b/i"
+          ]
+        }
+      ],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 6996,
+      "timeouts": 0
+    },
+    {
+      "name": "Spotify",
+      "inputRaw": "Spotify",
+      "category": "media",
+      "expectedDomain": "spotify.com",
+      "expectedIndustry": [
+        "Media & Entertainment"
+      ],
+      "resolvedDomain": "spotify.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 246,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "aboutLanguage": 22,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "company",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 45,
+      "candidates": [
+        {
+          "domain": "spotify.com",
+          "score": 246,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "spotify.design",
+          "score": 199,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "aboutLanguage": 22,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldUncommon": -12,
+            "entityType": "company",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "spotifybolivia.com",
+          "score": 90,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "spotifyadblocker.com",
+          "score": 40,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "spotifyauthority.com",
+          "score": 40,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Media & Entertainment",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bstreaming (?:service|platform|company)\\b/i",
+        "/\\bstreaming\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Swedish audio streaming service",
+        "Spotify - Web Player: Music for everyone",
+        "Spotify is a digital music service that gives you access to millions of songs.",
+        " Spotify - Web Player: Music for everyone Trending songs Loser oh yeah? Jaded (feat. Ella Langley) Ahí This & That Love I You Last Man Breathin ZIZI suave. (feat. Tokischa) [bonus "
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 8306,
+      "timeouts": 0
+    },
+    {
+      "name": "Toyota",
+      "inputRaw": "Toyota",
+      "category": "automotive",
+      "expectedDomain": "toyota.com",
+      "expectedIndustry": [
+        "Automotive"
+      ],
+      "resolvedDomain": "toyota.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 244,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "titleOfficial": 12,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 60,
+      "candidates": [
+        {
+          "domain": "toyota.com",
+          "score": 244,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "titleOfficial": 12,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "buyatoyota.com",
+          "score": 164,
+          "source": "clearbit",
+          "signals": {
+            "domainContainsKey": 12,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        },
+        {
+          "domain": "toyota.jp",
+          "score": 108,
+          "source": "clearbit",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "tldUncommon": -12,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        },
+        {
+          "domain": "toyotafinancial.com",
+          "score": 39,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        },
+        {
+          "domain": "toyota-4runner.org",
+          "score": 1,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18,
+            "ambiguityRiskPenalty": -13
+          }
+        }
+      ],
+      "industry": "Automotive",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\bautomotive (?:company|manufacturer)\\b/i",
+        "/\\bautomotive\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "Japanese automotive manufacturer",
+        "Toyota Motor Corporation is a Japanese multinational automotive manufacturer headquartered in Toyota City, Aichi, Japan. It was founded by Kiichiro Toyoda and incorporated on Augus",
+        "New Cars, Trucks, SUVs & Hybrids | Toyota Official Site",
+        "Explore the newest Toyota trucks, cars, SUVs, hybrids and minivans. See photos, compare models, get tips, calculate payments, and more."
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 7014,
+      "timeouts": 0
+    },
+    {
+      "name": "Siemens",
+      "inputRaw": "Siemens",
+      "category": "industrial",
+      "expectedDomain": "siemens.com",
+      "expectedIndustry": [
+        "Industrial Technology",
+        "Energy"
+      ],
+      "resolvedDomain": "siemens.com",
+      "identityStatus": "resolved",
+      "identityConfidence": "high",
+      "identityScore": 257,
+      "identityOutcome": "correct",
+      "identityReason": "selected",
+      "identityStage": 1,
+      "stage2": null,
+      "identitySignals": {
+        "domainExactKey": 40,
+        "tokenCoverage": 40,
+        "distinctiveTokenHits": 35,
+        "candidateNameExact": 28,
+        "titleMentionsCompany": 18,
+        "metaMentionsCompany": 8,
+        "homepageHeadMention": 12,
+        "tldCom": 8,
+        "entityType": "unknown",
+        "sourceGuess": 1,
+        "multiSourceConsensus": 20,
+        "strongConsensus": 25,
+        "exactBrandComBoost": 22
+      },
+      "ambiguityRisk": 45,
+      "candidates": [
+        {
+          "domain": "siemens.com",
+          "score": 257,
+          "source": "brand_guess",
+          "signals": {
+            "domainExactKey": 40,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameExact": 28,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceGuess": 1,
+            "multiSourceConsensus": 20,
+            "strongConsensus": 25,
+            "exactBrandComBoost": 22
+          }
+        },
+        {
+          "domain": "siemens-stiftung.org",
+          "score": 74,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "jsonLdMatch": 30,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "siemensgamesa.com",
+          "score": 60,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "metaMentionsCompany": 8,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "siemens-healthineers.com",
+          "score": 52,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "unknown",
+            "sourceClearbit": 18
+          }
+        },
+        {
+          "domain": "siemens-energy.com",
+          "score": 52,
+          "source": "clearbit",
+          "signals": {
+            "brandSuffixNoise": -105,
+            "tokenCoverage": 40,
+            "distinctiveTokenHits": 35,
+            "candidateNameOverlap": 18,
+            "titleMentionsCompany": 18,
+            "snippetMentionsCompany": 8,
+            "homepageHeadMention": 12,
+            "tldCom": 8,
+            "entityType": "company",
+            "sourceClearbit": 18
+          }
+        }
+      ],
+      "industry": "Industrial Technology",
+      "industryConfidence": "high",
+      "industrySource": "explicit_description",
+      "industryEvidence": [
+        "/\\binnovation in industry, infrastructure\\b/i",
+        "/\\bglobal technology leader driving innovation in industry\\b",
+        "/\\bindustrial automation\\b/i",
+        "/\\bindustry, infrastructure and mobility\\b/i"
+      ],
+      "industryEvidenceTexts": [
+        "German multinational conglomerate",
+        "Siemens home | Siemens",
+        "Siemens: A global technology leader driving innovation in industry, infrastructure and mobility through digital transformation.",
+        " Siemens home | Siemens Skip to main content Home What if AI could do an engineer’s most tedious work? We’ve launched the Eigen Engineering Agent, purpose-built AI for industrial a"
+      ],
+      "industryRejected": [],
+      "industryOutcome": "correct",
+      "notesClean": true,
+      "elapsedMs": 8782,
+      "timeouts": 0
+    }
+  ]
+}
