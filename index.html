@@ -1499,7 +1499,7 @@
         headcount: "11 - 50",
         location: "New York, NY",
         notes: "Private investment firm and gender-diverse venture investor.",
-        founder: "Deborah Jackson (CEO)",
+        founder: "Deborah Jackson (Founder & CEO)",
         gender: "Female"
       },
       "plum alley ventures": {
@@ -1508,7 +1508,7 @@
         headcount: "11 - 50",
         location: "New York, NY",
         notes: "Private investment firm and gender-diverse venture investor.",
-        founder: "Deborah Jackson (CEO)",
+        founder: "Deborah Jackson (Founder & CEO)",
         gender: "Female"
       },
       "amazon": {
@@ -3919,6 +3919,28 @@
       }
     }
 
+    async function resolveWikidataFounderPeople(ids) {
+      const unique = [...new Set((ids || []).filter(Boolean))].slice(0, 12);
+      if (!unique.length) return [];
+      try {
+        const wd = await fetchWikiApiJson(
+          `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${unique.join('|')}&props=labels|claims&languages=en&format=json&origin=*`,
+          { label: 'wd-founder-people' }
+        );
+        const people = [];
+        for (const id of unique) {
+          const ent = wd?.entities?.[id];
+          const label = ent?.labels?.en?.value;
+          if (!label) continue;
+          const genderId = ent?.claims?.P21?.[0]?.mainsnak?.datavalue?.value?.id;
+          people.push({ id, name: label, gender: genderFromWikidataQid(genderId) });
+        }
+        return people;
+      } catch (_) {
+        return [];
+      }
+    }
+
     /**
      * Structured company facts from Wikidata (HQ P159, founders P112, employees P1128).
      * Prefer entity whose official website matches the resolved domain.
@@ -3930,7 +3952,9 @@
         headcount: UNKNOWN,
         location: UNKNOWN,
         contacts: UNKNOWN,
+        gender: UNKNOWN,
         notes: UNKNOWN,
+        founderGenders: [],
         provenance: {}
       };
 
@@ -3943,16 +3967,19 @@
           ];
           const values = urls.map((u) => `<${u}>`).join(' ');
           const sparql = `
-SELECT ?item ?itemLabel ?hqLabel ?founderLabel ?employees ?desc WHERE {
+SELECT DISTINCT ?item ?itemLabel ?hqLabel ?founderLabel ?genderId ?employees ?desc WHERE {
   VALUES ?url { ${values} }
   ?item wdt:P856 ?url .
   OPTIONAL { ?item wdt:P159 ?hq . }
-  OPTIONAL { ?item wdt:P112 ?founder . }
   OPTIONAL { ?item wdt:P1128 ?employees . }
   OPTIONAL { ?item schema:description ?desc . FILTER(LANG(?desc) = "en") }
+  OPTIONAL {
+    ?item wdt:P112 ?founder .
+    OPTIONAL { ?founder wdt:P21 ?genderId . }
+  }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 }
-LIMIT 8`.trim();
+LIMIT 24`.trim();
           const controller = new AbortController();
           const t = setTimeout(() => controller.abort(), 6000);
           const res = await fetch(`https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(sparql)}`, {
@@ -3963,13 +3990,18 @@ LIMIT 8`.trim();
           if (res.ok) {
             const json = await res.json();
             const bindings = json?.results?.bindings || [];
-            const founderNames = [];
+            const founderByName = new Map();
             for (const b of bindings) {
               if (b.hqLabel?.value && isBlankOrUnknown(out.location)) {
                 out.location = normalizeLocationLabel(b.hqLabel.value);
                 out.provenance.location = fieldProvenance(out.location, 'wikidata', 'high');
               }
-              if (b.founderLabel?.value) founderNames.push(b.founderLabel.value);
+              if (b.founderLabel?.value) {
+                const fname = b.founderLabel.value;
+                const g = genderFromWikidataQid(b.genderId?.value);
+                const prev = founderByName.get(fname);
+                if (!prev || (prev === UNKNOWN && g !== UNKNOWN)) founderByName.set(fname, g);
+              }
               if (b.employees?.value != null && isBlankOrUnknown(out.headcount)) {
                 out.headcount = normalizeHeadcountLabel(String(b.employees.value));
                 out.provenance.headcount = fieldProvenance(out.headcount, 'wikidata', 'high');
@@ -3989,10 +4021,17 @@ LIMIT 8`.trim();
                 }
               }
             }
-            if (founderNames.length) {
-              out.contacts = normalizeFoundersLabel([...new Set(founderNames)].join('; '));
+            if (founderByName.size) {
+              const founderNames = [...founderByName.keys()];
+              const founderGenders = [...founderByName.values()];
+              out.contacts = normalizeFoundersLabel(founderNames.join('; '));
               if (!isBlankOrUnknown(out.contacts)) {
                 out.provenance.contacts = fieldProvenance(out.contacts, 'wikidata', 'high');
+                out.founderGenders = founderGenders;
+                out.gender = summarizeFoundingTeamGender(founderGenders);
+                if (!isBlankOrUnknown(out.gender)) {
+                  out.provenance.gender = fieldProvenance(out.gender, 'wikidata', 'high');
+                }
               }
             }
           }
@@ -4043,16 +4082,22 @@ LIMIT 8`.trim();
 
           const hqIds = claimEntityIds(entity, 'P159');
           const founderIds = claimEntityIds(entity, 'P112');
-          const labels = await resolveWikidataLabels([...hqIds, ...founderIds]);
+          const labels = await resolveWikidataLabels(hqIds);
           if (isBlankOrUnknown(out.location) && hqIds[0] && labels[hqIds[0]]) {
             out.location = normalizeLocationLabel(labels[hqIds[0]]);
             out.provenance.location = fieldProvenance(out.location, 'wikidata', 'high');
           }
           if (isBlankOrUnknown(out.contacts) && founderIds.length) {
-            const names = founderIds.map((id) => labels[id]).filter(Boolean);
+            const people = await resolveWikidataFounderPeople(founderIds);
+            const names = people.map((p) => p.name).filter(Boolean);
             out.contacts = normalizeFoundersLabel(names.join('; '));
             if (!isBlankOrUnknown(out.contacts)) {
               out.provenance.contacts = fieldProvenance(out.contacts, 'wikidata', 'high');
+              out.founderGenders = people.map((p) => p.gender);
+              out.gender = summarizeFoundingTeamGender(out.founderGenders);
+              if (!isBlankOrUnknown(out.gender)) {
+                out.provenance.gender = fieldProvenance(out.gender, 'wikidata', 'high');
+              }
             }
           }
           break;
@@ -4672,6 +4717,85 @@ LIMIT 8`.trim();
       return out.join('; ') || UNKNOWN;
     }
 
+    function qidFromWikidataUri(value) {
+      const s = String(value || '').trim();
+      const m = s.match(/Q(\d+)/i);
+      return m ? `Q${m[1]}` : '';
+    }
+
+    function genderFromWikidataQid(idOrUri) {
+      const q = qidFromWikidataUri(idOrUri);
+      if (q === 'Q6581072' || q === 'Q1052281') return 'Female';
+      if (q === 'Q6581097' || q === 'Q2449503') return 'Male';
+      return UNKNOWN;
+    }
+
+    function expandGenderToken(value) {
+      const s = String(value || '').trim();
+      if (!s || /^unknown$/i.test(s)) return [UNKNOWN];
+      const hasF = /\bfemale\b/i.test(s);
+      const hasM = /\bmale\b/i.test(s);
+      if (hasF && hasM) return ['Female', 'Male'];
+      if (hasF) return ['Female'];
+      if (hasM) return ['Male'];
+      return [UNKNOWN];
+    }
+
+    /** Founding-team gender for screening — not current-CEO gender. */
+    function summarizeFoundingTeamGender(genders) {
+      const tokens = [];
+      for (const g of genders || []) tokens.push(...expandGenderToken(g));
+      const hasF = tokens.some((t) => t === 'Female');
+      const hasM = tokens.some((t) => t === 'Male');
+      const hasU = !tokens.length || tokens.some((t) => t === UNKNOWN);
+      if (hasF && hasM) return 'Female / Male';
+      if (hasF) return 'Female';
+      if (hasM && hasU) return UNKNOWN;
+      if (hasM) return 'Male';
+      return UNKNOWN;
+    }
+
+    function isExecTitleNotFounder(raw) {
+      const s = String(raw || '').trim();
+      if (!s) return false;
+      if (/\b(?:founding\s+(?:partner|member)|co-?founders?|founders?)\b/i.test(s)) return false;
+      return /\b(?:CEO|President|Managing Partner|Partner|CIO|CTO|CFO|Chairman|COO)\b/i.test(s);
+    }
+
+    function founderValueOrUnknown(raw) {
+      if (isBlankOrUnknown(raw) || isExecTitleNotFounder(raw)) return UNKNOWN;
+      return String(raw).trim();
+    }
+
+    function unionFounderNames(a, b) {
+      return normalizeFoundersLabel([a, b].filter((v) => !isBlankOrUnknown(v)).join('; '));
+    }
+
+    function extractFounderNamesFromText(text, opts = {}) {
+      const blob = String(text || '');
+      const collected = [];
+      const push = (raw) => {
+        const n = normalizeFoundersLabel(raw);
+        if (!isBlankOrUnknown(n)) collected.push(n);
+      };
+      const foundedBy =
+        /(?:[Ff]ounded by|[Cc]o-founded by)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){0,3}(?:\s+(?:and|&|,)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){0,3}){0,4})/g;
+      let m;
+      while ((m = foundedBy.exec(blob))) push(m[1]);
+      const isFounder =
+        /([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s+(?:is|was)\s+(?:a\s+|the\s+)?(?:co-)?founder\b/gi;
+      while ((m = isFounder.exec(blob))) push(m[1]);
+      if (opts.includeTeamLabels) {
+        const labeled =
+          /([A-Z][a-z]+(?:\s+[A-Z][a-z'-]+){1,3})\s*[,;:\u2013\u2014\-]\s*(?:Co-)?Founder\b/g;
+        while ((m = labeled.exec(blob))) {
+          if (/^(Our|The|Meet|Team|About|Leadership)\b/i.test(m[1])) continue;
+          push(m[1]);
+        }
+      }
+      return normalizeFoundersLabel(collected.join('; '));
+    }
+
     function fieldProvenance(value, source, confidence, extra = {}) {
       return {
         value: isBlankOrUnknown(value) ? UNKNOWN : value,
@@ -5026,14 +5150,11 @@ LIMIT 8`.trim();
         out.provenance.headcount = fieldProvenance(out.headcount, 'search_snippet', 'medium');
       }
 
-      const founder =
-        text.match(/(?:(?:[Ff]ounded by|[Cc]o-founded by)\s+|[Ff]ounders?[:\s]+)([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3}(?:\s+(?:and|&)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})?)/) ||
-        text.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s+(?:is|was)\s+(?:the\s+)?(?:[Cc]o-)?[Ff]ounder\b/);
-      if (founder?.[1]) {
-        const name = normalizeFoundersLabel(founder[1]);
+      const founderNames = extractFounderNamesFromText(text, { includeTeamLabels: false });
+      if (!isBlankOrUnknown(founderNames)) {
         const companyLower = String(companyName || '').toLowerCase();
-        if (!isBlankOrUnknown(name) && !companyLower.includes(name.toLowerCase())) {
-          out.contacts = name;
+        if (!companyLower.includes(founderNames.toLowerCase())) {
+          out.contacts = founderNames;
           out.provenance.contacts = fieldProvenance(out.contacts, 'search_snippet', 'medium');
         }
       }
@@ -5201,30 +5322,8 @@ LIMIT 8`.trim();
       const hc = corpus.match(/\b(\d{1,3}(?:,\d{3})*\+?\s*[-–to]+\s*\d{1,3}(?:,\d{3})*\+?|\d{1,3}(?:,\d{3})*\+)\s*(?:employees|people|team members|professionals)\b/i);
       if (hc) headcount = hc[1].replace(/\s+/g, ' ').trim();
 
-      // Founders / leadership — only explicit attributions on page
-      // Note: name captures are intentionally case-sensitive so /i does not turn
-      // "Founder and CEO" into a fake name like "and CEO".
-      let contacts = UNKNOWN;
-      const founderPatterns = [
-        /(?:(?:[Ff]ounded by|[Cc]o-founded by)\s+|[Ff]ounder[:\s]+|[Cc]o-[Ff]ounder[:\s]+)([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})/,
-        /([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s*,?\s*(?:Founder|Co-Founder)\b/
-      ];
-      const badName = /^(The|Our|This|With|And|Or|For|From|About|Meet|Team|Company|Board)\b|^(and|or)\b/i;
-      for (const re of founderPatterns) {
-        const m = corpus.match(re);
-        if (m?.[1]) {
-          const name = m[1].trim();
-          if (
-            name.split(/\s+/).length >= 2 &&
-            name.length < 60 &&
-            !badName.test(name) &&
-            !/\b(?:CEO|CTO|CFO|Founder)\b/i.test(name)
-          ) {
-            contacts = name;
-            break;
-          }
-        }
-      }
+      // Founders — collect every explicit founder attribution, never current-CEO lines
+      let contacts = extractFounderNamesFromText(corpus, { includeTeamLabels: true });
 
       // Notes — prefer meta description if present and non-generic
       let notes = UNKNOWN;
@@ -5298,7 +5397,7 @@ LIMIT 8`.trim();
     }
 
     async function enrichCompanyDetails(domain, originalName, apiData = null) {
-      const enrichKey = `v4|multi-source|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
+      const enrichKey = `v5|founders-gender|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
       if (enrichCache.has(enrichKey)) {
         console.log('[enrich] CACHE HIT', domain);
         return applyBatchUniquenessGuard(domain, { ...enrichCache.get(enrichKey), fromCache: true });
@@ -5326,15 +5425,17 @@ LIMIT 8`.trim();
             industry: dictFieldOrUnknown(dictEntry.industry),
             headcount: dictFieldOrUnknown(dictEntry.headcount),
             location: sanitizeLocationValue(dictFieldOrUnknown(dictEntry.location)),
-            contacts: dictFieldOrUnknown(dictEntry.founder),
-            gender: dictFieldOrUnknown(dictEntry.gender),
+            contacts: founderValueOrUnknown(dictEntry.founder),
+            gender: isExecTitleNotFounder(dictEntry.founder)
+              ? UNKNOWN
+              : dictFieldOrUnknown(dictEntry.gender),
             notes: dictFieldOrUnknown(dictEntry.notes),
             enrichSource: 'dictionary'
           }
         : { ...blank };
 
       if (dictEntry) {
-        for (const k of ['industry', 'headcount', 'location', 'contacts', 'notes']) {
+        for (const k of ['industry', 'headcount', 'location', 'contacts', 'notes', 'gender']) {
           if (!isBlankOrUnknown(fromDict[k])) provenance[k] = fieldProvenance(fromDict[k], 'dictionary', 'high');
         }
       }
@@ -5353,10 +5454,11 @@ LIMIT 8`.trim();
         fromDict.enrichSource = fromDict.enrichSource === 'none' ? 'major-firm' : `${fromDict.enrichSource}+major-firm`;
       }
 
-      // Fast path: dictionary already has enough real fields — skip scrape + Wikidata
-      const dictFilled = [fromDict.industry, fromDict.headcount, fromDict.location, fromDict.contacts]
+      // Fast path: dictionary has core fields AND real founders (not current CEO).
+      // Missing founders still go through scrape + Wikidata so we don't ship CEO-as-founder.
+      const dictFilled = [fromDict.industry, fromDict.headcount, fromDict.location]
         .filter(v => !isBlankOrUnknown(v)).length;
-      if (dictEntry && dictFilled >= 3) {
+      if (dictEntry && dictFilled >= 3 && !isBlankOrUnknown(fromDict.contacts)) {
         const quick = {
           industry: isBlankOrUnknown(fromDict.industry) ? UNKNOWN : fromDict.industry,
           headcount: isBlankOrUnknown(fromDict.headcount) ? UNKNOWN : fromDict.headcount,
@@ -5463,8 +5565,32 @@ LIMIT 8`.trim();
         fill('industry');
         fill('headcount');
         fill('location');
-        fill('contacts');
         fill('notes');
+        if (!isBlankOrUnknown(wikiFacts.contacts)) {
+          merged.contacts = unionFounderNames(merged.contacts, wikiFacts.contacts);
+          if (wikiFacts.provenance?.contacts) {
+            merged.provenance = { ...merged.provenance, contacts: wikiFacts.provenance.contacts };
+          }
+          const genderPieces = [];
+          if (Array.isArray(wikiFacts.founderGenders) && wikiFacts.founderGenders.length) {
+            genderPieces.push(...wikiFacts.founderGenders);
+          } else if (!isBlankOrUnknown(wikiFacts.gender)) {
+            genderPieces.push(wikiFacts.gender);
+          }
+          if (!isBlankOrUnknown(fromDict.gender) && !isBlankOrUnknown(fromDict.contacts)) {
+            genderPieces.push(fromDict.gender);
+          }
+          const teamGender = summarizeFoundingTeamGender(genderPieces);
+          if (!isBlankOrUnknown(teamGender)) {
+            merged.gender = teamGender;
+            merged.provenance = {
+              ...merged.provenance,
+              gender: wikiFacts.provenance?.gender || fieldProvenance(teamGender, 'wikidata', 'high')
+            };
+          } else if (isBlankOrUnknown(merged.gender) && !isBlankOrUnknown(wikiFacts.gender)) {
+            merged.gender = wikiFacts.gender;
+          }
+        }
         if (wikiFacts.provenance && Object.keys(wikiFacts.provenance).length) {
           merged.enrichSource = String(merged.enrichSource || 'none').includes('wikidata')
             ? merged.enrichSource

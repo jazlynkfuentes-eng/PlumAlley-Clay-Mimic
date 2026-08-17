@@ -60,6 +60,8 @@ function normalizeEnrichValue(v) {
 }
 `);
 
+chunks.push(extractBetween('const PIPELINE_NOTES_RE =', 'const US_STATE_OR_PROVINCE = new Set(['));
+
 // Location validators through preferLocation
 const locBlock = extractBetween('const US_STATE_OR_PROVINCE = new Set([', 'function applyBatchUniquenessGuard');
 chunks.push(locBlock);
@@ -76,10 +78,15 @@ function applyBatchUniquenessGuard(domain, fields) {
   return out;
 }
 async function lookupWikidataEntityType() { return null; }
+async function lookupWikidataCompanyFacts() {
+  return { industry: UNKNOWN, headcount: UNKNOWN, location: UNKNOWN, contacts: UNKNOWN, gender: UNKNOWN, notes: UNKNOWN, founderGenders: [], provenance: {} };
+}
+function lookupMajorKnownFirm() { return null; }
 async function fetchPageHtml() { return null; }
 function extractEnrichmentFromHtml() {
   return { industry: UNKNOWN, headcount: UNKNOWN, location: UNKNOWN, contacts: UNKNOWN, gender: UNKNOWN, notes: UNKNOWN, source: 'none' };
 }
+async function enrichMissingViaSearch(_name, _domain, current) { return current; }
 `);
 
 // lookup + enrich functions
@@ -117,4 +124,15 @@ if (failed) {
   console.error(`\n${failed} case(s) failed`);
   process.exit(1);
 }
+
+const apple = await sandbox.enrichCompanyDetails('apple.com', 'Apple', null);
+const appleFounders = String(apple.contacts || '');
+const appleOk = !/Tim Cook/i.test(appleFounders);
+console.log('\nApple (CEO must not be treated as founder)');
+console.log('  dict entry founder:', sandbox.lookupDictionaryEntry('apple.com', 'Apple')?.founder || '(none)');
+console.log('  Founders:', appleFounders || '(blank)');
+console.log('  Gender:', apple.gender);
+console.log(appleOk ? '  PASS' : '  FAIL');
+if (!appleOk) process.exit(1);
+
 console.log('\nDictionary founders appear correctly for Cara Advisory and Disciplina.');

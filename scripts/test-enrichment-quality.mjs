@@ -11,7 +11,10 @@ import {
   normalizeFounders,
   shouldBlockDuplicateIndustry,
   finalizeEnrichmentFields,
-  extractFieldsFromSearchCorpus
+  extractFieldsFromSearchCorpus,
+  isExecTitleNotFounder,
+  genderFromWikidataQid,
+  summarizeFoundingTeamGender
 } from './lib/enrichment-quality.mjs';
 
 let passed = 0;
@@ -104,6 +107,34 @@ check('strips verifying/scores', () => {
   const cleaned = sanitizeUserFacingNotes('Verifying selected domain... · Search score 81 · Early-stage VC focused on space.');
   assert.ok(!/verifying selected domain/i.test(cleaned));
   assert.match(cleaned, /Early-stage VC/i);
+});
+
+console.log('12. Founder vs current exec + founding-team gender');
+check('rejects CEO-only dictionary values', () => {
+  assert.equal(isExecTitleNotFounder('Tim Cook (CEO)'), true);
+  assert.equal(isExecTitleNotFounder('Martha E. Pollack (President)'), true);
+  assert.equal(isExecTitleNotFounder('David Gilder (Partner)'), true);
+});
+check('keeps explicit founder attributions', () => {
+  assert.equal(isExecTitleNotFounder('Deborah Jackson (Founder & CEO)'), false);
+  assert.equal(isExecTitleNotFounder('Alena Kuprevich (Founding Partner)'), false);
+  assert.equal(isExecTitleNotFounder('Alana Mag'), false);
+  assert.equal(isExecTitleNotFounder('Davida Herzl (Founder & CEO)'), false);
+});
+check('maps Wikidata P21 female/male', () => {
+  assert.equal(genderFromWikidataQid('http://www.wikidata.org/entity/Q6581072'), 'Female');
+  assert.equal(genderFromWikidataQid('Q6581097'), 'Male');
+  assert.equal(genderFromWikidataQid('Q1052281'), 'Female');
+  assert.equal(genderFromWikidataQid(''), UNKNOWN);
+});
+check('at least one woman stays Female even if co-founders are unknown', () => {
+  assert.equal(summarizeFoundingTeamGender(['Female', UNKNOWN]), 'Female');
+  assert.equal(summarizeFoundingTeamGender(['Female', 'Male']), 'Female / Male');
+});
+check('does not mark Male when the founder list may be incomplete', () => {
+  assert.equal(summarizeFoundingTeamGender(['Male', UNKNOWN]), UNKNOWN);
+  assert.equal(summarizeFoundingTeamGender(['Male', 'Male']), 'Male');
+  assert.equal(summarizeFoundingTeamGender([]), UNKNOWN);
 });
 
 console.log(`\n${passed} assertions passed`);

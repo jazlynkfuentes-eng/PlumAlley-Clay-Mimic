@@ -315,6 +315,63 @@ export function normalizeFounders(raw) {
   return out.join('; ') || UNKNOWN;
 }
 
+/** Wikidata P21: female, trans woman */
+export const WD_GENDER_FEMALE = new Set(['Q6581072', 'Q1052281']);
+/** Wikidata P21: male, trans man */
+export const WD_GENDER_MALE = new Set(['Q6581097', 'Q2449503']);
+
+export function qidFromWikidataUri(value) {
+  const s = String(value || '').trim();
+  const m = s.match(/Q(\d+)/i);
+  return m ? `Q${m[1]}` : '';
+}
+
+export function genderFromWikidataQid(idOrUri) {
+  const q = qidFromWikidataUri(idOrUri);
+  if (WD_GENDER_FEMALE.has(q)) return 'Female';
+  if (WD_GENDER_MALE.has(q)) return 'Male';
+  return UNKNOWN;
+}
+
+function expandGenderToken(value) {
+  const s = String(value || '').trim();
+  if (!s || /^unknown$/i.test(s)) return [UNKNOWN];
+  const hasF = /\bfemale\b/i.test(s);
+  const hasM = /\bmale\b/i.test(s);
+  if (hasF && hasM) return ['Female', 'Male'];
+  if (hasF) return ['Female'];
+  if (hasM) return ['Male'];
+  return [UNKNOWN];
+}
+
+/**
+ * Founding-team gender for screening (at least one woman), not current-CEO gender.
+ * Male only when every listed founder is known male — incomplete lists stay Unknown.
+ */
+export function summarizeFoundingTeamGender(genders) {
+  const tokens = [];
+  for (const g of genders || []) tokens.push(...expandGenderToken(g));
+  const hasF = tokens.some((t) => t === 'Female');
+  const hasM = tokens.some((t) => t === 'Male');
+  const hasU = !tokens.length || tokens.some((t) => t === UNKNOWN);
+  if (hasF && hasM) return 'Female / Male';
+  if (hasF) return 'Female';
+  if (hasM && hasU) return UNKNOWN;
+  if (hasM) return 'Male';
+  return UNKNOWN;
+}
+
+/**
+ * Dictionary "Name (CEO)" is current leadership, not a founder attribution.
+ * Keep values that explicitly say founder / co-founder / founding partner.
+ */
+export function isExecTitleNotFounder(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return false;
+  if (/\b(?:founding\s+(?:partner|member)|co-?founders?|founders?)\b/i.test(s)) return false;
+  return /\b(?:CEO|President|Managing Partner|Partner|CIO|CTO|CFO|Chairman|COO)\b/i.test(s);
+}
+
 /**
  * Finalize enrich fields for a batch row.
  * Repeated industry/location/headcount across companies is ALLOWED.
