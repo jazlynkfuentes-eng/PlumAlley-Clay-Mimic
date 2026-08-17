@@ -18,6 +18,8 @@
     "eval:identity-ambiguity": "node scripts/run-identity-industry-eval.mjs ambiguity",
     "eval:identity-vc": "node scripts/run-identity-industry-eval.mjs vc",
     "test:field-enrichment": "node scripts/test-field-enrichment.mjs",
+    "test:dict-founders": "node scripts/test-dict-first-founders.mjs",
+    "eval:founders-gender": "node scripts/eval-founder-gender.mjs",
     "test:pdl": "node scripts/test-pdl-fallback.mjs",
     "eval:fields": "node scripts/run-field-enrichment-eval.mjs",
     "eval:pdl": "node scripts/run-pdl-fallback-eval.mjs",

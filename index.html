@@ -4771,6 +4771,32 @@ LIMIT 24`.trim();
       return normalizeFoundersLabel([a, b].filter((v) => !isBlankOrUnknown(v)).join('; '));
     }
 
+    function applyWikidataFoundersAndGender(target, wikiFacts, dictFields = {}) {
+      if (!wikiFacts || isBlankOrUnknown(wikiFacts.contacts)) return false;
+      target.contacts = unionFounderNames(target.contacts, wikiFacts.contacts);
+      target.provenance = { ...(target.provenance || {}) };
+      if (wikiFacts.provenance?.contacts) target.provenance.contacts = wikiFacts.provenance.contacts;
+      const genderPieces = [];
+      if (Array.isArray(wikiFacts.founderGenders) && wikiFacts.founderGenders.length) {
+        genderPieces.push(...wikiFacts.founderGenders);
+      } else if (!isBlankOrUnknown(wikiFacts.gender)) {
+        genderPieces.push(wikiFacts.gender);
+      }
+      if (!isBlankOrUnknown(dictFields.gender) && !isBlankOrUnknown(dictFields.contacts)) {
+        genderPieces.push(dictFields.gender);
+      } else if (!isBlankOrUnknown(target.gender)) {
+        genderPieces.push(target.gender);
+      }
+      const teamGender = summarizeFoundingTeamGender(genderPieces);
+      if (!isBlankOrUnknown(teamGender)) {
+        target.gender = teamGender;
+        target.provenance.gender = wikiFacts.provenance?.gender || fieldProvenance(teamGender, 'wikidata', 'high');
+      } else if (isBlankOrUnknown(target.gender) && !isBlankOrUnknown(wikiFacts.gender)) {
+        target.gender = wikiFacts.gender;
+      }
+      return true;
+    }
+
     function extractFounderNamesFromText(text, opts = {}) {
       const blob = String(text || '');
       const collected = [];
@@ -5397,7 +5423,7 @@ LIMIT 24`.trim();
     }
 
     async function enrichCompanyDetails(domain, originalName, apiData = null) {
-      const enrichKey = `v5|founders-gender|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
+      const enrichKey = `v6|founders-gender|${String(domain || '').toLowerCase()}|${String(originalName || '').trim().toLowerCase()}`;
       if (enrichCache.has(enrichKey)) {
         console.log('[enrich] CACHE HIT', domain);
         return applyBatchUniquenessGuard(domain, { ...enrichCache.get(enrichKey), fromCache: true });
@@ -5470,6 +5496,17 @@ LIMIT 24`.trim();
           provenance,
           unknownReason: {}
         };
+        // Still ask Wikidata for missing co-founders so a partial dict list cannot hide a woman founder.
+        try {
+          if (typeof lookupWikidataCompanyFacts === 'function') {
+            const wikiFacts = await lookupWikidataCompanyFacts(originalName, host);
+            if (applyWikidataFoundersAndGender(quick, wikiFacts, fromDict)) {
+              quick.enrichSource = 'dictionary+wikidata-facts';
+            }
+          }
+        } catch (e) {
+          console.warn('[enrich] dictionary wikidata founder fill failed', e);
+        }
         const guardedQuick = applyBatchUniquenessGuard(host, quick);
         enrichCache.set(enrichKey, guardedQuick);
         console.log('[enrich] FAST dictionary', originalName, '->', guardedQuick.enrichSource);
@@ -5566,30 +5603,8 @@ LIMIT 24`.trim();
         fill('headcount');
         fill('location');
         fill('notes');
-        if (!isBlankOrUnknown(wikiFacts.contacts)) {
-          merged.contacts = unionFounderNames(merged.contacts, wikiFacts.contacts);
-          if (wikiFacts.provenance?.contacts) {
-            merged.provenance = { ...merged.provenance, contacts: wikiFacts.provenance.contacts };
-          }
-          const genderPieces = [];
-          if (Array.isArray(wikiFacts.founderGenders) && wikiFacts.founderGenders.length) {
-            genderPieces.push(...wikiFacts.founderGenders);
-          } else if (!isBlankOrUnknown(wikiFacts.gender)) {
-            genderPieces.push(wikiFacts.gender);
-          }
-          if (!isBlankOrUnknown(fromDict.gender) && !isBlankOrUnknown(fromDict.contacts)) {
-            genderPieces.push(fromDict.gender);
-          }
-          const teamGender = summarizeFoundingTeamGender(genderPieces);
-          if (!isBlankOrUnknown(teamGender)) {
-            merged.gender = teamGender;
-            merged.provenance = {
-              ...merged.provenance,
-              gender: wikiFacts.provenance?.gender || fieldProvenance(teamGender, 'wikidata', 'high')
-            };
-          } else if (isBlankOrUnknown(merged.gender) && !isBlankOrUnknown(wikiFacts.gender)) {
-            merged.gender = wikiFacts.gender;
-          }
+        if (applyWikidataFoundersAndGender(merged, wikiFacts, fromDict)) {
+          /* founders + gender merged */
         }
         if (wikiFacts.provenance && Object.keys(wikiFacts.provenance).length) {
           merged.enrichSource = String(merged.enrichSource || 'none').includes('wikidata')
