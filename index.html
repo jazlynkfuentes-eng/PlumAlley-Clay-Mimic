@@ -90,8 +90,9 @@
     .app-container {
       display: flex;
       flex-direction: column;
-      height: 100vh;
-      max-width: 1600px;
+      min-height: 100vh;
+      height: auto;
+      max-width: none;
       margin: 0 auto;
       padding: 1.5rem;
       gap: 1rem;
@@ -354,7 +355,7 @@
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      overflow: visible;
       position: relative;
     }
 
@@ -362,10 +363,10 @@
     .table-wrapper {
       display: block;
       width: 100%;
-      max-height: 70vh;
       overflow: auto;
-      flex: 1 1 auto;
-      min-height: 0;
+      flex: 0 0 auto;
+      min-height: 220px;
+      height: 70vh;
     }
     .table-scroll-container {
       overflow: visible;
@@ -426,16 +427,20 @@
 
     .table-workspace.table-expanded {
       position: fixed;
-      inset: 0.55rem;
+      inset: 0;
       z-index: 90;
+      width: 100vw;
+      height: 100vh;
       max-height: none;
-      height: auto;
-      border-radius: 10px;
-      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.2);
+      border-radius: 0;
+      box-shadow: none;
+      overflow: hidden;
     }
     .table-workspace.table-expanded .table-wrapper {
-      max-height: none;
       flex: 1 1 auto;
+      height: auto !important;
+      max-height: none !important;
+      min-height: 0;
     }
     .table-expand-backdrop {
       position: fixed;
@@ -443,8 +448,34 @@
       background: rgba(15, 23, 42, 0.35);
       z-index: 85;
     }
+    .table-height-resizer {
+      flex-shrink: 0;
+      height: 12px;
+      cursor: ns-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--table-header-bg);
+      border-top: 1px solid var(--border-color);
+      user-select: none;
+    }
+    .table-height-resizer::before {
+      content: '';
+      width: 44px;
+      height: 4px;
+      border-radius: 999px;
+      background: #C5D4E3;
+    }
+    .table-height-resizer:hover::before,
+    .table-height-resizer:active::before {
+      background: var(--accent-color);
+    }
+    .table-workspace.table-expanded .table-height-resizer {
+      display: none;
+    }
     body.table-expanded-lock { overflow: hidden; }
     body.is-col-resizing, body.is-col-resizing * { cursor: col-resize !important; user-select: none !important; }
+    body.is-row-resizing, body.is-row-resizing * { cursor: ns-resize !important; user-select: none !important; }
 
     /* Column Widths — tight defaults so more columns fit without horizontal scroll.
        Keys match header `col-${key}` classes (e.g. companyName, not "name"). */
@@ -6259,6 +6290,14 @@ LIMIT 8`.trim();
         return 'comfortable';
       });
       const [tableExpanded, setTableExpanded] = useState(false);
+      const tableWrapperRef = useRef(null);
+      const [tableHeight, setTableHeight] = useState(() => {
+        try {
+          const n = Number(localStorage.getItem('tableHeight_v1'));
+          if (Number.isFinite(n) && n >= 220) return n;
+        } catch (_) {}
+        return null;
+      });
       // Load persisted widths on mount
       useEffect(() => {
         const saved = localStorage.getItem('colWidths_v3');
@@ -6283,6 +6322,10 @@ LIMIT 8`.trim();
       useEffect(() => {
         localStorage.setItem('tableDensity_v1', tableDensity);
       }, [tableDensity]);
+      useEffect(() => {
+        if (tableHeight == null) localStorage.removeItem('tableHeight_v1');
+        else localStorage.setItem('tableHeight_v1', String(Math.round(tableHeight)));
+      }, [tableHeight]);
       useEffect(() => {
         document.body.classList.toggle('table-expanded-lock', tableExpanded);
         return () => document.body.classList.remove('table-expanded-lock');
@@ -6319,6 +6362,29 @@ LIMIT 8`.trim();
         setColWidths({ ...DEFAULT_COL_WIDTHS });
         localStorage.removeItem('colWidths_v2');
         localStorage.removeItem('colWidths');
+      };
+      const startHeightResize = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const el = tableWrapperRef.current;
+        const startY = e.clientY;
+        const startH = el ? el.getBoundingClientRect().height : (tableHeight || Math.round(window.innerHeight * 0.7));
+        document.body.classList.add('is-row-resizing');
+        const onMouseMove = (ev) => {
+          const next = Math.max(220, Math.min(window.innerHeight - 48, startH + (ev.clientY - startY)));
+          setTableHeight(next);
+        };
+        const onMouseUp = () => {
+          document.body.classList.remove('is-row-resizing');
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      };
+      const resetTableHeight = () => {
+        setTableHeight(null);
+        localStorage.removeItem('tableHeight_v1');
       };
       const fitColumnsToContent = () => {
         const canvas = document.createElement('canvas');
@@ -8030,10 +8096,10 @@ LIMIT 8`.trim();
                 ))}
               </div>
               <button
-                className="btn"
+                className="btn btn-primary"
                 disabled={rows.length === 0}
                 onClick={() => setTableExpanded((v) => !v)}
-                title={tableExpanded ? 'Exit full-screen table (Esc)' : 'Expand table to fill the viewport'}
+                title={tableExpanded ? 'Exit full-screen table (Esc)' : 'Make the table fill the window'}
               >
                 <span style={{ fontSize: '0.75rem' }}>{tableExpanded ? 'Exit expand' : 'Expand table'}</span>
               </button>
@@ -8208,14 +8274,18 @@ LIMIT 8`.trim();
                   <span style={{ fontSize: '0.75rem' }}>Reset Cols</span>
                 </button>
                 <button
-                  className="btn"
+                  className="btn btn-primary"
                   onClick={() => setTableExpanded((v) => !v)}
-                  title={tableExpanded ? 'Exit full-screen table (Esc)' : 'Expand table to fill the viewport'}
+                  title={tableExpanded ? 'Exit full-screen table (Esc)' : 'Make the table fill the window'}
                 >
                   <span style={{ fontSize: '0.75rem' }}>{tableExpanded ? 'Exit expand' : 'Expand table'}</span>
                 </button>
               </div>
-              <div className={`table-wrapper table-density-${tableDensity}`}>
+              <div
+                ref={tableWrapperRef}
+                className={`table-wrapper table-density-${tableDensity}`}
+                style={tableExpanded || tableHeight == null ? undefined : { height: `${tableHeight}px` }}
+              >
                 <div className="table-scroll-container">
                   <table className="spreadsheet-table" style={{ width: tableMinWidth, minWidth: tableMinWidth }}>
                     <colgroup>
@@ -8603,13 +8673,19 @@ LIMIT 8`.trim();
                   </table>
                 </div>
               </div>
+              <div
+                className="table-height-resizer"
+                title="Drag to make the table taller or shorter. Double-click to reset height."
+                onMouseDown={startHeightResize}
+                onDoubleClick={resetTableHeight}
+              />
               <div className="table-bottom-actions">
                 <button className="btn-add-row" onClick={handleAddBlankRow}>
                   <PlusIcon size={12} />
                   <span>Add Empty Row</span>
                 </button>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  Double-click cells or headers to edit. Drag a header’s right edge to resize. Renaming header keys (e.g. to "Company") will auto-remap AI search keys dynamically.
+                  Double-click cells or headers to edit. Drag a header’s right edge to resize columns. Drag the bar under the table to make it taller. Expand table fills the window.
                 </span>
               </div>
               </>
