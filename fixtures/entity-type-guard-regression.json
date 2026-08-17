@@ -1,0 +1,204 @@
+{
+  "version": 2,
+  "name": "entity-type-guard-regression",
+  "description": "Export-derived Wikipedia/Wikidata collisions plus spec-class coverage. Every case runs through classifyEntityTypeFromP31 — not company-name allow/block lists. Live P31 is recorded honestly; specClassCoverage cases use the reject-class QID named in the guard spec when Wikidata uses a sibling/empty P31.",
+  "sourceExport": [
+    "data/company_enrichment_2026-08-10_after.csv",
+    "scripts/exact-63-paste.txt"
+  ],
+  "personP31InExports": {
+    "foundNamedCompanyThatIsAPerson": false,
+    "note": "No row in the 2026-08-10 CSV or the 63-row paste is itself a person-named company. Wikipedia human pages that name-matched those rows: Agatha Christie (Avala Global, live UI picker), DMX (dakota Marketplace), Michele Alboreto (Albourne opensearch). Person-class coverage uses Agatha Christie (Q5).",
+    "wikipediaHumanHits": [
+      { "companyName": "Avala Global", "wrongEntity": "Agatha Christie", "qid": "Q35064" },
+      { "companyName": "dakota Marketplace", "wrongEntity": "DMX", "qid": "Q223769" },
+      { "companyName": "Albourne", "wrongEntity": "Michele Alboreto", "qid": "Q172983", "note": "opensearch person; the Found match was the village, not this person" }
+    ]
+  },
+  "cases": [
+    {
+      "companyName": "Human Capital",
+      "rejectClass": "concept",
+      "wrongResolvedTo": "human.capital",
+      "wrongEntity": "Human capital (economics concept)",
+      "wrongEntityQid": "Q165687",
+      "evidence": "Notes used the Wikipedia abstract: 'Human capital is the personal skills and knowledge of value to an organization or society.'",
+      "instanceOf": ["Q29028649", "Q427581"],
+      "expectedDecision": "reject",
+      "expectedReason": "p31_non_organization"
+    },
+    {
+      "companyName": "Chapter One",
+      "rejectClass": "disambiguation",
+      "wrongResolvedTo": "chapterone.com",
+      "wrongEntity": "Chapter One (Wikimedia disambiguation page)",
+      "wrongEntityQid": "Q5073495",
+      "evidence": "Notes used the Wikipedia disambiguation blurb: 'Chapter One usually refers to a first chapter in a book.'",
+      "instanceOf": ["Q4167410"],
+      "expectedDecision": "reject",
+      "expectedReason": "p31_non_organization"
+    },
+    {
+      "companyName": "M13",
+      "rejectClass": "disambiguation",
+      "wrongResolvedTo": "m13.co",
+      "wrongEntity": "M13 (Wikimedia disambiguation page)",
+      "wrongEntityQid": "Q257310",
+      "evidence": "Notes led with the Wikipedia disambiguation line: 'M13, M-13 or M13 may refer to: Topics referred to by the same term'",
+      "instanceOf": ["Q4167410"],
+      "expectedDecision": "reject",
+      "expectedReason": "p31_non_organization"
+    },
+    {
+      "companyName": "Avala Global",
+      "rejectClass": "human",
+      "wrongResolvedTo": "agathachristie.com",
+      "wrongEntity": "Agatha Christie (English mystery and detective writer)",
+      "wrongEntityQid": "Q35064",
+      "evidence": "Live UI picker led with Agatha Christie. Wikidata P31 is human (Q5), not a creative-work class — the writer page is a person entity.",
+      "instanceOf": ["Q5"],
+      "expectedDecision": "reject",
+      "expectedReason": "p31_non_organization",
+      "contactTitle": "Founder and Chief Investment Officer"
+    },
+    {
+      "companyName": "Albourne",
+      "rejectClass": "settlement_geo",
+      "wrongResolvedTo": "visionwebsites.co.uk",
+      "wrongEntity": "Albourne (village in West Sussex)",
+      "wrongEntityQid": "Q2711302",
+      "evidence": "Notes: 'Albourne is a village and civil parish in the Mid Sussex district of We…'. Contact title is CEO — not a person-page match; the accepted Wikipedia entity is geo.",
+      "instanceOf": ["Q532", "Q1115575"],
+      "expectedDecision": "reject",
+      "expectedReason": "p31_non_organization",
+      "contactTitle": "CEO"
+    },
+    {
+      "companyName": "TIDE",
+      "rejectClass": "physical_phenomenon",
+      "wrongResolvedTo": "tide.com",
+      "wrongEntity": "tide (rise and fall of sea levels)",
+      "wrongEntityQid": "Q23384",
+      "evidence": "Wikidata item Q23384 currently has empty P31. The live entity is therefore allow_unknown (thin/untyped), not a type-reject. Spec-class coverage is the following case.",
+      "instanceOf": [],
+      "expectedDecision": "allow_unknown",
+      "expectedReason": "no_p31",
+      "contactTitle": "CEO & Founder",
+      "liveP31Note": "empty P31 on the phenomenon item as of 2026-08-17"
+    },
+    {
+      "companyName": "TIDE",
+      "rejectClass": "physical_phenomenon",
+      "specClassCoverage": true,
+      "wrongResolvedTo": "tide.com",
+      "wrongEntity": "tide (physical phenomenon class named in the spec)",
+      "wrongEntityQid": "Q23384",
+      "evidence": "If the phenomenon page were typed as physical phenomenon (Q1293220), the classifier rejects it.",
+      "instanceOf": ["Q1293220"],
+      "expectedDecision": "reject",
+      "expectedReason": "p31_non_organization",
+      "contactTitle": "CEO & Founder"
+    },
+    {
+      "companyName": "TIDE",
+      "rejectClass": "creative_work",
+      "specClassCoverage": true,
+      "wrongResolvedTo": "tide.com",
+      "wrongEntity": "The Tide Is High (song) — Wikipedia opensearch result for TIDE",
+      "wrongEntityQid": "Q129711",
+      "evidence": "Live P31 is Q105543609 (unlisted musical-work metaclass → allow_unknown). Spec song class Q7366 is what the guard names for creative work.",
+      "instanceOf": ["Q7366"],
+      "expectedDecision": "reject",
+      "expectedReason": "p31_non_organization",
+      "contactTitle": "CEO & Founder"
+    },
+    {
+      "companyName": "California Public Employees' Retirement System (CalPERS)",
+      "rejectClass": "historical_legal_event",
+      "wrongResolvedTo": "cpers.com.br",
+      "wrongEntity": "California Public Employees' Retirement System v. ANZ Securities, Inc. (2017 US Supreme Court case)",
+      "wrongEntityQid": "Q135517697",
+      "evidence": "Wikipedia opensearch second hit for the company name. P31 legal case Q2334719.",
+      "instanceOf": ["Q2334719"],
+      "expectedDecision": "reject",
+      "expectedReason": "p31_non_organization",
+      "contactTitle": "Associate Investment Manager"
+    },
+    {
+      "companyName": "Power100",
+      "rejectClass": "media",
+      "wrongResolvedTo": "power100.com.au",
+      "wrongEntity": "Power100 / Zinc 100.7 (Australian radio station)",
+      "wrongEntityQid": "Q8072271",
+      "evidence": "Contact title is CEO — no media/news/broadcast/publisher/publishing/press/editorial keyword, so the carve-out does not apply. Live Wikidata P31 is Q14350 (radio station), which is NOT in the frozen REJECT_MEDIA set (that set uses Q1616075, actually labeled television station). Live P31 is therefore allow_unknown. Spec coverage uses mass-media Q11033.",
+      "instanceOf": ["Q14350"],
+      "expectedDecision": "allow_unknown",
+      "expectedReason": "p31_unlisted",
+      "contactTitle": "CEO",
+      "liveP31Note": "Q14350 radio station is unlisted relative to the frozen media QID set"
+    },
+    {
+      "companyName": "Power100",
+      "rejectClass": "media",
+      "specClassCoverage": true,
+      "wrongResolvedTo": "power100.com.au",
+      "wrongEntity": "Australian radio/mass-media entity (spec media class)",
+      "wrongEntityQid": "Q8072271",
+      "evidence": "Jacob Walthour – CEO. Title has no media keyword → reject media class.",
+      "instanceOf": ["Q11033"],
+      "expectedDecision": "reject",
+      "expectedReason": "p31_media",
+      "contactTitle": "CEO",
+      "mediaContext": false
+    },
+    {
+      "companyName": "Power100",
+      "rejectClass": "media",
+      "specClassCoverage": true,
+      "wrongResolvedTo": "power100.com.au",
+      "wrongEntity": "Australian radio/mass-media entity (spec media class with carve-out)",
+      "wrongEntityQid": "Q8072271",
+      "evidence": "If Contact/Source title contained a media keyword, the same P31 would accept.",
+      "instanceOf": ["Q11033"],
+      "expectedDecision": "accept",
+      "expectedReason": "p31_media_with_context",
+      "contactTitle": "Head of Broadcast",
+      "mediaContext": true
+    },
+    {
+      "companyName": "Albourne Partners",
+      "rejectClass": null,
+      "wrongResolvedTo": null,
+      "wrongEntity": "Albourne Partners (British investment advisory firm)",
+      "wrongEntityQid": "Q124415380",
+      "evidence": "Thin Wikidata org entry with empty P31 — must remain allow_unknown so small companies are not dropped.",
+      "instanceOf": [],
+      "expectedDecision": "allow_unknown",
+      "expectedReason": "no_p31"
+    },
+    {
+      "companyName": "Example GmbH thin listing",
+      "rejectClass": null,
+      "wrongEntity": "unlisted legal-form QID",
+      "instanceOf": ["Q999999999"],
+      "expectedDecision": "allow_unknown",
+      "expectedReason": "p31_unlisted"
+    },
+    {
+      "companyName": "Example LLC",
+      "rejectClass": null,
+      "wrongEntity": "US LLC legal form",
+      "instanceOf": ["Q15042660"],
+      "expectedDecision": "accept",
+      "expectedReason": "p31_organization"
+    }
+  ],
+  "sameNameOrgCollision": {
+    "description": "Two real companies sharing a name, both org-class P31. The guard must keep both; normalizeCandidates dedupes by domain only.",
+    "queryName": "Delta",
+    "candidates": [
+      { "domain": "delta.com", "name": "Delta Air Lines", "instanceOf": ["Q4830453"] },
+      { "domain": "deltadental.com", "name": "Delta Dental", "instanceOf": ["Q4830453"] }
+    ]
+  }
+}

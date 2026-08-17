@@ -1027,6 +1027,12 @@
       border: 1px solid var(--error-border);
     }
 
+    .status-badge.type-incomplete {
+      background-color: #FEF3C7;
+      color: #92400E;
+      border: 1px solid #F6C177;
+    }
+
     .status-badge.pending {
       background-color: var(--pending-bg);
       color: var(--pending-text);
@@ -2048,8 +2054,12 @@
       if (next) next();
     }
 
+    // Bump when "found" acceptance criteria change (entity-type guard).
+    const RESOLVE_ENTITY_TYPE_VERSION = 'entity-type-v2';
+
     function makeResolveCacheKey(companyName, financeFilterActive, skippedDomains, personContext) {
       return JSON.stringify({
+        v: RESOLVE_ENTITY_TYPE_VERSION,
         c: String(companyName || '').trim().toLowerCase(),
         f: !!financeFilterActive,
         s: (skippedDomains || []).slice().sort().join(','),
@@ -2061,6 +2071,19 @@
 
     function makeVerifyCacheKey(domain, companyName) {
       return `${String(domain || '').toLowerCase()}|${String(companyName || '').trim().toLowerCase()}`;
+    }
+
+    function clearResolveCacheForCompany(companyName) {
+      const needle = String(companyName || '').trim().toLowerCase();
+      if (!needle) return;
+      for (const key of [...resolveCache.keys()]) {
+        try {
+          const parsed = JSON.parse(key);
+          if (String(parsed.c || '').toLowerCase() === needle) resolveCache.delete(key);
+        } catch (_) {
+          if (String(key).toLowerCase().includes(needle)) resolveCache.delete(key);
+        }
+      }
     }
 
     // Title keywords used to split "Name – Title" person segments
@@ -2194,6 +2217,9 @@
     function shouldAutoFoundResolve(resolved) {
       if (!resolved || !resolved.domain) return false;
       if (resolved.ambiguous) return false;
+      if (resolved.downgradeUnverified || resolved.contentOverlapZero) return false;
+      if (resolved.entityTypeRejected) return false;
+      if (resolved.entityTypeIncomplete && !isTrustedCatalogueMethod(resolved.resolveMethod)) return false;
       const score = Number(resolved.confidenceScore) || 0;
       const method = String(resolved.resolveMethod || '');
       // Dictionary / major-firm / learned are curated — auto-Found even on fuzzy@90
@@ -2588,24 +2614,45 @@
       return null;
     }
 
-    async function fetchWikiApiJson(url, { label = 'wiki' } = {}) {
-      try {
-        let res = await fetch(url);
-        if (res.status === 429) {
-          const waitMs = 900 + Math.floor(Math.random() * 500);
-          console.warn(`[wiki] 429 on ${label}, backing off ${waitMs}ms then retry once`);
-          await new Promise(r => setTimeout(r, waitMs));
-          res = await fetch(url);
+    async function fetchWikiApiResult(url, { label = 'wiki', attempts = 3 } = {}) {
+      let last = { json: null, error: 'transient', status: 0 };
+      for (let i = 0; i < attempts; i++) {
+        try {
+          const res = await fetch(url);
+          if (res.status === 429) {
+            last = { json: null, error: 'rate_limited', status: 429 };
+            const waitMs = Math.round(350 * (3 ** i) + Math.random() * 250);
+            console.warn(`[wiki] 429 on ${label}, retry ${i + 1}/${attempts} in ${waitMs}ms`);
+            if (i < attempts - 1) await new Promise((r) => setTimeout(r, waitMs));
+            continue;
+          }
+          if (res.status >= 500) {
+            last = { json: null, error: 'transient', status: res.status };
+            const waitMs = Math.round(350 * (3 ** i) + Math.random() * 250);
+            console.warn(`[wiki] HTTP ${res.status} on ${label}, retry ${i + 1}/${attempts} in ${waitMs}ms`);
+            if (i < attempts - 1) await new Promise((r) => setTimeout(r, waitMs));
+            continue;
+          }
+          if (!res.ok) {
+            console.warn(`[wiki] ${label} HTTP ${res.status} — continuing without this result`);
+            return { json: null, error: 'http', status: res.status };
+          }
+          return { json: await res.json(), error: null, status: res.status };
+        } catch (e) {
+          last = { json: null, error: 'transient', status: 0, message: e?.message || String(e) };
+          console.warn(`[wiki] ${label} failed:`, last.message);
+          if (i < attempts - 1) {
+            const waitMs = Math.round(350 * (3 ** i) + Math.random() * 250);
+            await new Promise((r) => setTimeout(r, waitMs));
+          }
         }
-        if (!res.ok) {
-          console.warn(`[wiki] ${label} HTTP ${res.status} — continuing without this result`);
-          return null;
-        }
-        return await res.json();
-      } catch (e) {
-        console.warn(`[wiki] ${label} failed:`, e.message || e);
-        return null;
       }
+      return last;
+    }
+
+    async function fetchWikiApiJson(url, opts = {}) {
+      const result = await fetchWikiApiResult(url, opts);
+      return result.json;
     }
 
     function extractUrlDomain(str) {
@@ -2687,6 +2734,43 @@
         } catch (_) { /* try next proxy */ }
       }
       return null; // scrape failed — unknown, not a hard no
+    }
+
+    async function fetchDomainIdentityOverlap(domain, companyName, extraContext = []) {
+      const cleanDom = String(domain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].trim();
+      if (!cleanDom || !companyName) {
+        return { zero: false, checked: false, overlap: 0, tokens: [], hits: [], reason: 'missing_input' };
+      }
+      const targetUrl = `https://${cleanDom}`;
+      const proxies = [
+        (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+        (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`
+      ];
+      for (const build of proxies) {
+        try {
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), 2200);
+          const res = await fetch(build(targetUrl), { signal: controller.signal });
+          clearTimeout(t);
+          if (!res.ok) continue;
+          let html = await res.text();
+          if (html.trim().startsWith('{') && html.includes('"contents"')) {
+            try { html = JSON.parse(html).contents || ''; } catch (_) {}
+          }
+          if (!html || html.length < 40) continue;
+          const fields = parsePageIdentityFields(html);
+          const overlap = namePageTokenOverlap(companyName, fields, extraContext);
+          return {
+            ...overlap,
+            domain: cleanDom,
+            title: fields.title,
+            meta: fields.meta,
+            h1: fields.h1,
+            reason: overlap.zero ? 'zero_token_overlap' : (overlap.checked ? 'token_overlap' : 'empty_page_identity')
+          };
+        } catch (_) { /* try next proxy */ }
+      }
+      return { zero: false, checked: false, overlap: 0, tokens: distinctiveNameTokens(companyName, extraContext), hits: [], domain: cleanDom, reason: 'scrape_failed' };
     }
 
     function scoreNameDomainSimilarity(companyName, candidate) {
@@ -2818,7 +2902,7 @@
       return normalizeCandidates(out);
     }
 
-    async function gatherDuckDuckGoCandidates(companyName, cleaned) {
+    async function gatherDuckDuckGoCandidates(companyName, cleaned, options = {}) {
       const out = [];
       const wikiTitlesFromDdg = [];
       const isGov = /\b(office of|university|foundation|comptroller|ministry|department of|city of|county of|state of|government|authority|law|llp|llc|commission|securities and exchange)\b/i.test(String(companyName || ''));
@@ -2888,13 +2972,27 @@
       // Resolve Wikipedia titles discovered via DDG Instant Answer (e.g. IBM redirect page)
       for (const title of [...new Set(wikiTitlesFromDdg)].slice(0, 3)) {
         try {
-          const wd = await fetchWikiApiJson(
+          const wdResult = await fetchWikiApiResult(
             `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions&languages=en&format=json&origin=*`,
             { label: `ddg→wikidata:${title}` }
           );
           await new Promise(r => setTimeout(r, 120));
-          if (!wd) continue;
-          const entity = Object.values(wd.entities || {}).find(e => e && !e.missing);
+          if (wdResult.error === 'rate_limited' || wdResult.error === 'transient') {
+            recordWikiFetchFailure(options, { source: 'duckduckgo-wikipedia', title, error: wdResult.error });
+            continue;
+          }
+          if (!wdResult.json) continue;
+          const entity = Object.values(wdResult.json.entities || {}).find(e => e && !e.missing);
+          if (!entity) continue;
+          const type = await recordWikiEntityType(entity, {
+            source: 'duckduckgo-wikipedia',
+            title,
+            mediaContext: options.mediaContext,
+            mediaKeyword: options.mediaKeyword,
+            typeChecks: options.typeChecks,
+            rejectedDomains: options.rejectedDomains
+          });
+          if (type.decision === 'reject' || type.decision === 'retry_needed') continue;
           const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
           const domain = claim ? extractUrlDomain(claim) : '';
           const description = entity?.descriptions?.en?.value || '';
@@ -2904,9 +3002,12 @@
               name: title,
               snippet: description || `${title} · via DuckDuckGo/Wikipedia`,
               sources: ['duckduckgo', 'wikipedia', 'wikidata'],
-              wikiProminence: typeof scoreWikidataProminence === 'function'
-                ? scoreWikidataProminence(entity, title, description)
-                : 40
+              wikiProminence: wikiProminenceNumeric(
+                typeof scoreWikidataProminence === 'function'
+                  ? scoreWikidataProminence(entity, title, description)
+                  : 40
+              ),
+              entityType: type
             });
           }
         } catch (_) { /* best-effort — never block on Wiki */ }
@@ -3025,7 +3126,7 @@
       return out;
     }
 
-    async function gatherWikipediaWikidataCandidates(companyName, cleaned) {
+    async function gatherWikipediaWikidataCandidates(companyName, cleaned, options = {}) {
       const out = [];
       const orgVariants = [];
       const pushQ = (q) => {
@@ -3062,15 +3163,20 @@
 
       for (const wq of orgVariants.slice(0, 6)) {
         try {
-          const openJson = await fetchWikiApiJson(
+          const openResult = await fetchWikiApiResult(
             `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=5&namespace=0&format=json&origin=*`,
             { label: `opensearch:${wq}` }
           );
-          if (!openJson) {
+          if (openResult.error === 'rate_limited' || openResult.error === 'transient') {
+            recordWikiFetchFailure(options, { source: 'wikipedia', title: wq, error: openResult.error });
             await new Promise(r => setTimeout(r, 200));
             continue;
           }
-          const titles = openJson[1] || [];
+          if (!openResult.json) {
+            await new Promise(r => setTimeout(r, 200));
+            continue;
+          }
+          const titles = openResult.json[1] || [];
           if (!titles.length) continue;
 
           const qTokens = wq.toLowerCase().split(/\s+/).filter(t => t.length > 2);
@@ -3086,27 +3192,43 @@
             .slice(0, 3);
 
           for (const { title } of rankedTitles) {
-            const wd = await fetchWikiApiJson(
+            const wdResult = await fetchWikiApiResult(
               `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions|labels&languages=en&format=json&origin=*`,
               { label: `wbgetentities:${title}` }
             );
             await new Promise(r => setTimeout(r, 120)); // pace Wiki requests during batches
-            if (!wd) continue;
-            const entity = Object.values(wd.entities || {}).find(e => e && !e.missing);
+            if (wdResult.error === 'rate_limited' || wdResult.error === 'transient') {
+              recordWikiFetchFailure(options, { source: 'wikipedia', title, error: wdResult.error });
+              continue;
+            }
+            if (!wdResult.json) continue;
+            const entity = Object.values(wdResult.json.entities || {}).find(e => e && !e.missing);
             if (!entity) continue;
+            const type = await recordWikiEntityType(entity, {
+              source: 'wikipedia',
+              title,
+              mediaContext: options.mediaContext,
+              mediaKeyword: options.mediaKeyword,
+              typeChecks: options.typeChecks,
+              rejectedDomains: options.rejectedDomains
+            });
+            if (type.decision === 'reject' || type.decision === 'retry_needed') continue;
             const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
             const domain = claim ? extractUrlDomain(claim) : '';
             const description = entity?.descriptions?.en?.value || '';
-            const prominence = typeof scoreWikidataProminence === 'function'
-              ? scoreWikidataProminence(entity, title, description)
-              : (description ? 20 : 10);
+            const prominence = wikiProminenceNumeric(
+              typeof scoreWikidataProminence === 'function'
+                ? scoreWikidataProminence(entity, title, description)
+                : (description ? 20 : 10)
+            );
             if (domain && domain.includes('.') && !domain.includes('wikipedia.org')) {
               out.push({
                 domain,
                 name: title,
                 snippet: description || `${title} · Wikipedia/Wikidata`,
                 sources: ['wikipedia', 'wikidata'],
-                wikiProminence: prominence
+                wikiProminence: prominence,
+                entityType: type
               });
             } else if (prominence >= 30) {
               out.push({
@@ -3114,7 +3236,8 @@
                 name: title,
                 snippet: description,
                 sources: ['wikidata'],
-                wikiProminence: prominence
+                wikiProminence: prominence,
+                entityType: type
               });
             }
           }
@@ -3131,7 +3254,7 @@
     async function rankCandidatesWithSignals(companyName, pool, options = {}) {
       const skipped = new Set((options.skippedDomains || []).map(d => String(d).toLowerCase()));
       const financeFilterActive = !!options.financeFilterActive;
-      const base = normalizeCandidates(pool).filter(c => c.domain && !skipped.has(c.domain));
+      const base = normalizeCandidates(pool).filter(c => c.domain && !skipped.has(c.domain) && c.entityType?.decision !== 'reject');
       if (!base.length) {
         return { best: null, ambiguous: true, candidates: [], ranked: [], soleFinanceMatch: false };
       }
@@ -3381,6 +3504,7 @@
           let snippet = '';
           let sources = [];
           let wikiProminence = 0;
+          let entityType = null;
           if (typeof item === 'string') {
             const s = item.trim();
             if (!s) continue;
@@ -3406,6 +3530,7 @@
               ? item.sources.slice()
               : (item.source ? [String(item.source)] : []);
             wikiProminence = Number(item.wikiProminence) || 0;
+            if (item.entityType) entityType = item.entityType;
           }
           if (!domain || !domain.includes('.') || domain.includes(' ')) continue;
           if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(domain)) continue;
@@ -3415,6 +3540,7 @@
             if (!prev.snippet && snippet) prev.snippet = snippet;
             prev.sources = [...new Set([...(prev.sources || []), ...sources])];
             prev.wikiProminence = Math.max(prev.wikiProminence || 0, wikiProminence);
+            if (!prev.entityType && entityType) prev.entityType = entityType;
             continue;
           }
           const entry = {
@@ -3422,7 +3548,8 @@
             name: name || domain,
             snippet: snippet && snippet !== name && snippet !== domain ? snippet : '',
             sources: [...new Set(sources)],
-            wikiProminence
+            wikiProminence,
+            entityType
           };
           byDomain.set(domain, entry);
           out.push(entry);
@@ -3435,7 +3562,7 @@
      * Always try to surface multiple website options for the picker.
      * Pads a thin candidate list from Clearbit + DuckDuckGo + Wikipedia/Wikidata.
      */
-    async function ensureWebsiteOptions(companyName, existing = [], primaryDomain = '', primaryMeta = {}) {
+    async function ensureWebsiteOptions(companyName, existing = [], primaryDomain = '', primaryMeta = {}, options = {}) {
       let list = normalizeCandidates(
         existing,
         primaryDomain
@@ -3462,8 +3589,8 @@
 
       const [cb, ddg, wiki] = await Promise.all([
         gatherClearbitCandidates(queries.slice(0, 3)),
-        gatherDuckDuckGoCandidates(companyName, cleaned),
-        gatherWikipediaWikidataCandidates(companyName, cleaned)
+        gatherDuckDuckGoCandidates(companyName, cleaned, options),
+        gatherWikipediaWikidataCandidates(companyName, cleaned, options)
       ]);
       list = normalizeCandidates(list, cb, ddg, wiki);
       return list.slice(0, 8);
@@ -3636,6 +3763,342 @@
       'Q163740', 'Q157031', 'Q708676', 'Q79913', 'Q780597', 'Q210167', 'Q4466083'
     ]);
 
+    // Entity-type guard (keep in sync with scripts/lib/entity-type-guard.mjs).
+    // Reject-first: empty / unlisted P31 is allowed so thin Wikidata orgs are not dropped.
+    const ACCEPT_ORG_P31 = new Set([
+      'Q43229', 'Q4830453', 'Q6881511', 'Q783794', 'Q167037', 'Q891723', 'Q1589009',
+      'Q134161', 'Q219577', 'Q15042660', 'Q18624259', 'Q6832945', 'Q42262', 'Q1542714',
+      'Q166280', 'Q15850065', 'Q117351609', 'Q728425', 'Q1341618', 'Q57653825', 'Q16726425',
+      'Q22687', 'Q56859', 'Q730038', 'Q2481236', 'Q161718', 'Q1947591', 'Q536518', 'Q6502418',
+      'Q1236912', 'Q12319666', 'Q778575', 'Q15980864', 'Q1687336', 'Q1236839', 'Q592888',
+      'Q5152546', 'Q2143354', 'Q1637408', 'Q613142', 'Q181289',
+      'Q327333', 'Q2659904', 'Q35798', 'Q7188', 'Q417662', 'Q16334295', 'Q11204', 'Q760074',
+      'Q3567216', 'Q1419105',
+      'Q163740', 'Q157031', 'Q79913', 'Q708676', 'Q4466083', 'Q48204', 'Q31855', 'Q1664720',
+      'Q780597', 'Q210167', 'Q33506', 'Q16917',
+      'Q3918', 'Q38723', 'Q875538', 'Q23002054', 'Q2385804', 'Q4671277', 'Q9826', 'Q189004',
+      'Q15936437', 'Q1371037', 'Q1321960', 'Q118865'
+    ]);
+    const REJECT_NON_ORG_P31 = new Set([
+      'Q5', 'Q215627', 'Q95074', 'Q15632617', 'Q22808320',
+      'Q532', 'Q3957', 'Q515', 'Q486972', 'Q56061', 'Q82794', 'Q3624078', 'Q6256', 'Q23442',
+      'Q4022', 'Q8502', 'Q23397', 'Q34763', 'Q123705', 'Q5084', 'Q7930989', 'Q2221906',
+      'Q618123', 'Q27096213', 'Q5107', 'Q15642541',
+      'Q1293220', 'Q28732711', 'Q937228', 'Q3695082', 'Q318', 'Q3863', 'Q523', 'Q11276',
+      'Q24676', 'Q11862829', 'Q21201', 'Q29028649', 'Q151885', 'Q331042', 'Q427581', 'Q23958852',
+      'Q17537576', 'Q11424', 'Q24856', 'Q5398426', 'Q15416', 'Q482994', 'Q7366', 'Q2188189',
+      'Q7725634', 'Q47461344', 'Q571', 'Q49032', 'Q1980247', 'Q7725310', 'Q13442814', 'Q191067',
+      'Q838948',
+      'Q1190554', 'Q1656682', 'Q186165', 'Q198', 'Q2334719', 'Q107597582', 'Q4504495', 'Q483247',
+      'Q4167410', 'Q13406463', 'Q19389637', 'Q4167836', 'Q14204246', 'Q11266439'
+    ]);
+    const REJECT_MEDIA_P31 = new Set([
+      'Q11032', 'Q41298', 'Q1616075', 'Q2001305', 'Q15242410', 'Q15265344', 'Q4438141',
+      'Q16145126', 'Q2085381', 'Q11033', 'Q98924065'
+    ]);
+    const MEDIA_CONTEXT_FIELD = 'personTitle';
+    const MEDIA_CONTEXT_KEYWORDS = [
+      'media', 'news', 'broadcast', 'publisher', 'publishing', 'press', 'editorial'
+    ];
+    const ENTITY_TYPE_NAME_STOP = new Set([
+      'the', 'and', 'of', 'a', 'an', 'for', 'in', 'on', 'at', 'to',
+      'inc', 'llc', 'ltd', 'corp', 'co', 'plc', 'gmbh', 'lp', 'llp'
+    ]);
+
+    function qidFromEntityType(value) {
+      const m = String(value || '').trim().match(/Q(\d+)/i);
+      return m ? `Q${m[1]}` : '';
+    }
+
+    function inspectMediaCompanyContext(personTitle) {
+      const haystack = String(personTitle || '');
+      const lower = haystack.toLowerCase();
+      const matchedKeyword = MEDIA_CONTEXT_KEYWORDS.find((keyword) => {
+        if (keyword === 'press') return /\bpress\b/i.test(lower);
+        return new RegExp(`\\b${keyword}`, 'i').test(lower);
+      }) || null;
+      return {
+        field: MEDIA_CONTEXT_FIELD,
+        haystack,
+        matchedKeyword: matchedKeyword || 'no match',
+        matched: !!matchedKeyword
+      };
+    }
+
+    function isMediaCompanyContext(personTitle) {
+      return inspectMediaCompanyContext(personTitle).matched;
+    }
+
+    function formatEntityTypeDebug(type, extra = {}) {
+      const p31 = (type?.matched || type?.p31 || []).filter(Boolean);
+      const p31Label = p31.length ? p31.join(', ') : '';
+      if (!type) {
+        return { outcome: 'allow_unknown', summary: 'allow_unknown — missing classification' };
+      }
+      if (type.decision === 'retry_needed') {
+        if (type.reason === 'rate_limited' || extra.rateLimited) {
+          return { outcome: 'retry_needed', summary: 'retry_needed — rate limited' };
+        }
+        return { outcome: 'retry_needed', summary: `retry_needed — ${type.reason || extra.transientReason || 'transient error'}` };
+      }
+      if (type.decision === 'accept') {
+        if (type.reason === 'p31_organization' || type.reason === 'p31_org_subclass') {
+          const via = type.via === 'subclass' ? ' (via subclass)' : '';
+          return { outcome: 'accept', summary: `accept — org class matched: ${p31Label}${via}` };
+        }
+        if (type.reason === 'p31_media_with_context') {
+          const kw = extra.mediaKeyword && extra.mediaKeyword !== 'no match' ? extra.mediaKeyword : 'matched';
+          return { outcome: 'accept', summary: `accept — media class with contact-title keyword: ${kw}` };
+        }
+        return { outcome: 'accept', summary: `accept — org class matched: ${p31Label || type.reason}` };
+      }
+      if (type.decision === 'allow_unknown') {
+        if (type.reason === 'no_p31') {
+          return { outcome: 'allow_unknown', summary: 'allow_unknown — empty P31' };
+        }
+        if (type.reason === 'p31_unlisted') {
+          return { outcome: 'allow_unknown', summary: `allow_unknown — unlisted legal form: ${type.p31.join(', ')}` };
+        }
+        return { outcome: 'allow_unknown', summary: `allow_unknown — ${type.reason}` };
+      }
+      const rejectIds = (type.matched || type.p31 || []).join(', ');
+      const via = type.via === 'subclass' ? ' (via subclass)' : '';
+      return { outcome: 'reject', summary: `reject — ${rejectIds} is a reject class${via}` };
+    }
+
+    function classifyEntityTypeFromP31(instanceIds, opts = {}) {
+      const p31 = [...new Set((instanceIds || []).map(qidFromEntityType).filter(Boolean))];
+      if (!p31.length) {
+        return { decision: 'allow_unknown', reason: 'no_p31', p31, matched: null };
+      }
+      const orgHits = p31.filter((id) => ACCEPT_ORG_P31.has(id));
+      if (orgHits.length) {
+        return { decision: 'accept', reason: 'p31_organization', p31, matched: orgHits };
+      }
+      const mediaHits = p31.filter((id) => REJECT_MEDIA_P31.has(id));
+      const rejectHits = p31.filter((id) => REJECT_NON_ORG_P31.has(id));
+      if (mediaHits.length && !rejectHits.length) {
+        if (opts.mediaContext) {
+          return { decision: 'accept', reason: 'p31_media_with_context', p31, matched: mediaHits };
+        }
+        return { decision: 'reject', reason: 'p31_media', p31, matched: mediaHits };
+      }
+      if (rejectHits.length) {
+        return { decision: 'reject', reason: 'p31_non_organization', p31, matched: rejectHits };
+      }
+      if (mediaHits.length) {
+        if (opts.mediaContext) {
+          return { decision: 'accept', reason: 'p31_media_with_context', p31, matched: mediaHits };
+        }
+        return { decision: 'reject', reason: 'p31_media', p31, matched: mediaHits };
+      }
+      return { decision: 'allow_unknown', reason: 'p31_unlisted', p31, matched: null };
+    }
+
+    const entityTypeSubclassCache = new Map();
+
+    function parentsFromEntityClaims(entity) {
+      return (entity?.claims?.P279 || [])
+        .map((c) => qidFromEntityType(c?.mainsnak?.datavalue?.value?.id))
+        .filter(Boolean);
+    }
+
+    async function getSubclassLevels(qid) {
+      const id = qidFromEntityType(qid);
+      if (!id) return [];
+      if (entityTypeSubclassCache.has(id)) return entityTypeSubclassCache.get(id);
+      const levels = [];
+      let frontier = [id];
+      const seen = new Set([id]);
+      for (let depth = 0; depth < 8 && frontier.length; depth++) {
+        const url = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${frontier.join('|')}&props=claims&format=json&origin=*`;
+        const result = await fetchWikiApiResult(url, { label: `p279:${id}:d${depth}` });
+        if (result.error) {
+          const err = new Error(result.error);
+          err.code = result.error;
+          throw err;
+        }
+        const level = [];
+        const next = [];
+        for (const fid of frontier) {
+          for (const parent of parentsFromEntityClaims(result.json?.entities?.[fid])) {
+            if (seen.has(parent)) continue;
+            seen.add(parent);
+            level.push(parent);
+            next.push(parent);
+          }
+        }
+        if (!level.length) break;
+        levels.push(level);
+        if (level.some((sid) => ACCEPT_ORG_P31.has(sid) || REJECT_MEDIA_P31.has(sid) || REJECT_NON_ORG_P31.has(sid))) break;
+        frontier = next;
+      }
+      entityTypeSubclassCache.set(id, levels);
+      return levels;
+    }
+
+    async function classifyEntityTypeWithSubclassWalk(instanceIds, opts = {}) {
+      const exact = classifyEntityTypeFromP31(instanceIds, opts);
+      if (exact.decision !== 'allow_unknown' || exact.reason !== 'p31_unlisted') {
+        return { ...exact, via: exact.reason === 'no_p31' ? 'empty_p31' : 'exact' };
+      }
+      const hits = [];
+      try {
+        for (const id of exact.p31) {
+          const levels = await getSubclassLevels(id);
+          for (let d = 0; d < levels.length; d++) {
+            for (const sid of levels[d]) {
+              if (ACCEPT_ORG_P31.has(sid)) hits.push({ depth: d + 1, kind: 'org', matched: sid });
+              if (REJECT_MEDIA_P31.has(sid)) hits.push({ depth: d + 1, kind: 'media', matched: sid });
+              if (REJECT_NON_ORG_P31.has(sid)) hits.push({ depth: d + 1, kind: 'reject', matched: sid });
+            }
+          }
+        }
+      } catch (e) {
+        return {
+          decision: 'retry_needed',
+          reason: e?.code === 'rate_limited' ? 'rate_limited' : 'transient',
+          p31: exact.p31,
+          matched: null,
+          via: 'subclass'
+        };
+      }
+      if (!hits.length) return { ...exact, via: 'subclass' };
+      const minD = Math.min(...hits.map((h) => h.depth));
+      const at = hits.filter((h) => h.depth === minD);
+      const org = [...new Set(at.filter((h) => h.kind === 'org').map((h) => h.matched))];
+      if (org.length) {
+        return { decision: 'accept', reason: 'p31_org_subclass', p31: exact.p31, matched: org, via: 'subclass', subclassDepth: minD };
+      }
+      const media = [...new Set(at.filter((h) => h.kind === 'media').map((h) => h.matched))];
+      const reject = [...new Set(at.filter((h) => h.kind === 'reject').map((h) => h.matched))];
+      if (media.length && !reject.length) {
+        if (opts.mediaContext) {
+          return { decision: 'accept', reason: 'p31_media_with_context', p31: exact.p31, matched: media, via: 'subclass', subclassDepth: minD };
+        }
+        return { decision: 'reject', reason: 'p31_media', p31: exact.p31, matched: media, via: 'subclass', subclassDepth: minD };
+      }
+      if (reject.length) {
+        return { decision: 'reject', reason: 'p31_non_organization', p31: exact.p31, matched: reject, via: 'subclass', subclassDepth: minD };
+      }
+      if (media.length) {
+        if (opts.mediaContext) {
+          return { decision: 'accept', reason: 'p31_media_with_context', p31: exact.p31, matched: media, via: 'subclass', subclassDepth: minD };
+        }
+        return { decision: 'reject', reason: 'p31_media', p31: exact.p31, matched: media, via: 'subclass', subclassDepth: minD };
+      }
+      return { ...exact, via: 'subclass' };
+    }
+
+    function distinctiveNameTokens(name, extra = []) {
+      const blob = [name, ...(extra || [])].filter(Boolean).join(' ').toLowerCase();
+      const parts = blob.split(/[^a-z0-9]+/).filter(Boolean);
+      const tokens = parts.filter((t) => t.length > 2 && !ENTITY_TYPE_NAME_STOP.has(t));
+      if (!tokens.length) {
+        const collapsed = parts.join('');
+        if (collapsed.length >= 2) tokens.push(collapsed);
+      }
+      return [...new Set(tokens)];
+    }
+
+    function namePageTokenOverlap(companyName, page = {}, extraContext = []) {
+      const tokens = distinctiveNameTokens(companyName, extraContext);
+      const blob = [page.title, page.meta, page.description, page.h1]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      const hits = tokens.filter((t) => blob.includes(t));
+      return {
+        tokens,
+        hits,
+        overlap: hits.length,
+        zero: tokens.length > 0 && hits.length === 0,
+        checked: tokens.length > 0 && blob.trim().length > 0
+      };
+    }
+
+    function parsePageIdentityFields(html) {
+      const text = String(html || '');
+      const title = (text.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] || '').trim();
+      const meta = (
+        text.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+        text.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i)?.[1] ||
+        ''
+      ).trim();
+      const og = (
+        text.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+        ''
+      ).trim();
+      const h1 = (text.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      return { title, meta: meta || og, h1 };
+    }
+
+    function wikiProminenceNumeric(prominence) {
+      if (prominence == null) return 0;
+      if (typeof prominence === 'number') return prominence;
+      return Number(prominence.score) || 0;
+    }
+
+    function domainKeyForTypeGuard(domain) {
+      return String(domain || '').toLowerCase().replace(/^www\./, '').split('/')[0];
+    }
+
+    function stripRejectedEntityDomains(candidates, rejected) {
+      if (!rejected || !rejected.size) return candidates || [];
+      return (candidates || []).filter((c) => {
+        const d = domainKeyForTypeGuard(c?.domain);
+        return d && !rejected.has(d);
+      });
+    }
+
+    function recordWikiFetchFailure(options, { source, title, error } = {}) {
+      if (!options) return;
+      const reason = error === 'rate_limited' ? 'rate_limited' : (error || 'transient');
+      options.incomplete = true;
+      options.incompleteReason = reason;
+      if (!Array.isArray(options.typeChecks)) return;
+      const formatted = formatEntityTypeDebug({ decision: 'retry_needed', reason });
+      options.typeChecks.push({
+        source: source || 'wikipedia',
+        title: title || '',
+        qid: '',
+        p31: [],
+        decision: 'retry_needed',
+        reason,
+        matched: null,
+        summary: formatted.summary
+      });
+    }
+
+    async function recordWikiEntityType(entity, options = {}) {
+      const instanceIds = claimInstanceIds(entity);
+      const type = await classifyEntityTypeWithSubclassWalk(instanceIds, { mediaContext: !!options.mediaContext });
+      const formatted = formatEntityTypeDebug(type, { mediaKeyword: options.mediaKeyword });
+      if (type.decision === 'retry_needed') {
+        options.incomplete = true;
+        options.incompleteReason = type.reason;
+      }
+      if (type.decision === 'reject' && options.rejectedDomains) {
+        const domain = claimOfficialDomain(entity);
+        if (domain) options.rejectedDomains.add(domainKeyForTypeGuard(domain));
+      }
+      if (Array.isArray(options.typeChecks)) {
+        options.typeChecks.push({
+          source: options.source || 'wikidata',
+          title: options.title || '',
+          qid: entity?.id || '',
+          p31: type.p31,
+          decision: type.decision,
+          reason: type.reason,
+          matched: type.matched,
+          via: type.via || null,
+          subclassDepth: type.subclassDepth || null,
+          summary: formatted.summary
+        });
+      }
+      return type;
+    }
+
     function claimAmount(entity, prop) {
       try {
         const v = entity?.claims?.[prop]?.[0]?.mainsnak?.datavalue?.value;
@@ -3694,7 +4157,7 @@
       return { score, employees, founded, reasons, description: desc };
     }
 
-    async function fetchWikidataEntitiesForName(companyName, cleanedName) {
+    async function fetchWikidataEntitiesForName(companyName, cleanedName, options = {}) {
       const queries = [companyName, cleanedName, `${companyName} company`, `${companyName} (company)`]
         .map(q => String(q || '').trim())
         .filter((q, i, arr) => q && q.length >= 2 && arr.indexOf(q) === i);
@@ -3702,15 +4165,20 @@
       const results = [];
       for (const wq of queries.slice(0, 3)) {
         try {
-          const openJson = await fetchWikiApiJson(
+          const openResult = await fetchWikiApiResult(
             `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=6&namespace=0&format=json&origin=*`,
             { label: `prominence-opensearch:${wq}` }
           );
-          if (!openJson) {
+          if (openResult.error === 'rate_limited' || openResult.error === 'transient') {
+            recordWikiFetchFailure(options, { source: 'wikidata-prominence', title: wq, error: openResult.error });
             await new Promise(r => setTimeout(r, 200));
             continue;
           }
-          const titles = openJson[1] || [];
+          if (!openResult.json) {
+            await new Promise(r => setTimeout(r, 200));
+            continue;
+          }
+          const titles = openResult.json[1] || [];
           if (!titles.length) continue;
 
           const qTokens = wq.toLowerCase().split(/\s+/).filter(t => t.length > 2);
@@ -3725,18 +4193,31 @@
           }).filter(x => x.titleScore >= 8).sort((a, b) => b.titleScore - a.titleScore);
 
           for (const { title, titleScore } of ranked.slice(0, 3)) {
-            const wd = await fetchWikiApiJson(
+            const wdResult = await fetchWikiApiResult(
               `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions|labels&languages=en&format=json&origin=*`,
               { label: `prominence-wb:${title}` }
             );
             await new Promise(r => setTimeout(r, 120));
-            if (!wd) continue;
-            const entity = Object.values(wd.entities || {}).find(e => e && e.claims && !e.missing);
+            if (wdResult.error === 'rate_limited' || wdResult.error === 'transient') {
+              recordWikiFetchFailure(options, { source: 'wikidata-prominence', title, error: wdResult.error });
+              continue;
+            }
+            if (!wdResult.json) continue;
+            const entity = Object.values(wdResult.json.entities || {}).find(e => e && e.claims && !e.missing);
             if (!entity) continue;
             const description = entity?.descriptions?.en?.value || '';
             const domain = claimOfficialDomain(entity);
             const prominence = scoreWikidataProminence(entity, title, description);
             const instanceIds = claimInstanceIds(entity);
+            const type = await recordWikiEntityType(entity, {
+              source: 'wikidata-prominence',
+              title,
+              mediaContext: options.mediaContext,
+              mediaKeyword: options.mediaKeyword,
+              typeChecks: options.typeChecks,
+              rejectedDomains: options.rejectedDomains
+            });
+            if (type.decision === 'reject' || type.decision === 'retry_needed') continue;
             results.push({
               title,
               titleScore,
@@ -3744,6 +4225,7 @@
               description,
               entity,
               instanceIds,
+              entityType: type,
               prominenceScore: prominence.score,
               prominenceReasons: prominence.reasons,
               employees: prominence.employees,
@@ -3770,7 +4252,7 @@
      * Prefer a clearly larger/more notable Wikidata entity's official site; if two are
      * similarly prominent, mark ambiguous (Potential) instead of guessing.
      */
-    async function crossCheckProminentDomain(companyName, candidateDomain, cleanedName, clearbitAlternatives = []) {
+      async function crossCheckProminentDomain(companyName, candidateDomain, cleanedName, clearbitAlternatives = [], options = {}) {
       const major = lookupMajorKnownFirm(companyName);
       const cand = String(candidateDomain || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
       if (major) {
@@ -3787,7 +4269,7 @@
       const key = companyKeyNorm(companyName);
       if (!key || key.length < 2) return null;
 
-      const wikiHits = await fetchWikidataEntitiesForName(companyName, cleanedName);
+      const wikiHits = await fetchWikidataEntitiesForName(companyName, cleanedName, options);
       const withDomain = wikiHits.filter(h => h.domain && h.domain.includes('.') && !h.domain.includes('wikipedia.org'));
       const prominent = withDomain
         .filter(h => h.prominenceScore >= 25 || h.employees >= 200 || (h.founded && h.founded <= 1995))
@@ -3995,7 +4477,8 @@
         industry: resolvedCtx.industry,
         location: resolvedCtx.location,
         foundedYear: resolvedCtx.foundedYear,
-        founded: resolvedCtx.founded
+        founded: resolvedCtx.founded,
+        mediaContext: !!resolvedCtx.mediaContext
       });
 
       try {
@@ -4248,6 +4731,11 @@ LIMIT 24`.trim();
       // Accumulates every Clearbit/search suggestion so the picker can show them
       // even when no single candidate passes strict verification.
       let gatheredCandidates = [];
+      const typeChecks = [];
+      let contentOverlapDebug = null;
+      const mediaInspect = inspectMediaCompanyContext(personContext?.personTitle);
+      const mediaContext = mediaInspect.matched;
+      const wikiTypeOpts = { mediaContext, mediaKeyword: mediaInspect.matchedKeyword, typeChecks, rejectedDomains: new Set(), incomplete: false };
 
       const store = (result) => {
         if (!result) {
@@ -4280,6 +4768,32 @@ LIMIT 24`.trim();
               alternativeDomains: merged.map(c => c.domain)
             };
           }
+        }
+        if (result && typeof result === 'object') {
+          if (!typeChecks.length && isTrustedCatalogueMethod(result.resolveMethod)) {
+            typeChecks.push({
+              source: result.resolveMethod,
+              decision: 'allow_catalogue',
+              reason: 'trusted_catalogue',
+              p31: [],
+              matched: null
+            });
+          }
+          result.entityTypeIncomplete = !isTrustedCatalogueMethod(result.resolveMethod) && (
+            !!wikiTypeOpts.incomplete || typeChecks.some((t) => t.decision === 'retry_needed')
+          );
+          result.resolutionDebug = {
+            pipelineVersion: RESOLVE_ENTITY_TYPE_VERSION,
+            mediaContext: {
+              field: mediaInspect.field,
+              matchedKeyword: mediaInspect.matchedKeyword,
+              matched: mediaInspect.matched,
+              haystack: mediaInspect.haystack
+            },
+            entityTypeChecks: typeChecks.slice(),
+            contentOverlap: contentOverlapDebug,
+            entityTypeIncomplete: !!result.entityTypeIncomplete
+          };
         }
         resolveCache.set(cacheKey, result);
         return result;
@@ -4522,20 +5036,22 @@ LIMIT 24`.trim();
         });
       }
 
-      const [cbPool, ddgPool, wikiPool] = await Promise.all([
-        gatherClearbitCandidates(nameOnlyQueries),
-        gatherDuckDuckGoCandidates(companyName, baseCleaned),
-        gatherWikipediaWikidataCandidates(companyName, baseCleaned)
-      ]);
+      const cbPool = await gatherClearbitCandidates(nameOnlyQueries);
+      const wikiPool = await gatherWikipediaWikidataCandidates(companyName, baseCleaned, wikiTypeOpts);
+      const ddgPool = await gatherDuckDuckGoCandidates(companyName, baseCleaned, wikiTypeOpts);
 
       gatheredCandidates = normalizeCandidates(gatheredCandidates, catalogueSeeds, govSeeds, cbPool, ddgPool, wikiPool);
+      gatheredCandidates = stripRejectedEntityDomains(gatheredCandidates, wikiTypeOpts.rejectedDomains);
 
       // Coverage gap: when every primary source is empty, try "[name] official website" web fallback
       // for picker candidates (not a scoring change — just something to show / verify).
       if (!gatheredCandidates.length) {
         console.log('[resolve] empty pool — official-website web fallback for', companyName);
         const fallback = await gatherOfficialWebsiteFallback(companyName);
-        gatheredCandidates = normalizeCandidates(gatheredCandidates, fallback);
+        gatheredCandidates = stripRejectedEntityDomains(
+          normalizeCandidates(gatheredCandidates, fallback),
+          wikiTypeOpts.rejectedDomains
+        );
       }
 
       // Optional person-context Clearbit pass for ambiguous names
@@ -4607,6 +5123,25 @@ LIMIT 24`.trim();
       const methodSources = [...new Set(ranked.best.sources || [])];
       const resolveMethod = methodSources.length ? methodSources.join('+') : 'multi-source';
       const soleFinanceMatch = !!ranked.soleFinanceMatch;
+      const wikiSourced = methodSources.includes('wikipedia') || methodSources.includes('wikidata');
+      const catalogueSourced = methodSources.includes('dictionary') || methodSources.includes('major-firm')
+        || methodSources.includes('learned') || methodSources.includes('dict-seed');
+      let downgradeUnverified = false;
+      let contentOverlapZero = false;
+      if (!wikiSourced && !catalogueSourced) {
+        contentOverlapDebug = await fetchDomainIdentityOverlap(
+          ranked.best.domain,
+          companyName,
+          [effectivePerson?.personTitle, effectivePerson?.personName]
+        );
+        if (contentOverlapDebug.checked && contentOverlapDebug.zero) {
+          downgradeUnverified = true;
+          contentOverlapZero = true;
+          console.log('[resolve] domain-guess zero token overlap → unverified', companyName, ranked.best.domain);
+        }
+      } else {
+        contentOverlapDebug = { skipped: true, reason: wikiSourced ? 'wikipedia_p31' : 'trusted_catalogue' };
+      }
 
       console.log(
         '[resolve] ranked', companyName, '->', ranked.best.domain,
@@ -4623,7 +5158,7 @@ LIMIT 24`.trim();
       // Weak / tied scores still return the best candidate + full pool for the picker.
       return store({
         domain: ranked.best.domain,
-        isUnsure: !clearsThreshold,
+        isUnsure: !clearsThreshold || downgradeUnverified,
         confidenceScore: score,
         confidenceSignals: ranked.best.signals || {},
         exactName: !!ranked.best.exactName,
@@ -4636,9 +5171,11 @@ LIMIT 24`.trim();
         resolveMethod,
         financeFilterActive,
         soleFinanceMatch,
-        decisiveMatch,
+        decisiveMatch: downgradeUnverified ? null : decisiveMatch,
         ambiguous: !!ranked.ambiguous,
-        fastPath: clearsThreshold && (ranked.best.exactName || methodSources.includes('wikidata') || soleFinanceMatch)
+        downgradeUnverified,
+        contentOverlapZero,
+        fastPath: !downgradeUnverified && clearsThreshold && (ranked.best.exactName || methodSources.includes('wikidata') || soleFinanceMatch)
       });
     }
 
@@ -5764,7 +6301,23 @@ LIMIT 24`.trim();
               `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qid}&props=claims&languages=en&format=json&origin=*`,
               { label: 'wd-enc-p112' }
             );
-            const founderIds = claimEntityIds(wd?.entities?.[qid], 'P112');
+            const entity = wd?.entities?.[qid];
+            const type = await classifyEntityTypeWithSubclassWalk(claimInstanceIds(entity), {
+              mediaContext: !!resolvedCtx.mediaContext
+            });
+            if (type.decision === 'reject' || type.decision === 'retry_needed') {
+              lastSkip = {
+                skipReason: 'encyclopedia skipped — entity type',
+                founderDebug: {
+                  entityType: type,
+                  searchName,
+                  pageTitle: page.title
+                }
+              };
+              console.log('[enrich] encyclopedia skipped — entity type', name, page.title, type.reason, type.p31);
+              return null;
+            }
+            const founderIds = claimEntityIds(entity, 'P112');
             if (founderIds.length) people = await resolveWikidataFounderPeople(founderIds);
           }
           const p112Names = people.map((p) => p.name).filter(Boolean);
@@ -5873,8 +6426,21 @@ LIMIT 24`.trim();
           if (!response.ok) return '';
           const json = await response.json();
           let chunk = '';
-          if (json.AbstractText) chunk += ` ${json.AbstractText}`;
-          if (json.Heading) chunk += ` ${json.Heading}`;
+          let skipWikiAbstract = false;
+          const absUrl = String(json.AbstractURL || '');
+          const wikiTitleMatch = absUrl.match(/wikipedia\.org\/wiki\/([^?#]+)/i);
+          if (wikiTitleMatch) {
+            const title = decodeURIComponent(wikiTitleMatch[1].replace(/_/g, ' '));
+            const wd = await fetchWikiApiJson(
+              `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims&languages=en&format=json&origin=*`,
+              { label: `ddg-abstract-p31:${title}` }
+            );
+            const entity = wd && Object.values(wd.entities || {}).find(e => e && !e.missing);
+            const type = await classifyEntityTypeWithSubclassWalk(claimInstanceIds(entity), { mediaContext: false });
+            if (type.decision === 'reject' || type.decision === 'retry_needed') skipWikiAbstract = true;
+          }
+          if (json.AbstractText && !skipWikiAbstract) chunk += ` ${json.AbstractText}`;
+          if (json.Heading && !skipWikiAbstract) chunk += ` ${json.Heading}`;
           if (Array.isArray(json.RelatedTopics)) {
             for (const topic of json.RelatedTopics.slice(0, 6)) {
               if (topic?.Text) chunk += ` ${topic.Text}`;
@@ -5909,10 +6475,18 @@ LIMIT 24`.trim();
         clearTimeout(t);
         if (wikiRes.ok) {
           const wiki = await wikiRes.json();
-          if (wiki?.extract) corpus += ` ${wiki.extract}`;
-          if (wiki?.description) corpus += ` ${wiki.description}`;
-          if (wiki?.coordinates) {
-            // ignore coords — not a city string
+          const wikiTitle = wiki?.title || name;
+          const wd = await fetchWikiApiJson(
+            `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(wikiTitle)}&props=claims&languages=en&format=json&origin=*`,
+            { label: `notes-p31:${wikiTitle}` }
+          );
+          const entity = wd && Object.values(wd.entities || {}).find(e => e && !e.missing);
+          const type = await classifyEntityTypeWithSubclassWalk(claimInstanceIds(entity), { mediaContext: false });
+          if (type.decision === 'reject' || type.decision === 'retry_needed') {
+            console.log('[enrich] skip wikipedia summary — entity type', name, wikiTitle, type.reason);
+          } else {
+            if (wiki?.extract) corpus += ` ${wiki.extract}`;
+            if (wiki?.description) corpus += ` ${wiki.description}`;
           }
         }
       } catch (_) { /* optional */ }
@@ -6266,7 +6840,8 @@ LIMIT 24`.trim();
         industry: enrichOpts.industry,
         location: enrichOpts.location,
         foundedYear: enrichOpts.foundedYear,
-        founded: enrichOpts.founded
+        founded: enrichOpts.founded,
+        mediaContext: !!enrichOpts.mediaContext || isMediaCompanyContext(enrichOpts.personTitle)
       };
 
       const blank = {
@@ -7622,7 +8197,7 @@ LIMIT 24`.trim();
         'candidates', 'savedCandidates', 'alternatives', 'alternativeDomains',
         'confidenceSignals', 'confidenceScore', 'decisiveMatch', 'industrySnippet',
         'skippedDomains', 'pickerOpen', 'candidatesUnconfirmed', 'selectionLocked',
-        'linkVerified', 'userConfirmedDomain', 'matchedName'
+        'linkVerified', 'userConfirmedDomain', 'matchedName', 'resolutionDebug', 'entityTypeIncomplete'
       ]);
 
       // Column widths persist separately in colWidths_v3, so resizing a column
@@ -8253,6 +8828,20 @@ LIMIT 24`.trim();
               release(rowId);
             };
 
+            const finishTypeCheckIncomplete = (fields) => {
+              updateRow(rowId, {
+                status: 'type_check_incomplete',
+                linkVerified: false,
+                selectionLocked: false,
+                pickerOpen: true,
+                candidatesUnconfirmed: true,
+                userConfirmedDomain: false,
+                entityTypeIncomplete: true,
+                ...fields
+              });
+              release(rowId);
+            };
+
             // Prefer Potential + picker over a dead-end Unverified whenever options exist
             const finishPotentialPicker = (fields) => {
               updateRow(rowId, {
@@ -8303,16 +8892,27 @@ LIMIT 24`.trim();
               let resolveMethod = rowToProcess.resolveMethod || 'name-only';
               let fastPath = false;
               let autoSelectNote = '';
+              let resolutionDebug = rowToProcess.resolutionDebug || null;
               const userConfirmed = !!rowToProcess.userConfirmedDomain;
               const skippedDomains = rowToProcess.skippedDomains || [];
+              const wikiTypeOpts = {
+                mediaContext: inspectMediaCompanyContext(personContext.personTitle).matched
+              };
 
               // Refresh all / per-row refresh: keep the website, skip identity, re-enrich fields only.
-              if (rowToProcess.refreshFieldsOnly && isDomainPrepopulated) {
+              // Refresh entity check is the opposite: re-run identity / wiki type check, do not keep a guessed site.
+              if (rowToProcess.refreshEntityCheckOnly) {
+                domain = '';
+                isDomainPrepopulated = false;
+                updateRow(rowId, { refreshEntityCheckOnly: false, refreshFieldsOnly: false, [webKey]: '' });
+              } else if (rowToProcess.refreshFieldsOnly && isDomainPrepopulated) {
                 updateRow(rowId, { status: 'enriching', refreshFieldsOnly: false });
                 const details = await enrichCompanyDetails(domain, companyName, null, {
                   nameVariants: rowToProcess.nameVariants || collectNameVariants(companyName, [rowToProcess.matchedName]),
                   industry: rowToProcess[indKey],
-                  location: rowToProcess[locKey]
+                  location: rowToProcess[locKey],
+                  mediaContext: wikiTypeOpts.mediaContext,
+                  personTitle: personContext.personTitle
                 });
                 const keepNotes = rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Refreshing fields...' && rowToProcess[noteKey] !== '-'
                   && !/Re-running enrichment|Queueing|Select the correct website|Pick a candidate/i.test(rowToProcess[noteKey])
@@ -8359,6 +8959,31 @@ LIMIT 24`.trim();
                   if (remainingDelay > 0) await new Promise(r => setTimeout(r, remainingDelay));
                 }
 
+                if (resolvedObj?.entityTypeIncomplete && !isTrustedCatalogueMethod(resolvedObj.resolveMethod)) {
+                  resolutionDebug = resolvedObj.resolutionDebug || resolutionDebug;
+                  const incompleteCandidates = normalizeCandidates(
+                    resolvedObj.candidates,
+                    resolvedObj.alternativeDomains,
+                    alternatives
+                  );
+                  finishTypeCheckIncomplete({
+                    [webKey]: '',
+                    [indKey]: '-',
+                    [hcKey]: '-',
+                    [locKey]: '-',
+                    [conKey]: '-',
+                    [genKey]: '-',
+                    [noteKey]: 'Entity type check did not finish',
+                    resolveMethod: resolvedObj.resolveMethod || resolveMethod,
+                    resolutionDebug,
+                    candidates: incompleteCandidates,
+                    savedCandidates: incompleteCandidates,
+                    showManualDomain: true,
+                    matchSnippet: resolvedObj.industrySnippet || resolvedObj.matchedName || ''
+                  });
+                  return;
+                }
+
                 if (resolvedObj && resolvedObj.domain) {
                   domain = resolvedObj.domain;
                   isUnsure = !!resolvedObj.isUnsure && !userConfirmed;
@@ -8367,6 +8992,27 @@ LIMIT 24`.trim();
                   alternatives = resolvedObj.alternatives || [];
                   resolveMethod = resolvedObj.resolveMethod || 'name-only';
                   fastPath = !!resolvedObj.fastPath || isKnownUnambiguousCompany(companyName);
+                  resolutionDebug = resolvedObj.resolutionDebug || resolutionDebug;
+                  if (resolvedObj.downgradeUnverified) {
+                    finishUnverified({
+                      [webKey]: domain,
+                      [indKey]: '-',
+                      [hcKey]: '-',
+                      [locKey]: '-',
+                      [conKey]: '-',
+                      [genKey]: '-',
+                      [noteKey]: [rowToProcess[noteKey] !== 'Queueing...' ? rowToProcess[noteKey] : '', 'Guessed website has no name overlap on the page'].filter(Boolean).join(' · '),
+                      resolveMethod,
+                      resolutionDebug: resolvedObj.resolutionDebug || null,
+                      candidates: [],
+                      savedCandidates: [],
+                      selectionLocked: false,
+                      pickerOpen: true,
+                      candidatesUnconfirmed: true,
+                      showManualDomain: true
+                    });
+                    return;
+                  }
                   const confidenceScore = Number(resolvedObj.confidenceScore) || 0;
                   const confidenceSignals = resolvedObj.confidenceSignals || null;
                   // 70–79 → Potential picker; 80+ (with guards) / catalogue@90+ → auto-Found
@@ -8407,7 +9053,8 @@ LIMIT 24`.trim();
                       companyName,
                       baseCandidates,
                       domain,
-                      { name: resolvedObj.matchedName || companyName, snippet: industrySnippet }
+                      { name: resolvedObj.matchedName || companyName, snippet: industrySnippet },
+                      wikiTypeOpts
                     );
                   }
 
@@ -8419,7 +9066,8 @@ LIMIT 24`.trim();
                     confidenceScore,
                     confidenceSignals,
                     matchedName: resolvedObj.matchedName || companyName,
-                    nameVariants: collectNameVariants(companyName, [resolvedObj.matchedName])
+                    nameVariants: collectNameVariants(companyName, [resolvedObj.matchedName]),
+                    resolutionDebug
                   });
                   const verification = await verifyDomainLive(domain, companyName, {
                     fastPath: fastPath && (strongRecommend || autoFound),
@@ -8427,7 +9075,7 @@ LIMIT 24`.trim();
                     allowDnsFail: trustedCatalogue && autoFound
                   });
                   if (!verification.ok) {
-                    const moreOpts = await ensureWebsiteOptions(companyName, candidates, '', {});
+                    const moreOpts = await ensureWebsiteOptions(companyName, candidates, '', {}, wikiTypeOpts);
                     if (moreOpts.length) {
                       finishPotentialPicker({
                         [webKey]: '',
@@ -8443,7 +9091,8 @@ LIMIT 24`.trim();
                         showManualDomain: false,
                         resolveMethod,
                         confidenceScore,
-                        confidenceSignals
+                        confidenceSignals,
+                        resolutionDebug
                       });
                     } else {
                       finishUnverified({
@@ -8525,7 +9174,8 @@ LIMIT 24`.trim();
                       candidates
                     ),
                     '',
-                    {}
+                    {},
+                    wikiTypeOpts
                   );
                   if (looseCandidates.length) {
                     finishPotentialPicker({
@@ -8539,7 +9189,8 @@ LIMIT 24`.trim();
                       candidates: looseCandidates,
                       savedCandidates: looseCandidates,
                       showManualDomain: false,
-                      resolveMethod: resolveMethod || 'multi-source'
+                      resolveMethod: resolveMethod || 'multi-source',
+                      resolutionDebug: resolvedObj?.resolutionDebug || resolutionDebug
                     });
                   } else {
                     finishUnverified({
@@ -8556,7 +9207,8 @@ LIMIT 24`.trim();
                       pickerOpen: true,
                       candidatesUnconfirmed: true,
                       showManualDomain: true,
-                      resolveMethod: resolveMethod || 'none'
+                      resolveMethod: resolveMethod || 'none',
+                      resolutionDebug: resolvedObj?.resolutionDebug || resolutionDebug
                     });
                   }
                   return;
@@ -8592,7 +9244,9 @@ LIMIT 24`.trim();
               const details = await enrichCompanyDetails(domain, companyName, apiData, {
                 nameVariants: rowToProcess.nameVariants || collectNameVariants(companyName, [rowToProcess.matchedName]),
                 industry: rowToProcess[indKey],
-                location: rowToProcess[locKey]
+                location: rowToProcess[locKey],
+                mediaContext: wikiTypeOpts.mediaContext,
+                personTitle: personContext.personTitle
               });
               const priorNotes = rowToProcess[noteKey] && rowToProcess[noteKey] !== 'Queueing...' && rowToProcess[noteKey] !== '-'
                 && !/Select the correct website|Pick a candidate|Select or enter a domain|Ambiguous matches|Candidates:|Possible matches|Enriching confirmed|Could not verify|Verifying selected domain|Queueing|Score \d+|Auto-selected/i.test(rowToProcess[noteKey])
@@ -8640,7 +9294,8 @@ LIMIT 24`.trim();
                 founderListCompleteness: details.founderListCompleteness || 'none',
                 genderGuardFired: !!details.genderGuardFired || !!details.founderDebug?.guardFired,
                 nameVariants: details.nameVariants || rowToProcess.nameVariants || [],
-                pipelineVersion: details.pipelineVersion || FOUNDERS_PIPELINE_VERSION
+                pipelineVersion: details.pipelineVersion || FOUNDERS_PIPELINE_VERSION,
+                resolutionDebug
               });
               release(rowId);
             } catch (err) {
@@ -8830,6 +9485,30 @@ LIMIT 24`.trim();
           })
           .map((r) => r.id);
         queueFieldRefresh(ids);
+      };
+
+      const queueEntityCheckRefresh = (rowIds) => {
+        const noteKey = getNotesColumnKey();
+        const webKey = getWebsiteColumnKey();
+        const compKey = getCompanyColumnKey();
+        const ids = (rowIds || []).filter((id) => id && !queue.includes(id) && !activeIds.includes(id));
+        if (!ids.length) return;
+        const idSet = new Set(ids);
+        setRows((prev) => prev.map((row) => {
+          if (!idSet.has(row.id)) return row;
+          const companyName = String(row[compKey] || '').trim();
+          clearResolveCacheForCompany(companyName);
+          return {
+            ...row,
+            status: 'pending',
+            refreshFieldsOnly: false,
+            refreshEntityCheckOnly: true,
+            entityTypeIncomplete: false,
+            [webKey]: '',
+            [noteKey]: 'Retrying entity type check...'
+          };
+        }));
+        setQueue((prev) => [...prev, ...ids]);
       };
 
       /**
@@ -9146,7 +9825,8 @@ LIMIT 24`.trim();
         searching: rows.filter(r => r.status === 'searching' || r.status === 'verifying' || r.status === 'enriching').length,
         found: rows.filter(r => r.status === 'found').length,
         potential: rows.filter(r => r.status === 'potential').length,
-        unverified: rows.filter(r => r.status === 'unverified').length
+        unverified: rows.filter(r => r.status === 'unverified').length,
+        typeIncomplete: rows.filter(r => r.status === 'type_check_incomplete').length
       };
 
       const totalCompleted = stats.total - stats.pending - stats.searching;
@@ -9455,6 +10135,12 @@ LIMIT 24`.trim();
                 <span className="stat-label">Unverified:</span>
                 <span className="stat-value" style={{ color: 'var(--error-text)' }}>{stats.unverified}</span>
               </div>
+              {stats.typeIncomplete > 0 && (
+                <div className="stat-item">
+                  <span className="stat-label">Type check:</span>
+                  <span className="stat-value" style={{ color: '#92400E' }}>{stats.typeIncomplete}</span>
+                </div>
+              )}
               <div className="stat-item">
                 <span className="stat-label">Queue:</span>
                 <span className="stat-value">{stats.pending + stats.searching}</span>
@@ -9647,8 +10333,24 @@ LIMIT 24`.trim();
                                     <span style={{ whiteSpace: 'normal', display: 'block', wordBreak: 'break-all' }}>Unverified</span>
                                   </span>
                                 )}
+                                {row.status === 'type_check_incomplete' && (
+                                  <span className="status-badge type-incomplete" title="Wikipedia/Wikidata type check did not finish after retries">
+                                    <AlertCircleIcon size={12} />
+                                    <span>Type check incomplete, retry</span>
+                                  </span>
+                                )}
                                 
-                                {!isRowProcessing && row.status !== 'pending' && (
+                                {!isRowProcessing && row.status === 'type_check_incomplete' && (
+                                  <button
+                                    className="btn"
+                                    style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', height: 'auto' }}
+                                    title="Re-run Wikipedia/Wikidata entity-type check (does not keep a guessed website)"
+                                    onClick={() => queueEntityCheckRefresh([row.id])}
+                                  >
+                                    Refresh entity check
+                                  </button>
+                                )}
+                                {!isRowProcessing && row.status !== 'pending' && row.status !== 'type_check_incomplete' && (
                                   <button 
                                     className="btn" 
                                     style={{ padding: '0.15rem 0.3rem', fontSize: '0.7rem', borderRadius: '4px', height: 'auto', border: 'none', background: 'transparent' }}
@@ -9704,7 +10406,7 @@ LIMIT 24`.trim();
                                     ) : col.key === webKey ? (
                                       (() => {
                                         const list = normalizeCandidates(row.candidates, row.savedCandidates);
-                                        const showPicker = (row.status === 'potential' || row.status === 'unverified' || row.pickerOpen) && !row.selectionLocked;
+                                        const showPicker = (row.status === 'potential' || row.status === 'unverified' || row.status === 'type_check_incomplete' || row.pickerOpen) && !row.selectionLocked;
                                         const isFoundLocked = row.status === 'found' && row.linkVerified !== false && row.selectionLocked && !row.pickerOpen;
                                         const isFoundLink = row.status === 'found' && row.linkVerified !== false && row[col.key] && row[col.key] !== '-';
 

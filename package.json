@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:hard-sample": "node scripts/test-hard-sample-resolution.mjs",
+    "test:entity-type": "node scripts/test-entity-type-guard.mjs",
     "test:enrichment": "node scripts/test-enrichment-quality.mjs",
     "test:generic": "node scripts/test-generic-enrichment.mjs",
     "test:identity-industry": "node scripts/test-identity-industry.mjs",

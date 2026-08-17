@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "hard-sample-resolution",
-  "description": "Permanent regression fixture for name-only website resolution. Emphasizes harder categories (law, foundations, regional banks, legacy brands, government) plus curated PE/advisory names — not just household tech brands.",
+  "description": "Permanent regression fixture for name-only website resolution. Emphasizes harder categories (law, foundations, regional banks, legacy brands, government) plus curated PE/advisory names — not just household tech brands. Non-organization Wikipedia collisions (concept / disambiguation / place) are covered separately by fixtures/entity-type-guard-regression.json using the shared P31 classifier.",
   "baseline": {
     "top1MinPercent": 85,
     "notes": "Exit non-zero if top-1 accuracy falls below this floor. SEC may be Potential (ambiguous multi-jurisdiction) but top pick must still be sec.gov."

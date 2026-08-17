@@ -5,6 +5,13 @@
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import {
+  classifyEntityTypeWithSubclassWalk,
+  formatEntityTypeDebug,
+  fetchWithBackoff,
+  clearEntityTypeSubclassCache,
+  ENTITY_TYPE_GUARD_VERSION
+} from './entity-type-guard.mjs';
 
 const CONFIDENCE_THRESHOLD = 70;
 // 80: wiki-less Clearbit+DNS correct matches commonly land ~81; 90 was too strict under Wiki 429s.
@@ -440,24 +447,82 @@ async function dnsOk(domain) {
   }
 }
 
-async function fetchWikiApiJson(url, label = 'wiki') {
-  try {
-    let res = await fetch(url);
-    if (res.status === 429) {
-      const waitMs = 900 + Math.floor(Math.random() * 500);
-      console.warn(`[wiki] 429 on ${label}, backoff ${waitMs}ms`);
-      await new Promise((r) => setTimeout(r, waitMs));
-      res = await fetch(url);
-    }
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
+function claimInstanceIds(entity) {
+  return (entity?.claims?.P31 || [])
+    .map((c) => c?.mainsnak?.datavalue?.value?.id)
+    .filter(Boolean);
+}
+
+function domainKey(domain) {
+  return String(domain || '').toLowerCase().replace(/^www\./, '').split('/')[0];
+}
+
+function stripRejectedEntityDomains(pool, rejected) {
+  if (!rejected || !rejected.size) return pool || [];
+  return (pool || []).filter((c) => {
+    const d = domainKey(c?.domain);
+    return d && !rejected.has(d);
+  });
+}
+
+function pushRetryNeeded(typeState, { source, title, error }) {
+  const reason = error === 'rate_limited' ? 'rate_limited' : (error || 'transient');
+  typeState.incomplete = true;
+  const formatted = formatEntityTypeDebug({ decision: 'retry_needed', reason });
+  typeState.checks.push({
+    source: source || 'wikipedia',
+    title: title || '',
+    qid: '',
+    p31: [],
+    decision: 'retry_needed',
+    reason,
+    matched: null,
+    summary: formatted.summary
+  });
+}
+
+async function wikiEntityAllowed(entity, title, typeState, source) {
+  const type = await classifyEntityTypeWithSubclassWalk(claimInstanceIds(entity), {
+    mediaContext: false,
+    forceFresh: !!typeState.forceFresh
+  });
+  const formatted = formatEntityTypeDebug(type);
+  typeState.checks.push({
+    source,
+    title,
+    qid: entity?.id || '',
+    p31: type.p31,
+    decision: type.decision,
+    reason: type.reason,
+    matched: type.matched,
+    via: type.via || null,
+    summary: formatted.summary
+  });
+  if (type.decision === 'retry_needed') {
+    typeState.incomplete = true;
+    return false;
+  }
+  if (type.decision === 'reject') {
+    const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
+    const domain = claim ? extractUrlDomain(claim) : '';
+    if (domain) typeState.rejectedDomains.add(domainKey(domain));
+    return false;
+  }
+  return true;
+}
+
+async function fetchWikiApiJson(url, label = 'wiki', typeState = null, title = '') {
+  const result = await fetchWithBackoff(url, { label });
+  if (result.error === 'rate_limited' || result.error === 'transient') {
+    if (typeState) pushRetryNeeded(typeState, { source: 'wikipedia', title: title || label, error: result.error });
     return null;
   }
+  return result.json;
 }
 
 export function shouldAutoFound(resolved) {
   if (!resolved?.domain || resolved.ambiguous) return false;
+  if (resolved.entityTypeIncomplete) return false;
   const score = Number(resolved.score ?? resolved.confidenceScore) || 0;
   const method = String((resolved.sources || [])[0] || resolved.resolveMethod || '');
   const sources = resolved.sources || [];
@@ -604,7 +669,7 @@ async function gatherClearbit(queries) {
   return normalizeCandidates(out);
 }
 
-async function gatherDuckDuckGo(companyName, cleaned) {
+async function gatherDuckDuckGo(companyName, cleaned, typeState) {
   const out = [];
   const queries = [
     cleaned,
@@ -637,11 +702,14 @@ async function gatherDuckDuckGo(companyName, cleaned) {
           const title = decodeURIComponent(wikiTitleMatch[1].replace(/_/g, ' '));
           const wd = await fetchWikiApiJson(
             `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions&languages=en&format=json&origin=*`,
-            `ddg→wd:${title}`
+            `ddg→wd:${title}`,
+            typeState,
+            title
           );
           await new Promise((r) => setTimeout(r, 120));
           if (wd) {
             const entity = Object.values(wd.entities || {}).find(e => e && !e.missing);
+            if (!entity || !(await wikiEntityAllowed(entity, title, typeState, 'duckduckgo-wikipedia'))) continue;
             const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
             const domain = claim ? extractUrlDomain(claim) : '';
             if (domain && !domain.includes('wikipedia.org')) {
@@ -675,7 +743,7 @@ function scoreWikidataProminenceLite(entity, title, description) {
   return score;
 }
 
-async function gatherWikipedia(companyName, cleaned) {
+async function gatherWikipedia(companyName, cleaned, typeState) {
   const out = [];
   const queries = [
     companyName,
@@ -691,7 +759,9 @@ async function gatherWikipedia(companyName, cleaned) {
     try {
       const openJson = await fetchWikiApiJson(
         `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wq)}&limit=5&namespace=0&format=json&origin=*`,
-        `opensearch:${wq}`
+        `opensearch:${wq}`,
+        typeState,
+        wq
       );
       if (!openJson) {
         await new Promise((r) => setTimeout(r, 200));
@@ -703,12 +773,15 @@ async function gatherWikipedia(companyName, cleaned) {
         seen.add(title);
         const wd = await fetchWikiApiJson(
           `https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${encodeURIComponent(title)}&props=claims|descriptions&languages=en&format=json&origin=*`,
-          `wb:${title}`
+          `wb:${title}`,
+          typeState,
+          title
         );
         await new Promise((r) => setTimeout(r, 120));
         if (!wd) continue;
         const entity = Object.values(wd.entities || {}).find(e => e && !e.missing);
         if (!entity) continue;
+        if (!(await wikiEntityAllowed(entity, title, typeState, 'wikipedia'))) continue;
         const claim = entity?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
         const domain = claim ? extractUrlDomain(claim) : '';
         const description = entity?.descriptions?.en?.value || '';
@@ -893,6 +966,7 @@ export function domainMatches(got, expected, aliases = []) {
 export async function resolveHard(name, options = {}) {
   const financeFilterActive = !!options.financeFilterActive;
   const skipDictionary = !!options.skipDictionary;
+  if (options.forceFresh) clearEntityTypeSubclassCache();
 
   // Learned corrections (committed data/learned-corrections.json) — same priority as live app
   try {
@@ -1019,22 +1093,52 @@ export async function resolveHard(name, options = {}) {
     ? [{ domain: dictSoft.domain, name, snippet: 'Catalogue', sources: ['dictionary', 'dict-seed'] }]
     : [];
 
-  const [cb, ddg, wiki] = await Promise.all([
-    gatherClearbit(queries),
-    gatherDuckDuckGo(name, cleaned),
-    gatherWikipedia(name, cleaned)
-  ]);
-  let pool = normalizeCandidates(dictSeeds, govSeeds, cb, ddg, wiki);
+  const typeState = { checks: [], rejectedDomains: new Set(), incomplete: false, forceFresh: !!options.forceFresh };
+  const cb = await gatherClearbit(queries);
+  const wiki = await gatherWikipedia(name, cleaned, typeState);
+  const ddg = await gatherDuckDuckGo(name, cleaned, typeState);
+  let pool = stripRejectedEntityDomains(
+    normalizeCandidates(dictSeeds, govSeeds, cb, ddg, wiki),
+    typeState.rejectedDomains
+  );
   if (!pool.length) {
     const fallback = await gatherOfficialWebsiteFallback(name);
-    pool = normalizeCandidates(fallback);
+    pool = stripRejectedEntityDomains(normalizeCandidates(fallback), typeState.rejectedDomains);
   }
   if (!pool.length) {
-    return { domain: null, confidence: 'none', score: 0, candidates: [], sources: [], financeFilterActive };
+    const entityTypeIncomplete = !!typeState.incomplete || typeState.checks.some((t) => t.decision === 'retry_needed');
+    return {
+      domain: null,
+      confidence: 'none',
+      score: 0,
+      candidates: [],
+      sources: [],
+      financeFilterActive,
+      entityTypeIncomplete,
+      resolutionDebug: {
+        pipelineVersion: ENTITY_TYPE_GUARD_VERSION,
+        entityTypeChecks: typeState.checks.slice(),
+        entityTypeIncomplete
+      }
+    };
   }
   const ranked = await rankPool(name, pool, { financeFilterActive });
   if (!ranked.best) {
-    return { domain: null, confidence: 'none', score: 0, candidates: ranked.candidates, sources: [], financeFilterActive };
+    const entityTypeIncomplete = !!typeState.incomplete || typeState.checks.some((t) => t.decision === 'retry_needed');
+    return {
+      domain: null,
+      confidence: 'none',
+      score: 0,
+      candidates: ranked.candidates,
+      sources: [],
+      financeFilterActive,
+      entityTypeIncomplete,
+      resolutionDebug: {
+        pipelineVersion: ENTITY_TYPE_GUARD_VERSION,
+        entityTypeChecks: typeState.checks.slice(),
+        entityTypeIncomplete
+      }
+    };
   }
   let best = ranked.best;
   let ambiguous = ranked.ambiguous;
@@ -1051,9 +1155,10 @@ export async function resolveHard(name, options = {}) {
   }
   const score = best.totalScore || 0;
   const clears = (score >= CONFIDENCE_THRESHOLD && !ambiguous) || !!decisiveMatch;
+  const entityTypeIncomplete = !!typeState.incomplete || typeState.checks.some((t) => t.decision === 'retry_needed');
   return {
     domain: best.domain,
-    confidence: clears ? 'high' : 'low',
+    confidence: clears && !entityTypeIncomplete ? 'high' : 'low',
     score,
     ambiguous,
     exactName: !!best.exactName,
@@ -1065,8 +1170,14 @@ export async function resolveHard(name, options = {}) {
     resolveMethod: (best.sources || [])[0] || 'multi-source',
     financeFilterActive,
     soleFinanceMatch: !!ranked.soleFinanceMatch,
-    decisiveMatch,
-    dnsOk: best.dnsOk
+    decisiveMatch: entityTypeIncomplete ? null : decisiveMatch,
+    dnsOk: best.dnsOk,
+    entityTypeIncomplete,
+    resolutionDebug: {
+      pipelineVersion: ENTITY_TYPE_GUARD_VERSION,
+      entityTypeChecks: typeState.checks.slice(),
+      entityTypeIncomplete
+    }
   };
 }
 
